@@ -1,0 +1,230 @@
+/* ============================================================
+   OrgPerm — 组织与权限管理模块 · 样式表
+   独立 CSS，无外部依赖，可直接放入任何项目
+   ============================================================ */
+
+/* ----- 全局重置（作用域内） ----- */
+.orgperm *, .orgperm *::before, .orgperm *::after {
+  margin: 0; padding: 0; box-sizing: border-box;
+}
+.orgperm {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 14px; color: #1e293b; line-height: 1.6;
+}
+
+/* ----- 登录遮罩 ----- */
+.orgperm-login-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #7c3aed 100%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9998;
+}
+.orgperm-login-overlay.hidden { display: none; }
+.orgperm-login-box {
+  background: #fff; border-radius: 16px; padding: 40px 36px;
+  width: 400px; max-width: 92%; box-shadow: 0 24px 80px rgba(0,0,0,.25);
+  animation: orgperm-fadeIn .4s ease;
+}
+@keyframes orgperm-fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.orgperm-login-logo {
+  font-size: 20px; font-weight: 700; color: #1e293b;
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+}
+.orgperm-login-logo-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+}
+.orgperm-login-sub {
+  font-size: 13px; color: #94a3b8; margin-bottom: 24px;
+}
+.orgperm-login-field {
+  margin-bottom: 16px;
+}
+.orgperm-login-field label {
+  display: block; font-size: 13px; color: #475569; margin-bottom: 6px; font-weight: 500;
+}
+.orgperm-login-field input {
+  width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px;
+  font-size: 14px; outline: none; transition: border-color .15s;
+  background: #f8fafc; color: #1e293b;
+}
+.orgperm-login-field input:focus { border-color: #2563eb; background: #fff; }
+.orgperm-login-error {
+  color: #dc2626; font-size: 12px; margin-bottom: 12px; padding: 8px 12px;
+  background: #fef2f2; border-radius: 6px; display: none;
+}
+.orgperm-login-btn {
+  width: 100%; padding: 11px; background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff; border: none; border-radius: 8px; font-size: 15px;
+  font-weight: 600; cursor: pointer; transition: opacity .15s;
+}
+.orgperm-login-btn:hover { opacity: .9; }
+.orgperm-login-hint {
+  text-align: center; font-size: 11px; color: #94a3b8; margin-top: 16px;
+}
+
+/* ----- 用户头像区域 ----- */
+.orgperm-user-header {
+  display: flex; align-items: center; position: relative;
+}
+.orgperm-hu-trigger {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 4px 8px; border-radius: 8px; transition: background .15s;
+}
+.orgperm-hu-trigger:hover, .orgperm-hu-trigger.open { background: #f1f5f9; }
+.orgperm-hu-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%; color: #fff;
+  font-size: 13px; font-weight: 600; flex-shrink: 0;
+}
+.orgperm-hu-name { font-size: 13px; font-weight: 500; color: #1e293b; }
+.orgperm-hu-role {
+  font-size: 11px; padding: 1px 7px; border-radius: 10px; font-weight: 500;
+}
+.orgperm-hu-arrow { font-size: 10px; color: #94a3b8; }
+.orgperm-hu-dropdown {
+  position: absolute; top: 100%; right: 0; margin-top: 6px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.1); min-width: 160px;
+  z-index: 1000; overflow: hidden;
+}
+.orgperm-hu-drop-item {
+  padding: 10px 16px; font-size: 13px; cursor: pointer; transition: background .1s;
+  color: #334155; white-space: nowrap;
+}
+.orgperm-hu-drop-item:hover { background: #f8fafc; color: #2563eb; }
+.orgperm-hu-drop-divider {
+  height: 1px; background: #e2e8f0; margin: 4px 0;
+}
+
+/* ----- 通用 Modal ----- */
+.orgperm-modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 9999; display: flex; align-items: center; justify-content: center;
+}
+.orgperm-modal-bg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,.4);
+}
+.orgperm-modal-box {
+  position: relative; background: #fff; border-radius: 12px;
+  padding: 24px 28px; max-width: 780px; width: 92%;
+  max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.15);
+  animation: orgperm-fadeIn .25s ease;
+}
+
+/* ----- 表单 ----- */
+.orgperm-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+}
+.orgperm-form-group {
+  margin-bottom: 12px;
+}
+.orgperm-form-group label {
+  display: block; font-size: 13px; color: #334155; margin-bottom: 6px; font-weight: 500;
+}
+.orgperm-form-group label .orgperm-required { color: #dc2626; }
+.orgperm-input, .orgperm-select {
+  width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
+  font-size: 14px; outline: none; color: #1e293b; background: #fff;
+  transition: border-color .15s;
+}
+.orgperm-input:focus, .orgperm-select:focus { border-color: #2563eb; }
+.orgperm-select { cursor: pointer; }
+
+/* ----- 按钮 ----- */
+.orgperm-btn {
+  padding: 7px 16px; border-radius: 6px; font-size: 13px; cursor: pointer;
+  border: none; font-weight: 500; transition: all .15s;
+}
+.orgperm-btn-primary { background: #2563eb; color: #fff; }
+.orgperm-btn-primary:hover { background: #1d4ed8; }
+.orgperm-btn-secondary { background: #fff; color: #64748b; border: 1px solid #e2e8f0; }
+.orgperm-btn-secondary:hover { background: #f8fafc; }
+.orgperm-btn-danger { background: #fff; color: #dc2626; border: 1px solid #fee2e2; }
+.orgperm-btn-danger:hover { background: #fef2f2; }
+.orgperm-btn-sm { padding: 3px 7px; font-size: 11px; border-radius: 4px; }
+.orgperm-btn-xs { padding: 2px 6px; font-size: 10px; border-radius: 3px; }
+
+/* ----- 表格 ----- */
+.orgperm-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.orgperm-table thead tr { border-bottom: 2px solid #e2e8f0; text-align: left; }
+.orgperm-table th { padding: 8px 6px; color: #64748b; font-size: 12px; font-weight: 500; }
+.orgperm-table td { padding: 8px 6px; }
+.orgperm-table tbody tr { border-bottom: 1px solid #f1f5f9; }
+.orgperm-table tbody tr:hover { background: #f8fafc; }
+
+/* ----- 标签/Badge ----- */
+.orgperm-badge {
+  display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;
+}
+.orgperm-text-muted { color: #94a3b8; font-size: 12px; }
+.orgperm-text-sm { font-size: 12px; color: #64748b; }
+
+/* ----- 弹窗标题 ----- */
+.orgperm-modal-title {
+  font-size: 16px; font-weight: 600; margin: 0 0 16px 0;
+}
+.orgperm-modal-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.orgperm-modal-footer {
+  margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end;
+  padding-top: 12px; border-top: 1px solid #e2e8f0;
+}
+
+/* ----- 管理面板 ----- */
+.orgperm-panel {
+  background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; padding: 20px;
+}
+.orgperm-panel-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.orgperm-panel-title { font-size: 16px; font-weight: 600; }
+.orgperm-empty-state {
+  text-align: center; padding: 32px; color: #94a3b8;
+}
+
+/* ----- 角色管理卡片 ----- */
+.orgperm-role-card {
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px; margin-bottom: 8px;
+}
+.orgperm-role-card .orgperm-role-color {
+  width: 36px; height: 36px; border-radius: 8px; display: flex;
+  align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px;
+}
+.orgperm-role-card .orgperm-role-info { flex: 1; }
+.orgperm-role-card .orgperm-role-name { font-weight: 600; font-size: 14px; }
+.orgperm-role-card .orgperm-role-meta { font-size: 12px; color: #64748b; }
+.orgperm-role-card .orgperm-system-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 4px;
+  background: #f1f5f9; color: #64748b;
+}
+
+/* ----- Tab 切换 ----- */
+.orgperm-tabs {
+  display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px;
+}
+.orgperm-tab {
+  padding: 8px 20px; cursor: pointer; font-size: 13px; color: #64748b;
+  border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s;
+}
+.orgperm-tab:hover { color: #1e293b; }
+.orgperm-tab.active { color: #2563eb; border-bottom-color: #2563eb; font-weight: 500; }
+
+/* ----- Toast 消息 ----- */
+.orgperm-toast {
+  position: fixed; top: 16px; right: 16px; z-index: 10000;
+  padding: 10px 18px; border-radius: 8px; font-size: 13px; color: #fff;
+  animation: orgperm-fadeIn .3s ease;
+}
+.orgperm-toast-success { background: #16a34a; }
+.orgperm-toast-error { background: #dc2626; }
+.orgperm-toast-info { background: #2563eb; }

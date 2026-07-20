@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>潜力产品销售分析仪表板 V13 · 精简版+V11视觉</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root {
+  --primary: #1a56db; --primary-light: #e8f0fe;
+  --danger: #e02424; --danger-light: #fde8e8;
+  --success: #057a55; --success-light: #def7ec;
+  --warning: #c27803; --warning-light: #fdf6b2;
+  --bg: #f3f4f6; --card: #ffffff; --border: #e5e7eb;
+  --text: #111827; --text-sub: #6b7280;
+  --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; color: var(--text); font-size: 14px; }
+
+.header { background: linear-gradient(135deg, #1e3a5f 0%, #0f2440 100%); color: #fff; padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.header h1 { font-size: 19px; font-weight: 700; }
+.header .subtitle { font-size: 12px; opacity: .7; margin-top: 2px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.upload-btn { background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3); color: #fff; padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; transition: background .2s; white-space: nowrap; }
+.upload-btn:hover { background: rgba(255,255,255,.25); }
+#fileInput { display: none; }
+
+.view-toggle { display: flex; background: rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; }
+.view-toggle button { padding: 6px 14px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; background: transparent; color: rgba(255,255,255,.7); transition: all .2s; white-space: nowrap; }
+.view-toggle button.active { background: #fff; color: #1e3a5f; }
+
+.nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 28px; display: flex; gap: 2px; overflow-x: auto; }
+.nav-tab { padding: 13px 16px; cursor: pointer; font-size: 12.5px; font-weight: 500; color: var(--text-sub); border-bottom: 3px solid transparent; transition: all .2s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+.nav-tab:hover { color: var(--primary); }
+.nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.nav-tab .tab-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+
+.main { padding: 20px 28px; max-width: 1600px; }
+.page { display: none; }
+.page.active { display: block; }
+
+/* 统一下钻筛选条 */
+.cascade-bar { background: var(--card); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; box-shadow: var(--shadow); border-left: 4px solid var(--primary); }
+.cascade-group { display: flex; flex-direction: column; }
+.cascade-group label { font-size: 10.5px; color: var(--text-sub); margin-bottom: 3px; font-weight: 600; }
+.cascade-bar select { border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; font-size: 12.5px; background: #fff; color: var(--text); min-width: 130px; outline: none; cursor: pointer; transition: border .2s; }
+.cascade-bar select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,86,219,.15); }
+.cascade-bar .arrow { font-size: 14px; color: var(--text-sub); align-self: center; margin-bottom: 6px; }
+.cascade-reset { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 8px 14px; cursor: pointer; font-size: 12px; color: var(--text-sub); align-self: flex-end; transition: all .2s; }
+.cascade-reset:hover { background: #e5e7eb; color: var(--text); }
+.cascade-hint { font-size: 10px; color: var(--primary); margin-left: auto; align-self: center; }
+.cascade-hint .level-tag { display: inline-block; background: var(--primary-light); padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+
+.filter-bar { background: var(--card); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; box-shadow: var(--shadow); }
+.filter-group { display: flex; flex-direction: column; }
+.filter-group label { font-size: 10.5px; color: var(--text-sub); margin-bottom: 2px; font-weight: 600; }
+.filter-bar select, .filter-bar input { border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; font-size: 12px; background: #fff; color: var(--text); min-width: 120px; outline: none; }
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--primary); }
+.btn-reset { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 6px 12px; cursor: pointer; font-size: 11px; color: var(--text-sub); align-self: flex-end; }
+.btn-reset:hover { background: #e5e7eb; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.kpi-card { background: var(--card); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); position: relative; }
+.kpi-card .kpi-label { font-size: 10.5px; color: var(--text-sub); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.kpi-card .kpi-value { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.kpi-card .kpi-sub { font-size: 10.5px; color: var(--text-sub); margin-top: 3px; }
+
+.alert-bar { background: var(--card); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 18px; box-shadow: var(--shadow); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; display: none; }
+.alert-bar.show { display: flex; }
+.alert-item { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.alert-risk { background: #fee2e2; color: #991b1b; }
+.alert-warn { background: #fef3c7; color: #92400e; }
+.alert-good { background: #d1fae5; color: #065f46; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 1100px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+.card { background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.card-title { font-size: 13.5px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+.card-title .tag { font-size: 10px; font-weight: 500; background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 20px; }
+
+.chart-wrap { position: relative; }
+.chart-wrap canvas { max-height: 280px; }
+.chart-wrap.tall canvas { max-height: 380px; }
+
+/* Heatmap - 使用更清晰的5级颜色 */
+.heatmap-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.heatmap-table th { background: #f9fafb; padding: 7px 8px; text-align: center; border: 1px solid var(--border); font-weight: 600; white-space: nowrap; }
+.heatmap-table th:first-child { text-align: left; min-width: 90px; }
+.heatmap-table td { padding: 6px 8px; border: 1px solid var(--border); text-align: center; font-weight: 500; }
+.heatmap-table td:first-child { text-align: left; background: #f9fafb; font-weight: 600; }
+.heat-0 { background: #f1f5f9; color: #94a3b8; }
+.heat-1 { background: #fef9c3; color: #854d0e; }  /* 黄 */
+.heat-2 { background: #fde68a; color: #92400e; }  /* 橙黄 */
+.heat-3 { background: #fb923c; color: #fff; }     /* 橙 */
+.heat-4 { background: #10b981; color: #fff; }     /* 绿 */
+.heat-5 { background: #059669; color: #fff; }     /* 深绿 */
+
+.rank-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rank-table th { background: #f9fafb; padding: 8px 10px; text-align: left; font-size: 11px; color: var(--text-sub); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.rank-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+
+/* 产品标签 chips */
+.prod-chip { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; margin: 1px 2px; white-space: nowrap; }
+.prod-chip.covered { background: #d1fae5; color: #065f46; }
+.prod-chip.uncovered { background: #fee2e2; color: #991b1b; }
+.prod-detail { max-width: 480px; }
+.pd-row { margin-bottom: 3px; line-height: 1.8; }
+.pd-row:last-child { margin-bottom: 0; }
+.pd-label { display: inline-block; font-weight: 700; font-size: 10px; min-width: 50px; margin-right: 4px; }
+.pd-label.pd-cov { color: #065f46; }
+.pd-label.pd-uncov { color: #991b1b; }
+.rank-table .pd-row small { font-weight: 400; color: #9ca3af; margin-left: 2px; }
+
+.tooltip-wrap { position: relative; cursor: help; }
+.tooltip-wrap .tooltip-box { display: none; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 11px; white-space: nowrap; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,.25); pointer-events: none; line-height: 1.6; }
+.tooltip-wrap:hover .tooltip-box { display: block; }
+.tooltip-box .tt-row { display: flex; justify-content: space-between; gap: 20px; }
+.tooltip-box .tt-name { color: #93c5fd; }
+.tooltip-box .tt-amt { color: #fbbf24; font-weight: 600; }
+.tooltip-box .tt-title { color: #94a3b8; font-size: 10px; border-bottom: 1px solid #334155; padding-bottom: 4px; margin-bottom: 4px; }
+
+.cust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 900px) { .cust-grid { grid-template-columns: 1fr; } }
+.cust-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cust-table th { background: #f9fafb; padding: 8px 10px; text-align: left; font-size: 11px; color: var(--text-sub); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.cust-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+.cust-table tr:hover td { background: #f9fafb; }
+.scroll-table { overflow-x: auto; }
+.table-wrap { max-height: 350px; overflow-y: auto; }
+
+.yoy-up { color: #e02424; font-weight: 700; }
+.yoy-down { color: #057a55; font-weight: 700; }
+
+/* Cross-table 同比标识（加强版）*/
+.c-yoy { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; margin-top: 1px; }
+.c-yoy-up { background: #fef2f2; color: #dc2626; }
+.c-yoy-down { background: #ecfdf5; color: #059669; }
+.c-yoy-new { background: #eff6ff; color: #2563eb; }
+.cross-table td.cell-up { background: #fef2f2; }
+.cross-table td.cell-down { background: #ecfdf5; }
+.cross-table td.cell-new { background: #eff6ff; }
+.cross-table td.cell-zero { color: #d1d5db; text-align: center; }
+
+.badge { padding: 2px 7px; border-radius: 12px; font-size: 10.5px; font-weight: 600; }
+.badge.up { background: #fde8e8; color: #e02424; }
+.badge.down { background: #def7ec; color: #057a55; }
+.badge.flat { background: #f3f4f6; color: #9ca3af; }
+
+.divergence-tag { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; margin-left: 4px; }
+.divergence-tag.warn { background: #fef3c7; color: #92400e; }
+.divergence-tag.risk { background: #fee2e2; color: #991b1b; }
+.divergence-tag.ok { background: #d1fae5; color: #065f46; }
+
+/* 交叉矩阵 - 使用不同色系 */
+.cross-hm-wrap { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+.cross-hm { width: 100%; border-collapse: collapse; font-size: 11px; }
+.cross-hm th { background: #f8fafc; padding: 6px 8px; position: sticky; top: 0; z-index: 1; text-align: center; border: 1px solid var(--border); font-weight: 600; white-space: nowrap; }
+.cross-hm th:first-child { text-align: left; min-width: 100px; position: sticky; left: 0; z-index: 2; }
+.cross-hm td { padding: 5px 7px; border: 1px solid var(--border); text-align: center; font-weight: 500; }
+.cross-hm td:first-child { text-align: left; background: #f8fafc; font-weight: 600; position: sticky; left: 0; }
+.cross-hm .ch-0 { background: #f8fafc; color: #94a3b8; }
+.cross-hm .ch-1 { background: #fef9c3; color: #854d0e; }  /* 黄 */
+.cross-hm .ch-2 { background: #fde68a; color: #92400e; }  /* 橙黄 */
+.cross-hm .ch-3 { background: #fb923c; color: #fff; }     /* 橙 */
+.cross-hm .ch-4 { background: #3b82f6; color: #fff; }     /* 蓝 */
+.cross-hm .ch-5 { background: #1d4ed8; color: #fff; }     /* 深蓝 */
+
+.rank-num { width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+.rank-1 { background: #fbbf24; color: #78350f; }
+.rank-2 { background: #cbd5e1; color: #475569; }
+.rank-3 { background: #fed7aa; color: #9a3412; }
+.rank-n { background: #f3f4f6; color: #9ca3af; }
+
+.toast { position: fixed; top: 20px; right: 20px; background: #1f2937; color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 12px; z-index: 999; transform: translateX(120%); transition: transform .3s; }
+.toast.show { transform: translateX(0); }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+.yoy-tag { display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600;}
+.yoy-tag.growth{background:#fef3c7;color:#92400e;}
+.yoy-tag.decline{background:#d1fae5;color:#065f46;}
+
+/* V8: Target value input grid */
+.target-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.target-item { display: flex; flex-direction: column; background: var(--bg); border-radius: 8px; padding: 10px 12px; transition: all .2s; border-left: 3px solid var(--primary); }
+.target-item:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.target-item .t-prod { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.target-item .t-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-sub); margin-bottom: 2px; }
+.target-item .t-row strong { color: var(--text); font-size: 13px; }
+.target-item .t-achieve { font-size: 11px; margin-top: 3px; font-weight: 600; }
+.target-item input { border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 12px; width: 80px; text-align: right; outline: none; transition: border .2s; }
+.target-item input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,86,219,.15); }
+.target-item input::placeholder { color: #cbd5e1; font-size: 11px; }
+
+/* V8: Cross table */
+.cross-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.cross-table th { background: #f9fafb; padding: 6px 8px; text-align: center; border: 1px solid var(--border); font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+.cross-table th:first-child { text-align: left; min-width: 100px; position: sticky; left: 0; z-index: 3; background: #f0f4ff; }
+.cross-table td { padding: 5px 8px; border: 1px solid var(--border); text-align: center; font-size: 10.5px; }
+.cross-table td:first-child { text-align: left; background: #f9fafb; font-weight: 600; position: sticky; left: 0; z-index: 1; }
+.cross-table td.cell-up { background: #d1fae5; color: #065f46; }
+.cross-table td.cell-down { background: #fee2e2; color: #991b1b; }
+.cross-table td.cell-new { background: #dbeafe; color: #1e40af; }
+.cross-table td.cell-zero { color: #cbd5e1; }
+.cross-table tr:hover td { background: #f0f4ff !important; }
+.cross-table tr:hover td:first-child { background: #dbeafe !important; }
+.cross-table tr.total-row td { font-weight: 700; background: #f0f4ff !important; border-top: 2px solid var(--primary); }
+.cross-table tr.total-row td:first-child { background: #dbeafe !important; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>潜力产品销售分析仪表板 V7</h1>
+    <div class="subtitle" id="header-subtitle">经营概览 · 差距分析 · 客户全景 · 潜力看板 · V13 · 2026年 · 客户视角（售达方） · <span id="hint-agg-level">二级部门</span></div>
+  </div>
+  <div class="header-right">
+    <div class="view-toggle">
+      <button class="active" data-view="customer" id="btn-view-customer">📋 客户视角</button>
+      <button data-view="user" id="btn-view-user">👤 用户视角</button>
+    </div>
+    <label class="upload-btn" for="fileInput">📁 上传新数据</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-tab active" data-tab="overview"><span class="tab-dot" style="background:#1a56db"></span>经营概览</div>
+  <div class="nav-tab" data-tab="gap"><span class="tab-dot" style="background:#f59e0b"></span>差距分析</div>
+  <div class="nav-tab" data-tab="customer"><span class="tab-dot" style="background:#ec4899"></span>客户全景</div>
+  <div class="nav-tab" data-tab="opportunity"><span class="tab-dot" style="background:#059669"></span>潜力看板</div>
+</div>
+
+<!-- ===== 统一下钻筛选条 ===== -->
+<div class="cascade-bar" id="cascade-bar">
+  <div class="cascade-group"><label>🏢 二级部门</label><select id="cf-dept2" onchange="onCfDept2()"><option value="all">全部</option></select></div>
+  <div class="arrow">→</div>
+  <div class="cascade-group"><label>📂 大部门</label><select id="cf-dept3" onchange="onCfDept3()"><option value="all">全部</option></select></div>
+  <div class="arrow">→</div>
+  <div class="cascade-group"><label>📁 团队小组</label><select id="cf-dept4" onchange="onCfDept4()"><option value="all">全部</option></select></div>
+  <div class="arrow">→</div>
+  <div class="cascade-group"><label>👤 销售员</label><select id="cf-person" onchange="onCfPerson()"><option value="all">全部</option></select></div>
+  <div class="arrow" style="color:var(--primary)">→</div>
+  <div class="cascade-group"><label>📦 产品</label><select id="cf-product" onchange="renderAll()"><option value="all">全部产品</option></select></div>
+  <button class="cascade-reset" onclick="resetCascade()">🔄 重置</button>
+  <span class="cascade-hint">当前粒度：<span class="level-tag" id="agg-hint">二级部门</span></span>
+</div>
+
+<div class="main">
+
+<!-- ========== TAB 1: 经营概览 ========== -->
+<div class="page active" id="page-overview">
+  <div class="kpi-row" id="kpi-overview"></div>
+  <div class="grid2">
+    <div class="card"><div class="card-title">📈 销售额构成（按产品）</div><div class="chart-wrap"><canvas id="chart-ov-composition"></canvas></div></div>
+    <div class="card"><div class="card-title">📊 本期 vs 同期 · 产品同比趋势 <span class="tag">折线=同比%</span></div><div class="chart-wrap"><canvas id="chart-ov-yoy-line"></canvas></div></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="card-title">🎯 量价四象限诊断 <span class="tag">X=数量同比 Y=金额同比</span></div><div class="chart-wrap tall"><canvas id="chart-ov-quadrant"></canvas></div></div>
+    <div class="card"><div class="card-title" id="ov-rank-title">🏆 实体销售额排名 <span class="tag">标签=同比</span></div><div class="chart-wrap"><canvas id="chart-ov-rank"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">🗂️ 团队小组 × 潜力产品 · 本期 vs 同期对照表 <span class="tag">hover=同比%</span></div>
+      <div class="scroll-table"><div class="table-wrap"><table class="cross-table" id="ov-cross-table"><thead id="ov-cross-thead"></thead><tbody id="ov-cross-tbody"></tbody></table></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TAB 2: 差距分析 ========== -->
+<div class="page" id="page-gap">
+  <div class="filter-bar">
+    <div class="filter-group"><label>分析维度</label><select id="gap-dimension" onchange="renderAll()">
+      <option value="auto">跟随筛选</option>
+      <option value="dept3">大部门</option>
+      <option value="dept4">团队小组</option>
+      <option value="person">销售员</option>
+      <option value="customer">客户</option>
+    </select></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title" id="gap-main-title">🔥 实体 × 产品 差距热图 <span class="tag">颜色越深=销售越强</span></div>
+    <div class="scroll-table"><table class="heatmap-table" id="gap-heatmap"></table></div>
+  </div>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">📉 空白产品率 & 待突破实体率 综合对比 <span class="tag">左=空白率 ↑差 右=待突破率 ↑差</span></div>
+    <div class="chart-wrap"><canvas id="chart-gap-combined"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📏 与团队均值的差距分析 <span class="tag">绿=超均值 红=低于均值</span></div>
+    <div class="scroll-table"><table class="heatmap-table" id="gap-detail-table"></table></div>
+  </div>
+</div>
+
+<!-- ========== TAB 3: 客户全景 ========== -->
+<div class="page" id="page-customer">
+  <div class="filter-bar">
+    <div class="filter-group"><label>搜索</label><input type="text" id="cust-search" placeholder="搜索客户/售达方..." style="min-width:180px;" oninput="renderAll()"></div>
+    <button class="btn-reset" onclick="document.getElementById('cust-search').value='';renderAll();">重置</button>
+  </div>
+  <div class="kpi-row" id="kpi-cust"></div>
+  <div class="card" id="cust-industry-card" style="margin-bottom:16px"><div class="card-title">🏭 行业分布</div><div class="chart-wrap"><canvas id="chart-cust-industry"></canvas></div></div>
+  <div class="cust-grid">
+    <div class="card"><div class="card-title">🏅 高贡献客户 Top10</div><div class="table-wrap"><table class="cust-table" id="cust-good-table"><thead></thead><tbody></tbody></table></div></div>
+    <div class="card"><div class="card-title">⚠️ 薄弱客户 后10</div><div class="table-wrap"><table class="cust-table" id="cust-bad-table"><thead></thead><tbody></tbody></table></div></div>
+  </div>
+  <!-- Customer × Product Cross Matrix -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">🔀 客户 × 潜力产品 交叉矩阵 <span class="tag">颜色越深=销售额越高</span></div>
+    <div class="cross-hm-wrap"><table class="cross-hm">
+      <thead id="cust-cross-thead"></thead>
+      <tbody id="cust-cross-tbody"></tbody>
+    </table></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="card-title" id="cust-top-title">📊 TOP 20 客户</div><div class="chart-wrap tall"><canvas id="chart-cust-top"></canvas></div></div>
+    <div class="card"><div class="card-title">🔗 售达方（中间商）依赖度</div><div class="chart-wrap tall"><canvas id="chart-cust-dependency"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ========== TAB 4: 潜力看板 ========== -->
+<div class="page" id="page-opportunity">
+  <div class="kpi-row" id="kpi-opportunity"></div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">📋 潜力产品排名 <span class="tag">覆盖数=销售人数</span></div>
+      <div class="scroll-table"><div class="table-wrap"><table class="rank-table" id="opp-prod-rank"><thead><tr><th>排名</th><th>产品</th><th>销售额(万)</th><th>同期(万)</th><th>同比</th><th>销售人数</th></tr></thead><tbody></tbody></table></div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">👥 销售人员潜力产品排名 <span class="tag">潜力产品覆盖能力</span></div>
+      <div class="scroll-table"><div class="table-wrap"><table class="rank-table" id="opp-seller-rank"><thead><tr><th>排名</th><th>销售员</th><th>销售额(万)</th><th>同期(万)</th><th>同比</th><th>覆盖产品数</th></tr></thead><tbody></tbody></table></div></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== COMPREHENSIVE TEST DATA ====================
+const SAMPLE_CUSTOMER = [
+  ["二级部门","三级部门","四级部门","五级部门","销售雇员","对接人","潜力产品","售达方描述","销售额(万)","同期销售额(万)","同比","销售数量","同期销售数量","销售数量同比","交易商机数","交易商机数同期","交易商机数同比","交易用户数","交易用户数-同期","用户数同比"]
+];
+
+const SAMPLE_USER = [
+  ["业务中心","大部门","团队小组","负责销售","对接人","售达方","最终用户描述","行业","潜力产品","产品出库额","产品出库额同期","产品出库额同比","出库数量","出库数量同期","出库数量同比","交易商机数","交易商机数同期","交易商机数同比","交易用户数","交易用户数同期","交易用户数同比","交易客户数","交易客户数同期","交易客户数同比"]
+];
+
+// ==================== GLOBALS ====================
+let currentView = 'customer';
+let rawDataCustomer = [];
+let rawDataUser = [];
+let activeData = [];
+let allProducts = [];
+let allPersons = [];
+let allDepts2 = [];
+let allDepts3 = [];
+let allDepts4 = [];
+let allIndustries = [];
+let chartInstances = {};
+
+const PRODUCT_COLORS = ['#6366f1','#f59e0b','#10b981','#ef4444','#8b5cf6','#3b82f6','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4','#a855f7','#64748b'];
+function getProductColor(i) { return PRODUCT_COLORS[i % PRODUCT_COLORS.length]; }
+
+// ==================== DATA PARSING ====================
+// 自适应列名: 兼容"三级部门/四级部门"和"大部门/团队小组"两种命名
+function _getCol(idx, r, ...names) { for (const n of names) { if (idx[n] !== undefined) return r[idx[n]] || ''; } return ''; }
+function parseCustomerData(raw) {
+  const headers = raw[0];
+  const idx = {};
+  headers.forEach((h,i) => idx[h]=i);
+  return raw.slice(1).filter(r => r.length >= 10).map(r => ({
+    dept2: _getCol(idx, r, '二级部门'), dept3: _getCol(idx, r, '三级部门', '大部门'), dept4: _getCol(idx, r, '四级部门', '团队小组'), dept5: _getCol(idx, r, '五级部门'),
+    person: _getCol(idx, r, '销售雇员'), contact: _getCol(idx, r, '对接人'), product: _getCol(idx, r, '潜力产品'),
+    seller: _getCol(idx, r, '售达方描述'), customer: _getCol(idx, r, '售达方描述'),
+    amount: parseFloat(r[idx['销售额(万)']]) || 0, amountPrev: parseFloat(r[idx['同期销售额(万)']]) || 0, amountYoy: parseFloat(r[idx['同比']]) || 0,
+    quantity: parseInt(r[idx['销售数量']]) || 0, quantityPrev: parseInt(r[idx['同期销售数量']]) || 0, quantityYoy: parseFloat(r[idx['销售数量同比']]) || 0,
+    deals: parseInt(r[idx['交易商机数']]) || 0, dealsPrev: parseInt(r[idx['交易商机数同期']]) || 0, dealsYoy: parseFloat(r[idx['交易商机数同比']]) || 0,
+    userCount: parseInt(r[idx['交易用户数']]) || 0, userCountPrev: parseInt(r[idx['交易用户数-同期']]) || 0, userCountYoy: parseFloat(r[idx['用户数同比']]) || 0,
+    custCount: 0, custCountPrev: 0, custCountYoy: 0,
+    industry: '', source: 'customer'
+  }));
+}
+
+function parseUserData(raw) {
+  const headers = raw[0];
+  const idx = {};
+  headers.forEach((h,i) => idx[h]=i);
+  return raw.slice(1).filter(r => r.length >= 10).map(r => ({
+    dept2: _getCol(idx, r, '业务中心'), dept3: _getCol(idx, r, '大部门', '三级部门'), dept4: _getCol(idx, r, '团队小组', '四级部门'), dept5: '',
+    person: _getCol(idx, r, '负责销售'), contact: _getCol(idx, r, '对接人'), product: _getCol(idx, r, '潜力产品'),
+    seller: _getCol(idx, r, '售达方'), customer: _getCol(idx, r, '最终用户描述'),
+    amount: parseFloat(r[idx['产品出库额']]) || 0, amountPrev: parseFloat(r[idx['产品出库额同期']]) || 0, amountYoy: parseFloat(r[idx['产品出库额同比']]) || 0,
+    quantity: parseInt(r[idx['出库数量']]) || 0, quantityPrev: parseInt(r[idx['出库数量同期']]) || 0, quantityYoy: parseFloat(r[idx['出库数量同比']]) || 0,
+    deals: parseInt(r[idx['交易商机数']]) || 0, dealsPrev: parseInt(r[idx['交易商机数同期']]) || 0, dealsYoy: parseFloat(r[idx['交易商机数同比']]) || 0,
+    userCount: parseInt(r[idx['交易用户数']]) || 0, userCountPrev: parseInt(r[idx['交易用户数同期']]) || 0, userCountYoy: parseFloat(r[idx['交易用户数同比']]) || 0,
+    custCount: parseInt(r[idx['交易客户数']]) || 0, custCountPrev: parseInt(r[idx['交易客户数同期']]) || 0, custCountYoy: parseFloat(r[idx['交易客户数同比']]) || 0,
+    industry: r[idx['行业']] || '', source: 'user'
+  }));
+}
+
+function refreshGlobals() {
+  activeData = currentView === 'customer' ? rawDataCustomer : rawDataUser;
+  allProducts = [...new Set(activeData.map(d => d.product))].filter(Boolean).sort();
+  allPersons = [...new Set(activeData.map(d => d.person))].filter(Boolean).sort();
+  allDepts2 = [...new Set(activeData.map(d => d.dept2))].filter(Boolean).sort();
+  allDepts3 = [...new Set(activeData.map(d => d.dept3))].filter(Boolean).sort();
+  allDepts4 = [...new Set(activeData.map(d => d.dept4))].filter(Boolean).sort();
+  allIndustries = [...new Set(activeData.map(d => d.industry))].filter(Boolean).sort();
+  populateCascadeFilters();
+}
+
+// ==================== 统一下钻逻辑 ====================
+// 核心：根据级联筛选状态自动确定聚合粒度
+// 规则：选到哪一级，就按那一级的下级聚合展示
+// 全未选 → 按二级部门聚合
+// 选二级 → 按大部门聚合
+// 选大部门 → 按团队小组聚合
+// 选四级 → 按销售员聚合
+// 选销售员 → 按产品明细（不聚合）
+function getAggLevel() {
+  const d2 = cfv('cf-dept2'), d3 = cfv('cf-dept3'), d4 = cfv('cf-dept4'), p = cfv('cf-person');
+  if (p && p !== 'all') return { level: 'product', label: '产品明细' };
+  if (d4 && d4 !== 'all') return { level: 'person', label: '销售员' };
+  if (d3 && d3 !== 'all') return { level: 'dept4', label: '团队小组' };
+  if (d2 && d2 !== 'all') return { level: 'dept3', label: '大部门' };
+  return { level: 'dept2', label: '二级部门' };
+}
+
+// 获取聚合字段名
+function getAggField() {
+  const agg = getAggLevel();
+  const map = { dept2: 'dept2', dept3: 'dept3', dept4: 'dept4', person: 'person', product: 'product' };
+  return map[agg.level] || null;
+}
+
+function getAggLabel() {
+  const agg = getAggLevel();
+  const map = { dept2: '二级部门', dept3: '大部门', dept4: '团队小组', person: '销售员', product: '产品' };
+  return map[agg.level] || '未知';
+}
+
+function cfv(id) { const el = document.getElementById(id); return el ? el.value : null; }
+
+// 根据级联筛选过滤数据（不聚合）
+function getFiltered() {
+  let data = activeData.slice();
+  const d2 = cfv('cf-dept2'), d3 = cfv('cf-dept3'), d4 = cfv('cf-dept4'), p = cfv('cf-person'), prod = cfv('cf-product');
+  if (d2 && d2 !== 'all') data = data.filter(d => d.dept2 === d2);
+  if (d3 && d3 !== 'all') data = data.filter(d => d.dept3 === d3);
+  if (d4 && d4 !== 'all') data = data.filter(d => d.dept4 === d4);
+  if (p && p !== 'all') data = data.filter(d => d.person === p);
+  if (prod && prod !== 'all') data = data.filter(d => d.product === prod);
+  return data;
+}
+
+// 聚合数据（按指定字段）
+function aggregateData(data, field) {
+  if (!field || field === 'product') return data; // 产品明细不聚合
+  const groups = {};
+  data.forEach(d => {
+    const key = d[field] || '未知';
+    if (!groups[key]) groups[key] = {
+      entity: key,
+      dept2: d.dept2, dept3: d.dept3, dept4: d.dept4,
+      amount: 0, amountPrev: 0,
+      quantity: 0, quantityPrev: 0,
+      deals: 0, dealsPrev: 0,
+      custCount: 0, custCountPrev: 0,
+      userCount: 0, userCountPrev: 0,
+      _products: new Set(), _customers: new Set(), _persons: new Set(), _sellers: new Set()
+    };
+    const g = groups[key];
+    g.amount += d.amount; g.amountPrev += d.amountPrev;
+    g.quantity += d.quantity; g.quantityPrev += d.quantityPrev;
+    g.deals += d.deals; g.dealsPrev += d.dealsPrev;
+    g.custCount += d.custCount; g.custCountPrev += d.custCountPrev;
+    g.userCount += d.userCount; g.userCountPrev += d.userCountPrev;
+    if (d.product) g._products.add(d.product);
+    if (d.customer) g._customers.add(d.customer);
+    if (d.seller) g._sellers.add(d.seller);
+    if (d.person) g._persons.add(d.person);
+  });
+  return Object.values(groups).map(g => ({
+    entity: g.entity,
+    dept2: g.dept2, dept3: g.dept3, dept4: g.dept4,
+    person: [...g._persons].join('、'),  // 保留人员列表字符串
+    product: [...g._products].join('、') || '合计',
+    amount: g.amount, amountPrev: g.amountPrev,
+    amountYoy: g.amountPrev > 0 ? ((g.amount - g.amountPrev) / g.amountPrev * 100) : (g.amount > 0 ? 100 : 0),
+    quantity: g.quantity, quantityPrev: g.quantityPrev,
+    quantityYoy: g.quantityPrev > 0 ? ((g.quantity - g.quantityPrev) / g.quantityPrev * 100) : (g.quantity > 0 ? 100 : 0),
+    deals: g.deals, dealsPrev: g.dealsPrev,
+    dealsYoy: g.dealsPrev > 0 ? ((g.deals - g.dealsPrev) / g.dealsPrev * 100) : (g.deals > 0 ? 100 : 0),
+    custCount: g.custCount, custCountPrev: g.custCountPrev,
+    custCountYoy: g.custCountPrev > 0 ? ((g.custCount - g.custCountPrev) / g.custCountPrev * 100) : (g.custCount > 0 ? 100 : 0),
+    userCount: g.userCount, userCountPrev: g.userCountPrev,
+    userCountYoy: g.userCountPrev > 0 ? ((g.userCount - g.userCountPrev) / g.userCountPrev * 100) : (g.userCount > 0 ? 100 : 0),
+    _products: g._products, _customers: g._customers, _persons: g._persons, _sellers: g._sellers,
+    industry: '', source: data[0]?.source || 'customer'
+  }));
+}
+
+// 获取用于渲染的数据：先过滤，再按当前粒度聚合
+function getRenderData() {
+  const filtered = getFiltered();
+  const agg = getAggLevel();
+  if (agg.level === 'product') return filtered; // 产品明细，不聚合
+  const field = getAggField();
+  if (!field || field === 'product') return filtered;
+  return aggregateData(filtered, field);
+}
+
+// ==================== 级联筛选（修复版）====================
+// 构建组织架构树：二级部门 → 大部门 → 团队小组 → [销售人员]
+function buildOrgTree() {
+  const tree = {};
+  activeData.forEach(d => {
+    const d2 = d.dept2 || '未知';
+    const d3 = d.dept3 || '未知';
+    const d4 = d.dept4 || '未知';
+    const person = d.person || '未知';
+    if (!tree[d2]) tree[d2] = {};
+    if (!tree[d2][d3]) tree[d2][d3] = {};
+    if (!tree[d2][d3][d4]) tree[d2][d3][d4] = new Set();
+    tree[d2][d3][d4].add(person);
+  });
+  return tree;
+}
+
+function populateCascadeFilters() {
+  const tree = buildOrgTree();
+  // 二级部门
+  const sel2 = document.getElementById('cf-dept2');
+  const cur2 = sel2.value;
+  sel2.innerHTML = '<option value="all">全部</option>';
+  Object.keys(tree).sort().forEach(v => sel2.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  if (cur2 && [...sel2.options].some(o => o.value === cur2)) sel2.value = cur2;
+
+  // 产品
+  const selP = document.getElementById('cf-product');
+  const curP = selP.value;
+  selP.innerHTML = '<option value="all">全部产品</option>';
+  allProducts.forEach(p => selP.innerHTML += '<option value="'+p+'">'+p+'</option>');
+  if (curP && [...selP.options].some(o => o.value === curP)) selP.value = curP;
+
+  // 触发级联更新
+  onCfDept2(true);
+}
+
+function onCfDept2(skipRender) {
+  const d2 = cfv('cf-dept2');
+  const tree = buildOrgTree();
+  const sel3 = document.getElementById('cf-dept3');
+  const sel4 = document.getElementById('cf-dept4');
+  const selPerson = document.getElementById('cf-person');
+
+  // 重置下级
+  sel3.innerHTML = '<option value="all">全部</option>';
+  sel4.innerHTML = '<option value="all">全部</option>';
+  selPerson.innerHTML = '<option value="all">全部</option>';
+
+  if (d2 && d2 !== 'all' && tree[d2]) {
+    // 选中了二级部门：填充大部门
+    Object.keys(tree[d2]).sort().forEach(v => sel3.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  } else if (!d2 || d2 === 'all') {
+    // 未选二级：显示所有三级、四级、人员
+    const all3 = new Set(); Object.values(tree).forEach(t => Object.keys(t).forEach(k => all3.add(k)));
+    [...all3].sort().forEach(v => sel3.innerHTML += '<option value="'+v+'">'+v+'</option>');
+    const all4 = new Set(); Object.values(tree).forEach(t => Object.values(t).forEach(s => Object.keys(s).forEach(k => all4.add(k))));
+    [...all4].sort().forEach(v => sel4.innerHTML += '<option value="'+v+'">'+v+'</option>');
+    const allPers = new Set();
+    Object.values(tree).forEach(t => Object.values(t).forEach(s => Object.values(s).forEach(ps => ps.forEach(p => allPers.add(p)))));
+    [...allPers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  }
+
+  updateAggHint();
+  if (!skipRender) renderAll();
+}
+
+function onCfDept3(skipRender) {
+  const d2 = cfv('cf-dept2'), d3 = cfv('cf-dept3');
+  const tree = buildOrgTree();
+  const sel4 = document.getElementById('cf-dept4');
+  const selPerson = document.getElementById('cf-person');
+
+  // 重置下级
+  sel4.innerHTML = '<option value="all">全部</option>';
+  selPerson.innerHTML = '<option value="all">全部</option>';
+
+  if (d2 && d3 && d3 !== 'all' && tree[d2] && tree[d2][d3]) {
+    // 选中了大部门：填充团队小组 + 该大部门下所有人员
+    Object.keys(tree[d2][d3]).sort().forEach(v => sel4.innerHTML += '<option value="'+v+'">'+v+'</option>');
+    const pers = new Set();
+    Object.values(tree[d2][d3]).forEach(ps => ps.forEach(p => pers.add(p)));
+    [...pers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  } else if (d2 && d2 !== 'all' && tree[d2]) {
+    // 选了二级但未选三级：显示该二级下所有四级 + 所有人员
+    const all4 = new Set(); Object.values(tree[d2]).forEach(s => Object.keys(s).forEach(k => all4.add(k)));
+    [...all4].sort().forEach(v => sel4.innerHTML += '<option value="'+v+'">'+v+'</option>');
+    const pers = new Set();
+    Object.values(tree[d2]).forEach(s => Object.values(s).forEach(ps => ps.forEach(p => pers.add(p))));
+    [...pers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  } else if (!d2 || d2 === 'all') {
+    // 全部：显示所有四级 + 所有人员（已在 onCfDept2 中填充）
+    // 这里 sel4 和 selPerson 已经被 onCfDept2 填充，但 onCfDept2 不会自动触发
+    // 所以这里也要填充
+    const all4 = new Set(); Object.values(tree).forEach(t => Object.values(t).forEach(s => Object.keys(s).forEach(k => all4.add(k))));
+    [...all4].sort().forEach(v => sel4.innerHTML += '<option value="'+v+'">'+v+'</option>');
+    const allPers = new Set();
+    Object.values(tree).forEach(t => Object.values(t).forEach(s => Object.values(s).forEach(ps => ps.forEach(p => allPers.add(p)))));
+    [...allPers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  }
+
+  updateAggHint();
+  if (!skipRender) renderAll();
+}
+
+function onCfDept4(skipRender) {
+  const d2 = cfv('cf-dept2'), d3 = cfv('cf-dept3'), d4 = cfv('cf-dept4');
+  const tree = buildOrgTree();
+  const selPerson = document.getElementById('cf-person');
+
+  selPerson.innerHTML = '<option value="all">全部</option>';
+
+  if (d2 && d3 && d4 && d4 !== 'all' && tree[d2] && tree[d2][d3] && tree[d2][d3][d4]) {
+    // 选中了团队小组：只显示该团队下的人员
+    [...tree[d2][d3][d4]].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  } else if (d2 && d3 && d3 !== 'all' && tree[d2] && tree[d2][d3]) {
+    // 选了三级但未选四级：显示该三级下所有人员
+    const pers = new Set();
+    Object.values(tree[d2][d3]).forEach(ps => ps.forEach(p => pers.add(p)));
+    [...pers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  } else if (d2 && d2 !== 'all' && tree[d2]) {
+    // 只选了二级：显示该二级下所有人员
+    const pers = new Set();
+    Object.values(tree[d2]).forEach(s => Object.values(s).forEach(ps => ps.forEach(p => pers.add(p))));
+    [...pers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  } else {
+    // 全部：显示所有人员
+    const allPers = new Set();
+    Object.values(tree).forEach(t => Object.values(t).forEach(s => Object.values(s).forEach(ps => ps.forEach(p => allPers.add(p)))));
+    [...allPers].sort().forEach(v => selPerson.innerHTML += '<option value="'+v+'">'+v+'</option>');
+  }
+
+  updateAggHint();
+  if (!skipRender) renderAll();
+}
+
+function onCfPerson() { updateAggHint(); renderAll(); }
+
+function updateAggHint() {
+  const agg = getAggLevel();
+  const hint = document.getElementById('agg-hint');
+  if (hint) hint.textContent = agg.label;
+  const headerHint = document.getElementById('hint-agg-level');
+  if (headerHint) headerHint.textContent = agg.label;
+}
+
+function resetCascade() {
+  document.getElementById('cf-dept2').value = 'all';
+  document.getElementById('cf-dept3').value = 'all';
+  document.getElementById('cf-dept4').value = 'all';
+  document.getElementById('cf-person').value = 'all';
+  document.getElementById('cf-product').value = 'all';
+  onCfDept2();
+}
+
+// ==================== Init ====================
+function initAll() {
+  rawDataCustomer = parseCustomerData(SAMPLE_CUSTOMER);
+  rawDataUser = parseUserData(SAMPLE_USER);
+  refreshGlobals();
+  renderAll();
+}
+
+// ==================== CHARTS ====================
+function destroyChart(id) { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } }
+function makeChart(id, config) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  chartInstances[id] = new Chart(ctx, config);
+}
+
+// ==================== UTILS ====================
+function shortLabel(str, maxLen) { maxLen = maxLen || 10; if (!str) return ''; return str.length > maxLen ? str.substring(0, maxLen) + '...' : str; }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
+
+// ==================== TAB 1: 经营概览（驾驶舱+量价诊断+绩效）====================
+function renderOverview() {
+  const data = getRenderData();
+  const raw = getFiltered();
+  const aggLabel = getAggLabel();
+  document.getElementById('ov-rank-title').innerHTML = aggLabel + '销售额排名 <span class="tag">标签=同比</span>';
+
+  const total = data.reduce((s,d) => s + d.amount, 0);
+  const totalPrev = data.reduce((s,d) => s + d.amountPrev, 0);
+  const productCount = new Set(raw.map(d => d.product)).size;
+  const entityLabel = currentView === 'customer' ? '客户' : '用户';
+  const amtLabel = currentView === 'customer' ? '销售额' : '出库额';
+
+  // KPI
+  const entityCount = data.length;
+  const custSet = new Set(raw.map(d => d.customer || d.seller || ''));
+  const avgPrice = custSet.size > 0 ? (total / custSet.size).toFixed(2) : '0.00';
+
+  document.getElementById('kpi-overview').innerHTML =
+    '<div class="kpi-card"><div class="kpi-label">总' + amtLabel + '</div><div class="kpi-value" style="color:#1a56db">' + total.toFixed(2) + '</div><div class="kpi-sub">万元 · 同期' + totalPrev.toFixed(2) + '万</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">覆盖产品数</div><div class="kpi-value" style="color:#10b981">' + productCount + '</div><div class="kpi-sub">共' + allProducts.length + '个潜力产品</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">' + entityLabel + '数</div><div class="kpi-value" style="color:#ec4899">' + custSet.size + '</div><div class="kpi-sub">个</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">客单价</div><div class="kpi-value" style="color:#8b5cf6">' + avgPrice + '</div><div class="kpi-sub">万元/' + entityLabel + '</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">' + aggLabel + '数</div><div class="kpi-value" style="color:#ef4444">' + entityCount + '</div><div class="kpi-sub">个</div></div>';
+
+  // Product composition: compute first so target-grid can use it
+  const prodAgg = {};
+  raw.forEach(d => {
+    if (!prodAgg[d.product]) prodAgg[d.product] = { amount: 0, amountPrev: 0 };
+    prodAgg[d.product].amount += d.amount;
+    prodAgg[d.product].amountPrev += d.amountPrev;
+  });
+  const compSorted = Object.entries(prodAgg).sort((a,b) => b[1].amount - a[1].amount);
+
+  makeChart('chart-ov-composition', {
+    type: 'doughnut', data: {
+      labels: compSorted.map(e => shortLabel(e[0], 10)),
+      datasets: [{ data: compSorted.map(e => +e[1].amount.toFixed(2)), backgroundColor: compSorted.map((_,i) => getProductColor(i)), borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } } }
+  });
+
+  // YoY LINE chart (bar + line overlay)
+  const yoyArr = compSorted.map(e => e[1].amountPrev > 0 ? ((e[1].amount - e[1].amountPrev) / e[1].amountPrev * 100) : (e[1].amount > 0 ? 100 : null));
+  makeChart('chart-ov-yoy-line', {
+    type: 'bar', data: {
+      labels: compSorted.map(e => shortLabel(e[0], 8)),
+      datasets: [
+        { label: '本期(万)', data: compSorted.map(e => +e[1].amount.toFixed(2)), backgroundColor: 'rgba(37,99,235,0.8)', borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: false, order: 2, borderColor: '#2563eb', borderWidth: 1 },
+        { label: '同期(万)', data: compSorted.map(e => +e[1].amountPrev.toFixed(2)), backgroundColor: 'rgba(147,197,253,0.6)', borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: false, order: 2, borderColor: '#93c5fd', borderWidth: 1 },
+        { label: '同比%', type: 'line', data: yoyArr, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.08)', borderWidth: 3, pointRadius: 6, pointBackgroundColor: yoyArr.map(v => v === null ? '#94a3b8' : (v >= 0 ? '#ef4444' : '#10b981')), pointBorderColor: '#fff', pointBorderWidth: 2, yAxisID: 'y1', tension: 0.35, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } } },
+      scales: {
+        y: { position: 'left', beginAtZero: true, title: { display: true, text: '金额(万)' }, ticks: { callback: v => v + '万' } },
+        y1: { position: 'right', beginAtZero: false, title: { display: true, text: '同比%' }, ticks: { callback: v => v.toFixed(0) + '%' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  // Quadrant scatter
+  const prodQuad = {};
+  raw.forEach(d => {
+    if (!prodQuad[d.product]) prodQuad[d.product] = { amount: 0, amountPrev: 0, qty: 0, qtyPrev: 0, custSet: new Set() };
+    prodQuad[d.product].amount += d.amount; prodQuad[d.product].amountPrev += d.amountPrev;
+    prodQuad[d.product].qty += d.quantity; prodQuad[d.product].qtyPrev += d.quantityPrev;
+    if (d.customer) prodQuad[d.product].custSet.add(d.customer);
+  });
+  const scatterData = Object.entries(prodQuad).map(([prod, v]) => {
+    const amtYoy = v.amountPrev > 0 ? ((v.amount - v.amountPrev) / v.amountPrev * 100) : (v.amount > 0 ? 100 : 0);
+    const qtyYoy = v.qtyPrev > 0 ? ((v.qty - v.qtyPrev) / v.qtyPrev * 100) : (v.qty > 0 ? 100 : 0);
+    let quadrant = '';
+    if (amtYoy >= 0 && qtyYoy >= 0) quadrant = '量价齐升';
+    else if (amtYoy >= 0 && qtyYoy < 0) quadrant = '量跌价增';
+    else if (amtYoy < 0 && qtyYoy < 0) quadrant = '量价齐跌';
+    else quadrant = '量增价跌';
+    return { prod, amount: v.amount, amtYoy, qtyYoy, quadrant };
+  });
+  const quadColors = { '量价齐升': '#10b981', '量跌价增': '#f59e0b', '量价齐跌': '#ef4444', '量增价跌': '#8b5cf6' };
+  makeChart('chart-ov-quadrant', {
+    type: 'scatter', data: { datasets: scatterData.map(d => ({
+      label: shortLabel(d.prod, 10), data: [{ x: d.qtyYoy, y: d.amtYoy }],
+      backgroundColor: quadColors[d.quadrant], borderColor: quadColors[d.quadrant],
+      pointRadius: Math.max(6, Math.sqrt(d.amount) * 2), pointHoverRadius: Math.max(8, Math.sqrt(d.amount) * 2.5)
+    }))},
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, generateLabels: function() {
+        return Object.entries(quadColors).map(([k, c]) => ({ text: k, fillStyle: c, strokeStyle: c, pointStyle: 'circle', hidden: false, index: 0 }));
+      }}}},
+      scales: { x: { title: { display: true, text: '数量同比 (%)' } }, y: { title: { display: true, text: '金额同比 (%)' } } }
+    },
+    plugins: [{ id: 'quadrantBg', beforeDraw(chart) {
+      const { ctx, chartArea: { left, right, top, bottom } } = chart;
+      const midX = (left + right) / 2, midY = (top + bottom) / 2;
+      ctx.save();
+      ctx.fillStyle = 'rgba(16,185,129,0.06)'; ctx.fillRect(midX, top, right - midX, midY - top);
+      ctx.fillStyle = 'rgba(245,158,11,0.06)'; ctx.fillRect(left, top, midX - left, midY - top);
+      ctx.fillStyle = 'rgba(239,68,68,0.06)'; ctx.fillRect(left, midY, midX - left, bottom - midY);
+      ctx.fillStyle = 'rgba(139,92,246,0.06)'; ctx.fillRect(midX, midY, right - midX, bottom - midY);
+      ctx.setLineDash([4, 4]); ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(midX, top); ctx.lineTo(midX, bottom); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(left, midY); ctx.lineTo(right, midY); ctx.stroke();
+      ctx.restore();
+    }}]
+  });
+
+  // Entity ranking bar chart with YoY labels
+  const entityAgg = {};
+  data.forEach(d => {
+    const key = d.entity || d.product || d.person || '未知';
+    if (!entityAgg[key]) entityAgg[key] = { amount: 0, amountPrev: 0 };
+    entityAgg[key].amount += d.amount;
+    entityAgg[key].amountPrev += d.amountPrev;
+  });
+  const entitySorted = Object.entries(entityAgg).sort((a,b) => b[1].amount - a[1].amount);
+  makeChart('chart-ov-rank', {
+    type: 'bar', data: {
+      labels: entitySorted.map(e => shortLabel(e[0], 12)),
+      datasets: [
+        { label: '本期(万)', data: entitySorted.map(e => +e[1].amount.toFixed(2)), backgroundColor: 'rgba(37,99,235,0.85)', borderRadius: 6, borderSkipped: false, borderColor: '#2563eb', borderWidth: 1 },
+        { label: '同期(万)', data: entitySorted.map(e => +e[1].amountPrev.toFixed(2)), backgroundColor: 'rgba(147,197,253,0.7)', borderRadius: 6, borderSkipped: false, borderColor: '#93c5fd', borderWidth: 1 }
+      ]
+    },
+    options: {
+      indexAxis: 'y', responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: { callbacks: { afterLabel: function(ctx) {
+          const idx = ctx.dataIndex; const v = entitySorted[idx];
+          const yoy = v[1].amountPrev > 0 ? ((v[1].amount - v[1].amountPrev) / v[1].amountPrev * 100).toFixed(1) : (v[1].amount > 0 ? '100' : '0');
+          return '同比: ' + (parseFloat(yoy) >= 0 ? '+' : '') + yoy + '%';
+        }}}
+      },
+      scales: { x: { beginAtZero: true, ticks: { callback: v => v + '万' } } }
+    }
+  });
+
+  // Team × Product cross table (本期 vs 同期)
+  const dept4Agg = {};
+  raw.forEach(d => {
+    const d4 = d.dept4 || '未知';
+    if (!dept4Agg[d4]) dept4Agg[d4] = {};
+    if (!dept4Agg[d4][d.product]) dept4Agg[d4][d.product] = { amount: 0, amountPrev: 0 };
+    dept4Agg[d4][d.product].amount += d.amount;
+    dept4Agg[d4][d.product].amountPrev += d.amountPrev;
+  });
+  const d4List = Object.keys(dept4Agg).sort();
+  // Table head
+  const thead = document.getElementById('ov-cross-thead');
+  thead.innerHTML = '<tr><th>团队小组 \\ 产品</th>' +
+    allProducts.map(p => '<th title="' + p + '">' + shortLabel(p, 7) + '</th>').join('') +
+    '<th>本期总计</th><th>同期总计</th><th>整体同比</th></tr>';
+  // Table body
+  const tbody = document.getElementById('ov-cross-tbody');
+  let rows = '';
+  let grandCur = 0, grandPrev = 0;
+  d4List.forEach(d4 => {
+    let rowCur = 0, rowPrev = 0;
+    let cells = '';
+    allProducts.forEach(prod => {
+      const v = dept4Agg[d4][prod] || { amount: 0, amountPrev: 0 };
+      rowCur += v.amount; rowPrev += v.amountPrev;
+      let cls = 'cell-zero', display = '-', yoyStr = '';
+      if (v.amount > 0 && v.amountPrev > 0) {
+        const yoy = ((v.amount - v.amountPrev) / v.amountPrev * 100);
+        if (yoy >= 0) {
+          cls = 'cell-up'; 
+          yoyStr = '<span class="c-yoy c-yoy-up">' + (yoy >= 0 ? '▲' : '') + '+' + yoy.toFixed(0) + '%</span>';
+        } else {
+          cls = 'cell-down';
+          yoyStr = '<span class="c-yoy c-yoy-down">▼' + yoy.toFixed(0) + '%</span>';
+        }
+        display = '<strong>' + v.amount.toFixed(1) + '</strong><br>' + yoyStr;
+      } else if (v.amount > 0 && v.amountPrev === 0) {
+        cls = 'cell-new'; display = '<strong>' + v.amount.toFixed(1) + '</strong><br><span class="c-yoy c-yoy-new">+新增</span>';
+      } else if (v.amount === 0 && v.amountPrev > 0) {
+        cls = 'cell-down'; display = '<strong>0</strong><br><span class="c-yoy c-yoy-down">流失</span>';
+      }
+      cells += '<td class="' + cls + '">' + display + '</td>';
+    });
+    grandCur += rowCur; grandPrev += rowPrev;
+    const rowYoy = rowPrev > 0 ? ((rowCur - rowPrev) / rowPrev * 100) : (rowCur > 0 ? 100 : 0);
+    const rowCls = rowYoy >= 0 ? 'cell-up' : 'cell-down';
+    rows += '<tr><td>' + d4 + '</td>' + cells +
+      '<td><strong>' + rowCur.toFixed(1) + '</strong></td>' +
+      '<td>' + rowPrev.toFixed(1) + '</td>' +
+      '<td class="' + rowCls + '"><strong>' + (rowYoy >= 0 ? '+' : '') + rowYoy.toFixed(1) + '%</strong></td></tr>';
+  });
+  // Grand total row
+  const grandYoy = grandPrev > 0 ? ((grandCur - grandPrev) / grandPrev * 100) : (grandCur > 0 ? 100 : 0);
+  const gCls = grandYoy >= 0 ? 'cell-up' : 'cell-down';
+  rows += '<tr class="total-row"><td><strong>总计</strong></td>' +
+    allProducts.map(prod => {
+      const v = raw.filter(d => d.product === prod).reduce((s,d) => s + d.amount, 0);
+      return '<td><strong>' + v.toFixed(1) + '</strong></td>';
+    }).join('') +
+    '<td><strong>' + grandCur.toFixed(1) + '</strong></td>' +
+    '<td><strong>' + grandPrev.toFixed(1) + '</strong></td>' +
+    '<td class="' + gCls + '"><strong>' + (grandYoy >= 0 ? '+' : '') + grandYoy.toFixed(1) + '%</strong></td></tr>';
+  tbody.innerHTML = rows;
+}
+
+// ==================== TAB 2: 差距分析（热图+空白/待突破合并）====================
+function renderGap() {
+  const raw = getFiltered();
+  const dimension = document.getElementById('gap-dimension')?.value || 'auto';
+  let field, entityLabel;
+  if (dimension === 'auto') {
+    const agg = getAggLevel();
+    if (agg.level === 'product') { field = 'person'; entityLabel = '销售员'; }
+    else if (agg.level === 'person') { field = 'person'; entityLabel = '销售员'; }
+    else if (agg.level === 'dept4') { field = 'dept4'; entityLabel = '团队小组'; }
+    else if (agg.level === 'dept3') { field = 'dept3'; entityLabel = '大部门'; }
+    else { field = 'dept3'; entityLabel = '大部门'; }
+  } else if (dimension === 'dept3') { field = 'dept3'; entityLabel = '大部门'; }
+  else if (dimension === 'dept4') { field = 'dept4'; entityLabel = '团队小组'; }
+  else if (dimension === 'person') { field = 'person'; entityLabel = '销售员'; }
+  else { field = 'customer'; entityLabel = '客户'; }
+
+  document.getElementById('gap-main-title').innerHTML = entityLabel + ' x 产品 差距热图 <span class="tag">颜色越深=销售越强</span>';
+
+  // Build matrix
+  const matrix = {};
+  const entities = [...new Set(raw.map(d => dimension === 'customer' ? (d.customer || d.seller || '未知') : d[field]))].filter(Boolean).sort();
+  entities.forEach(e => { matrix[e] = {}; allProducts.forEach(p => matrix[e][p] = 0); });
+  raw.forEach(d => {
+    const e = dimension === 'customer' ? (d.customer || d.seller || '未知') : d[field];
+    if (matrix[e] !== undefined) matrix[e][d.product] = (matrix[e][d.product] || 0) + d.amount;
+  });
+
+  // Heatmap table
+  const ht = document.getElementById('gap-heatmap');
+  ht.innerHTML = '<tr><th>' + entityLabel + ' \\ 产品</th>' + allProducts.map(p => '<th title="' + p + '">' + shortLabel(p, 8) + '</th>').join('') + '<th>总计</th><th>覆盖数</th></tr>' +
+    entities.map(entity => {
+      const cells = allProducts.map(prod => {
+        const v = matrix[entity][prod];
+        const maxInCol = Math.max(1, ...entities.map(e => matrix[e][prod]));
+        let cls = 'heat-0';
+        if (v > 0) { const ratio = v / maxInCol; cls = ratio < 0.1 ? 'heat-1' : ratio < 0.3 ? 'heat-2' : ratio < 0.6 ? 'heat-3' : ratio < 0.85 ? 'heat-4' : 'heat-5'; }
+        return '<td class="' + cls + '" title="' + prod + ': ' + v.toFixed(2) + '万">' + (v > 0 ? v.toFixed(1) : '-') + '</td>';
+      }).join('');
+      const total = allProducts.reduce((s,p) => s + matrix[entity][p], 0);
+      const covered = allProducts.filter(p => matrix[entity][p] > 0).length;
+      return '<tr><td>' + entity + '</td>' + cells + '<td><strong>' + total.toFixed(1) + '</strong></td><td>' + covered + '/' + allProducts.length + '</td></tr>';
+    }).join('');
+
+  // COMBINED chart: blank products rate + uncovered entity rate
+  const blankRates = entities.map(e => {
+    const blanks = allProducts.filter(prod => matrix[e][prod] === 0).length;
+    return { entity: e, blanks: blanks, blankRate: (blanks / allProducts.length * 100) };
+  }).sort((a,b) => b.blankRate - a.blankRate);
+
+  const uncoveredRates = allProducts.map(prod => {
+    const num = entities.filter(e => matrix[e][prod] === 0).length;
+    return { prod: shortLabel(prod, 8), fullName: prod, num: num, rate: (num / entities.length * 100) };
+  }).sort((a,b) => b.rate - a.rate);
+
+  makeChart('chart-gap-combined', {
+    type: 'bar', data: {
+      labels: allProducts.map(p => shortLabel(p, 8)),
+      datasets: [
+        { label: '待突破实体率(%)', data: uncoveredRates.map(d => +d.rate.toFixed(1)), backgroundColor: '#ef4444', borderRadius: 4, borderSkipped: false, yAxisID: 'y', order: 2 },
+        { label: '空白产品率(%·实体维度)', data: blankRates.map(d => +d.blankRate.toFixed(1)), type: 'line', borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', borderWidth: 2.5, pointRadius: 4, pointBackgroundColor: '#f59e0b', yAxisID: 'y1', tension: 0.3, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } } },
+      scales: {
+        y: { position: 'left', beginAtZero: true, max: 100, title: { display: true, text: '待突破率(%)' }, ticks: { callback: v => v + '%' } },
+        y1: { position: 'right', beginAtZero: true, max: 100, title: { display: true, text: '空白率(%)' }, ticks: { callback: v => v + '%' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  // Gap detail table (vs team average)
+  const avgMap = {};
+  allProducts.forEach(prod => {
+    const vals = entities.map(e => matrix[e][prod]);
+    const nz = vals.filter(v => v > 0);
+    avgMap[prod] = nz.length ? nz.reduce((s,v) => s + v, 0) / nz.length : 0;
+  });
+  const gt = document.getElementById('gap-detail-table');
+  gt.innerHTML = '<tr><th>' + entityLabel + ' \\ 产品</th>' + allProducts.map(p => '<th title="' + p + '">' + shortLabel(p, 8) + '</th>').join('') + '</tr>' +
+    entities.map(entity => {
+      const cells = allProducts.map(prod => {
+        const v = matrix[entity][prod], avg = avgMap[prod];
+        if (avg === 0 && v === 0) return '<td class="heat-0">-</td>';
+        const diff = v - avg; const pct = avg > 0 ? ((diff / avg) * 100).toFixed(0) : (v > 0 ? '+' : '-');
+        const style = diff > 0 ? 'background:#d1fae5;color:#065f46' : diff < 0 ? 'background:#fee2e2;color:#991b1b' : 'background:#f3f4f6;color:#6b7280';
+        return '<td style="' + style + ';padding:6px 8px;border:1px solid #e5e7eb;text-align:center;font-size:11px;font-weight:600">' + (diff >= 0 ? '+' : '') + pct + '%</td>';
+      }).join('');
+      return '<tr><td>' + entity + '</td>' + cells + '</tr>';
+    }).join('');
+}
+
+// ==================== TAB 3: 客户全景（客户结构+客户分层）====================
+function renderCustomerPanorama() {
+  let data = getFiltered();
+  const search = (document.getElementById('cust-search')?.value || '').trim().toLowerCase();
+  if (search) data = data.filter(d => (d.customer || '').toLowerCase().includes(search) || (d.seller || '').toLowerCase().includes(search));
+  const entityLabel = currentView === 'customer' ? '客户' : '用户';
+  const isUserView = currentView === 'user';
+  const raw = getFiltered();
+
+  // Customer aggregation
+  const custMap = {};
+  raw.forEach(d => {
+    const cust = d.customer || d.seller || '未知';
+    if (!custMap[cust]) custMap[cust] = { amount: 0, amountPrev: 0, products: new Set(), persons: new Set(), industry: d.industry, seller: d.seller };
+    custMap[cust].amount += d.amount;
+    custMap[cust].amountPrev += d.amountPrev;
+    custMap[cust].products.add(d.product);
+    custMap[cust].persons.add(d.person);
+  });
+  const custList = Object.entries(custMap).sort((a,b) => b[1].amount - a[1].amount);
+  const totalAmt = raw.reduce((s,d) => s + d.amount, 0);
+
+  // KPI
+  document.getElementById('kpi-cust').innerHTML =
+    '<div class="kpi-card"><div class="kpi-label">' + entityLabel + '总数</div><div class="kpi-value" style="color:#1a56db">' + custList.length + '</div><div class="kpi-sub">个</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">总金额</div><div class="kpi-value" style="color:#10b981">' + totalAmt.toFixed(1) + '</div><div class="kpi-sub">万元</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">覆盖产品数</div><div class="kpi-value" style="color:#f59e0b">' + new Set(raw.map(d => d.product)).size + '</div><div class="kpi-sub">个潜力产品</div></div>';
+
+  // Industry chart
+  const industryCard = document.getElementById('cust-industry-card');
+  if (isUserView && allIndustries.length > 0) {
+    industryCard.style.display = '';
+    const indMap = {};
+    raw.forEach(d => { if (d.industry) indMap[d.industry] = (indMap[d.industry] || 0) + d.amount; });
+    const indSorted = Object.entries(indMap).sort((a,b) => b[1] - a[1]);
+    makeChart('chart-cust-industry', {
+      type: 'doughnut', data: { labels: indSorted.map(e => e[0]), datasets: [{ data: indSorted.map(e => +e[1].toFixed(2)), backgroundColor: indSorted.map((_,i) => getProductColor(i)), borderWidth: 2, borderColor: '#fff' }] },
+      options: { responsive: true, plugins: { legend: { position: 'right', labels: { font: { size: 11 }, boxWidth: 12 } } } }
+    });
+  } else { industryCard.style.display = 'none'; destroyChart('chart-cust-industry'); }
+
+  // High/Low contribution tables
+  const custGood = custList.slice(0, 10);
+  const custBad = custList.slice(-10).reverse();
+  const renderCustTable = (id, data) => {
+    // Build customer→dept3 mapping
+    const custDeptMap = {};
+    raw.forEach(d => {
+      const cust = d.customer || d.seller || '未知';
+      if (d.dept3 && !custDeptMap[cust]) custDeptMap[cust] = d.dept3;
+    });
+    document.getElementById(id).querySelector('thead').innerHTML = '<tr><th>排名</th><th>客户</th><th>金额(万)</th><th>同期</th><th>同比</th><th>品类</th><th>覆盖人数</th><th>大部门</th></tr>';
+    document.getElementById(id).querySelector('tbody').innerHTML = data.map((c, i) => {
+      const yoy = c[1].amountPrev > 0 ? ((c[1].amount - c[1].amountPrev) / c[1].amountPrev * 100) : (c[1].amount > 0 ? 100 : null);
+      const yoyStr = yoy === null ? '<span class="yoy-tag new">新增</span>' : (yoy >= 0 ? '<span class="yoy-tag growth">↑' + yoy.toFixed(1) + '%</span>' : '<span class="yoy-tag decline">↓' + Math.abs(yoy).toFixed(1) + '%</span>');
+      const deptName = custDeptMap[c[0]] || '-';
+      return '<tr><td><span class="rank-num rank-n">' + (i+1) + '</span></td><td><strong>' + c[0].substring(0, 18) + '</strong></td><td>' + c[1].amount.toFixed(2) + '万</td><td>' + c[1].amountPrev.toFixed(2) + '万</td><td>' + yoyStr + '</td><td>' + c[1].products.size + '/' + allProducts.length + '</td><td>' + c[1].persons.size + '</td><td>' + deptName + '</td></tr>';
+    }).join('');
+  };
+  renderCustTable('cust-good-table', custGood);
+  renderCustTable('cust-bad-table', custBad);
+
+  // Customer × Product Cross Matrix
+  const crossCust = custList.slice(0, 20);
+  const crossThead = document.getElementById('cust-cross-thead');
+  crossThead.innerHTML = '<tr><th>🏢 客户 \\ 产品</th>' +
+    allProducts.map(p => '<th title="' + p + '">' + shortLabel(p, 7) + '</th>').join('') +
+    '<th>合计</th><th>覆盖数</th></tr>';
+  const crossTbody = document.getElementById('cust-cross-tbody');
+  const maxAmt = crossCust.length > 0 ? Math.max(...crossCust.map(e => e[1].amount)) : 1;
+  crossTbody.innerHTML = crossCust.map((e, i) => {
+    const cust = e[0];
+    let row = '', rowTotal = 0, covCount = 0;
+    allProducts.forEach(prod => {
+      const amt = raw.filter(d => (d.customer || d.seller || '未知') === cust && d.product === prod).reduce((s, d) => s + d.amount, 0);
+      rowTotal += amt;
+      if (amt > 0) covCount++;
+      const ratio = maxAmt > 0 ? amt / maxAmt : 0;
+      let cls = 'ch-0';
+      if (ratio > 0 && ratio <= 0.01) cls = 'ch-1';
+      else if (ratio > 0.01 && ratio <= 0.1) cls = 'ch-2';
+      else if (ratio > 0.1 && ratio <= 0.3) cls = 'ch-3';
+      else if (ratio > 0.3 && ratio <= 0.6) cls = 'ch-4';
+      else if (ratio > 0.6) cls = 'ch-5';
+      const display = amt > 0 ? amt.toFixed(1) + '万' : '-';
+      row += '<td class="' + cls + '"' + (amt > 0 ? ' title="' + prod + ': ' + amt.toFixed(2) + '万"' : '') + '>' + display + '</td>';
+    });
+    return '<tr><td title="' + cust + '">' + shortLabel(cust, 14) + '</td>' + row +
+      '<td><strong>' + rowTotal.toFixed(1) + '</strong></td><td>' + covCount + '/' + allProducts.length + '</td></tr>';
+  }).join('');
+
+  // Top 20 bar
+  const top20 = custList.slice(0, 20);
+  document.getElementById('cust-top-title').innerHTML = 'TOP 20 ' + entityLabel;
+  makeChart('chart-cust-top', {
+    type: 'bar', data: {
+      labels: top20.map(e => shortLabel(e[0], 10)),
+      datasets: [{ label: '金额(万)', data: top20.map(e => +e[1].amount.toFixed(2)), backgroundColor: top20.map(e => e[1].amount > 50 ? '#10b981' : e[1].amount > 10 ? '#1a56db' : '#94a3b8'), borderRadius: 6, borderSkipped: false }]
+    },
+    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { callback: v => v + '万' } } } }
+  });
+
+  // Seller dependency
+  const sellerMap = {};
+  raw.forEach(d => { if (d.seller) sellerMap[d.seller] = (sellerMap[d.seller] || 0) + d.amount; });
+  const sellerSorted = Object.entries(sellerMap).sort((a,b) => b[1] - a[1]).slice(0, 10);
+  makeChart('chart-cust-dependency', {
+    type: 'bar', data: {
+      labels: sellerSorted.map(e => shortLabel(e[0], 12)),
+      datasets: [{ label: '金额(万)', data: sellerSorted.map(e => +e[1].toFixed(2)), backgroundColor: sellerSorted.map((e,i) => e[1] > totalAmt * 0.25 ? '#ef4444' : getProductColor(i)), borderRadius: 6, borderSkipped: false }]
+    },
+    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { callback: v => v + '万' } } } }
+  });
+}
+
+// ==================== TAB 4: 潜力看板（产品排名+销售人员排名）====================
+function renderOpportunity() {
+  const raw = getFiltered();
+  const totalAmount = raw.reduce((s, d) => s + d.amount, 0);
+  const totalLast = raw.reduce((s, d) => s + d.amountPrev, 0);
+  const yoyPct = totalLast > 0 ? ((totalAmount - totalLast) / totalLast * 100) : (totalAmount > 0 ? 100 : null);
+  const prodTypes = new Set(raw.map(d => d.product)).size;
+  const persons = [...new Set(raw.map(d => d.person))].filter(Boolean);
+  const yoyColor = yoyPct === null ? 'var(--text-sub)' : (yoyPct >= 0 ? '#dc2626' : '#16a34a');
+  const yoySign = yoyPct === null ? '新增' : (yoyPct >= 0 ? '▲' : '▼');
+
+  // KPI
+  document.getElementById('kpi-opportunity').innerHTML =
+    '<div class="kpi-card"><div class="kpi-label">潜力产品总销售额(万)</div><div class="kpi-value" style="color:#1a56db">' + totalAmount.toFixed(2) + '</div><div class="kpi-sub">当前筛选范围</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">同期总销售额(万)</div><div class="kpi-value" style="color:#c27803">' + totalLast.toFixed(2) + '</div><div class="kpi-sub">去年同期</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">同比增长</div><div class="kpi-value" style="color:' + yoyColor + '">' + (yoyPct === null ? '新增' : yoySign + Math.abs(yoyPct).toFixed(1) + '%') + '</div><div class="kpi-sub">vs 同期</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">产品种类</div><div class="kpi-value" style="color:#8b5cf6">' + prodTypes + '</div><div class="kpi-sub">覆盖 ' + persons.length + ' 个销售员</div></div>';
+
+  // Product ranking - 覆盖数=销售人数
+  const prodAgg = {};
+  raw.forEach(d => {
+    if (!prodAgg[d.product]) prodAgg[d.product] = { amount: 0, last: 0, sellers: new Set() };
+    prodAgg[d.product].amount += d.amount; prodAgg[d.product].last += d.amountPrev;
+    if (d.person) prodAgg[d.product].sellers.add(d.person);
+  });
+  const prodRank = Object.entries(prodAgg).sort((a,b) => b[1].amount - a[1].amount);
+  document.getElementById('opp-prod-rank').querySelector('tbody').innerHTML = prodRank.map((p, i) => {
+    const yoy = p[1].last > 0 ? ((p[1].amount - p[1].last) / p[1].last * 100) : null;
+    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-n';
+    const yoyHtml = yoy === null ? '<span class="yoy-tag new">新增</span>' : (yoy >= 0 ? '<span class="yoy-tag growth">↑' + yoy.toFixed(1) + '%</span>' : '<span class="yoy-tag decline">↓' + Math.abs(yoy).toFixed(1) + '%</span>');
+    return '<tr><td><span class="rank-num ' + rankClass + '">' + (i+1) + '</span></td><td><strong>' + p[0] + '</strong></td><td>' + p[1].amount.toFixed(2) + '万</td><td>' + p[1].last.toFixed(2) + '</td><td>' + yoyHtml + '</td><td>' + p[1].sellers.size + '</td></tr>';
+  }).join('');
+
+  // Seller ranking - 销售人员潜力产品排名
+  const sellerAgg = {};
+  raw.forEach(d => {
+    if (!sellerAgg[d.person]) sellerAgg[d.person] = { amount: 0, last: 0, prods: new Set(), custs: new Set() };
+    sellerAgg[d.person].amount += d.amount; sellerAgg[d.person].last += d.amountPrev;
+    sellerAgg[d.person].prods.add(d.product);
+    if (d.customer) sellerAgg[d.person].custs.add(d.customer);
+  });
+  const sellerRank = Object.entries(sellerAgg).sort((a,b) => b[1].amount - a[1].amount);
+  document.getElementById('opp-seller-rank').querySelector('thead').innerHTML = '<tr><th>排名</th><th>销售员</th><th>销售额(万)</th><th>同期(万)</th><th>同比</th><th>覆盖数</th><th>覆盖/未覆盖产品</th></tr>';
+  document.getElementById('opp-seller-rank').querySelector('tbody').innerHTML = sellerRank.map((s, i) => {
+    const yoy = s[1].last > 0 ? ((s[1].amount - s[1].last) / s[1].last * 100) : null;
+    const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-n';
+    const yoyHtml = yoy === null ? '<span class="yoy-tag new">新增</span>' : (yoy >= 0 ? '<span class="yoy-tag growth">↑' + yoy.toFixed(1) + '%</span>' : '<span class="yoy-tag decline">↓' + Math.abs(yoy).toFixed(1) + '%</span>');
+    const covered = [...s[1].prods].sort();
+    const uncovered = allProducts.filter(p => !s[1].prods.has(p)).sort();
+    const covHtml = covered.map(p => '<span class="prod-chip covered">' + shortLabel(p, 8) + '</span>').join('');
+    const uncovHtml = uncovered.map(p => '<span class="prod-chip uncovered">' + shortLabel(p, 8) + '</span>').join('');
+    const detailHtml = '<div class="prod-detail">' +
+      (covered.length ? '<div class="pd-row"><span class="pd-label pd-cov">✓覆盖<small>(' + covered.length + ')</small></span>' + covHtml + '</div>' : '') +
+      (uncovered.length ? '<div class="pd-row"><span class="pd-label pd-uncov">✗未覆盖<small>(' + uncovered.length + ')</small></span>' + uncovHtml + '</div>' : '') +
+      '</div>';
+    return '<tr><td><span class="rank-num ' + rankClass + '">' + (i+1) + '</span></td><td><strong>' + s[0] + '</strong></td><td>' + s[1].amount.toFixed(2) + '万</td><td>' + s[1].last.toFixed(2) + '</td><td>' + yoyHtml + '</td><td>' + s[1].prods.size + '/' + allProducts.length + '</td><td style="padding:4px 6px">' + detailHtml + '</td></tr>';
+  }).join('');
+}
+
+function saveTarget(product, value) {
+  const v = parseFloat(value);
+  if (!isNaN(v) && v >= 0) {
+    localStorage.setItem('target_' + product, v);
+  } else if (value === '' || value === '0') {
+    localStorage.removeItem('target_' + product);
+  }
+}
+
+function renderAll() {
+  const activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  switch (activePage.id) {
+    case 'page-overview': renderOverview(); break;
+    case 'page-gap': renderGap(); break;
+    case 'page-customer': renderCustomerPanorama(); break;
+    case 'page-opportunity': renderOpportunity(); break;
+  }
+}
+
+function switchView(view) {
+  if (currentView === view) return;
+  currentView = view;
+  document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-view-' + view).classList.add('active');
+  document.getElementById('header-subtitle').innerHTML = '经营概览 · 差距分析 · 客户全景 · 潜力看板 · V13 · 2026年 · ' + (view === 'customer' ? '客户视角（售达方）' : '用户视角（最终用户+行业）') + ' · <span id="hint-agg-level">' + getAggLabel() + '</span>';
+  destroyAllCharts();
+  refreshGlobals();
+  resetCascade();
+  renderAll();
+  showToast('已切换至' + (view === 'customer' ? '客户视角' : '用户视角'));
+}
+
+function destroyAllCharts() {
+  Object.keys(chartInstances).forEach(k => { chartInstances[k].destroy(); });
+  chartInstances = {};
+}
+
+// File upload
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const wb = XLSX.read(ev.target.result, { type: 'array' });
+      const custSheet = wb.SheetNames.find(n => n.includes('客户'));
+      const userSheet = wb.SheetNames.find(n => n.includes('用户'));
+      if (custSheet) rawDataCustomer = parseCustomerData(XLSX.utils.sheet_to_json(wb.Sheets[custSheet], { header: 1, defval: null }));
+      if (userSheet) rawDataUser = parseUserData(XLSX.utils.sheet_to_json(wb.Sheets[userSheet], { header: 1, defval: null }));
+      if (!custSheet && !userSheet) rawDataCustomer = parseCustomerData(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null }));
+      destroyAllCharts();
+      refreshGlobals();
+      resetCascade();
+      renderAll();
+      showToast('数据加载成功');
+    } catch(err) { showToast('文件解析失败'); }
+  };
+  reader.readAsArrayBuffer(file);
+  this.value = '';
+});
+
+// Tab + view events
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    this.classList.add('active');
+    document.getElementById('page-' + this.dataset.tab).classList.add('active');
+    renderAll();
+  });
+});
+document.querySelectorAll('.view-toggle button').forEach(btn => {
+  btn.addEventListener('click', function() { switchView(this.dataset.view); });
+});
+
+// Init
+initAll();
+
+  </script>
+</body>
+</html>

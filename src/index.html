@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>销售分析一体化平台 · Demo v2.0</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/reset.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<!-- ========== 顶栏 ========== -->
+<div class="topbar">
+  <div class="logo">产品分析一体化平台
+  </div>
+  <div class="user-menu">
+    <span class="scope">数据范围:本部门</span>
+    <div class="avatar">王</div>
+    <span class="name">王志强</span>
+    <span style="opacity:.6;cursor:pointer">⏻</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- ========== 侧边栏 ========== -->
+  <div class="sidebar">
+    <div class="nav-section">分析模块</div>
+    <div class="nav-item active" data-page="overview"><span class="icon">📊</span>数据总览</div>
+    <div class="nav-item" data-page="width"><span class="icon">📐</span>产品宽度</div>
+    <div class="nav-item" data-page="potential"><span class="icon">🚀</span>潜力产品</div>
+    <div class="nav-section">系统</div>
+    <div class="nav-item" data-page="admin"><span class="icon">⚙</span>账号管理</div>
+  </div>
+
+  <!-- ========== 主区 ========== -->
+  <div class="main">
+
+    <!-- ===== 1. 数据总览 (大幅扩展版) ===== -->
+    <div class="page active" id="page-overview">
+      <div class="page-header">
+        <div>
+          <div class="page-title">数据总览</div>
+          <div class="page-subtitle">更新时间 2026-07-16 11:00</div>
+        </div>
+        <div class="flex" style="gap:8px">
+          <button class="btn-ghost" onclick="document.querySelectorAll('#page-overview .subtab')[0].click()">📄 导出PDF</button>
+        </div>
+      </div>
+
+      <!-- ===== 筛选条: 自定义时间 + 团队/组/个人 三维度 ===== -->
+      <div class="filter-bar">
+        <div class="filter-group"><label>开始日期</label><input type="date" value="2026-07-01"></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>结束日期</label><input type="date" value="2026-07-16"></div>
+        <div class="filter-group"><label>对比期</label><select><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 团队</label><select onchange="App.updateOverviewCascade()"><option value="all">全部团队</option><option>政府行业组</option><option>公安交警组</option><option>教育文化组</option><option>智能交通组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>小组</label><select onchange="App.updateOverviewCascade()"><option value="all">全部小组</option><option>一组</option><option>二组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>个人</label><select onchange="App.updateOverviewCascade()"><option value="all">全部成员</option><option>王志强</option><option>陈思源</option><option>李梦琪</option></select></div>
+        <button class="btn-ghost">🔄 重置</button>
+        <div class="right">
+          <span class="level-tag" id="overview-level">当前粒度: 全部团队</span>
+        </div>
+      </div>
+
+      <!-- ===== 宏观 KPI 大数字卡片 ===== -->
+      <div class="kpi-row" style="grid-template-columns:repeat(7,1fr)">
+        <div class="kpi-card"><div class="kpi-label">📈 总销售额</div><div class="kpi-value" id="ov-kpi-sales">¥ 2.84亿</div><div class="kpi-sub">同比 <span class="delta-up" id="ov-kpi-sales-yoy">+18.2%</span></div></div>
+        <div class="kpi-card k-red"><div class="kpi-label">🚀 潜力产品销售额</div><div class="kpi-value" id="ov-kpi-potential-amt-v">¥ 9,830万</div><div class="kpi-sub">占比 <span id="ov-kpi-potential">34.6%</span></div></div>
+        <div class="kpi-card k-green"><div class="kpi-label">👥 覆盖客户数</div><div class="kpi-value" id="ov-kpi-customers">1,247</div><div class="kpi-sub">环比 <span class="delta-up" id="ov-kpi-customers-mom">+62</span></div></div>
+        <div class="kpi-card k-purple"><div class="kpi-label">🧑 覆盖用户数</div><div class="kpi-value" id="ov-kpi-users">386</div><div class="kpi-sub">最终使用方</div></div>
+        <div class="kpi-card k-orange"><div class="kpi-label">📐 平均产品宽度</div><div class="kpi-value" id="ov-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="ov-kpi-avgwidth-yoy">+0.42</span></div></div>
+        <div class="kpi-card"><div class="kpi-label">📦 覆盖产品品类</div><div class="kpi-value">27 / 27</div><div class="kpi-sub">覆盖率 100%</div></div>
+        <div class="kpi-card"><div class="kpi-label">⚖ 规上客户率</div><div class="kpi-value" id="ov-kpi-scalerate">71.2%</div><div class="kpi-sub" id="ov-kpi-scale-sub">888 / 1,247</div></div>
+      </div>
+
+      <!-- ===== 部门维度对比：产品宽度 + 潜力产品 ===== -->
+      <div class="grid2" style="margin-top:16px">
+        <div class="card">
+          <div class="card-title"><span class="left">📐 产品宽度 — 按部门</span><span class="tag">客均宽度</span></div>
+          <div class="chart-wrap"><canvas id="chart-ov-dept-width"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">🚀 潜力产品 — 按部门</span><span class="tag">销售额 (万)</span></div>
+          <div class="chart-wrap"><canvas id="chart-ov-dept-potential"></canvas></div>
+        </div>
+      </div>
+
+      <!-- ===== 双趋势图：产品宽度 + 潜力产品 ===== -->
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title"><span class="left">📐 产品宽度历史趋势 (近12月)</span><span class="tag">月均宽度</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-ov-width-trend"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">🚀 潜力产品历史趋势 (近12月)</span><span class="tag">月销售额</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-ov-potential-trend"></canvas></div>
+        </div>
+      </div>
+
+      <!-- ===== AI 总览分析 ===== -->
+      <div class="ai-box" style="margin-top:14px">
+        <div class="ai-head"><span class="ai-tag">AI 智能分析</span><h3>本月部门综合诊断</h3><span class="ai-model">DeepSeek V3</span></div>
+        <div class="ai-body">
+          <h4>一、宏观概览</h4><ul><li>总销售额 <strong>¥ 2.84亿</strong>, 同比 <strong style="color:#dc2626">+18.2%</strong>, 潜力产品贡献 ¥ 9,830万 (34.6%)</li><li>覆盖 1,247 客户 / 386 用户, 27品类全覆盖, 平均产品宽度 3.96</li></ul>
+          <h4>二、趋势判断</h4><ul><li>产品宽度 12 个月稳步上升: 3.2 → 3.96, 规上客户平均宽度已达 6.0</li><li>潜力产品: NVR 持续增长, 智能计算从无到有爆发至 ¥ 2,180万</li></ul>
+          <h4>三、关键风险</h4><ul><li>门禁连续 3 月量价齐跌 -23.5%, 智能交通 -11.2%, 合计风险敞口 ¥ 1,830万</li><li>智能计算覆盖率仅 5.1%, 但增长迅猛, 需加速推广防止竞品抢占</li></ul>
+          <h4>四、行动建议</h4><ul><li>P1: 门禁 + NVR 联动打包, TOP 10 客户专项突破</li><li>P2: 智能计算成功经验向公安交警组、教育文化组复制</li></ul>
+        </div>
+        <div class="ai-actions">
+          <button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button><button class="ai-btn">📤 分享</button>
+          <button class="ai-btn">⚙ 自定义</button>
+          <select style="padding:4px 8px;border:1px solid #c7d2fe;border-radius:6px;font-size:11px;background:#fff;color:#4338ca"><option>DeepSeek V3</option><option>DeepSeek R1</option><option>Qwen-Max</option></select>
+          <span style="margin-left:auto;font-size:10px;color:#6366f1">耗时 4.2s · Token 2,310</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 2. 产品宽度 ===== -->
+    <div class="page" id="page-width">
+      <div class="page-header page-header-tabs">
+        <div class="page-titles">
+          <div class="page-title">产品宽度分析</div>
+          <div class="page-subtitle">27品类宽度 · 规上非规上分层</div>
+        </div>
+        <div class="subtabs-inline">
+          <button class="subtab active" data-tab="w-overview">📊 总览分析</button>
+          <button class="subtab" data-tab="w-product">📦 产品维度</button>
+          <button class="subtab" data-tab="w-team">👥 团队维度</button>
+          <button class="subtab" data-tab="w-customer">🔑 客户维度</button>
+          <button class="subtab" data-tab="w-user">🏢 用户维度</button>
+          <button class="subtab" data-tab="w-compare">⚖️ 分组对比</button>
+          <button class="subtab" data-tab="w-import">📥 数据导入与管理</button>
+          <button class="subtab" data-tab="w-ai">🤖 AI建议与分析</button>
+        </div>
+        <div class="page-actions">
+          <button style="padding:7px 14px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">📤 导出PDF</button>
+          <button style="padding:7px 14px;background:var(--success);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">📥 导出Excel</button>
+        </div>
+      </div>
+
+      <!-- ===== 筛选: 三维度 + 时间 ===== -->
+      <div class="filter-bar">
+        <div class="filter-group"><label>开始日期</label><input type="date" value="2026-07-01"></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>结束日期</label><input type="date" value="2026-07-16"></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 团队</label><select onchange="App.updateWidthCascade()"><option value="all">全部团队</option><option>政府行业组</option><option>公安交警组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>小组</label><select onchange="App.updateWidthCascade()"><option value="all">全部小组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>个人</label><select onchange="App.updateWidthCascade()"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost">重置</button>
+        <div class="right"><span class="level-tag" id="width-level">当前粒度: 全部团队</span></div>
+      </div>
+
+      <!-- ===== 1. 总览分析 ===== -->
+      <div data-tab-content="w-overview">
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi-card"><div class="kpi-label">客户数</div><div class="kpi-value" id="w-kpi-customers">1,247</div><div class="kpi-sub" id="w-kpi-scale">规上 888 · 非规上 359</div></div>
+          <div class="kpi-card k-green"><div class="kpi-label">平均产品宽度</div><div class="kpi-value" id="w-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-yoy">+0.42</span></div></div>
+          <div class="kpi-card k-orange"><div class="kpi-label">最大产品宽度</div><div class="kpi-value" id="w-kpi-maxwidth">10</div><div class="kpi-sub" id="w-kpi-maxcust">深圳市政府</div></div>
+          <div class="kpi-card k-purple"><div class="kpi-label">规上客户覆盖率</div><div class="kpi-value" id="w-kpi-coverage">71.2%</div><div class="kpi-sub" id="w-kpi-covdetail">888 / 1,247</div></div>
+        </div>
+
+        <div class="grid3">
+          <div class="card"><div class="card-title"><span class="left">产品宽度分布</span><span class="tag">点击查看明细</span></div><div class="chart-wrap short"><canvas id="chart-w-dist"></canvas></div></div>
+          <div class="card"><div class="card-title"><span class="left">各团队平均产品宽度</span><span class="tag">4个团队</span></div><div class="chart-wrap short"><canvas id="chart-w-team"></canvas></div></div>
+          <div class="card"><div class="card-title"><span class="left">产品覆盖率 TOP 15</span><span class="tag">产品维度</span></div><div class="chart-wrap short"><canvas id="chart-w-cov"></canvas></div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card"><div class="card-title"><span class="left">📊 规上 vs 非规上 对比</span><span class="tag">基线 2026Q1</span></div><div class="chart-wrap"><canvas id="chart-w-reg"></canvas></div></div>
+          <div class="card">
+            <div class="card-title"><span class="left">📏 缺失产品分析 (规上客户)</span><span class="tag">空白机会</span></div>
+            <div class="table-wrap" style="max-height:260px">
+              <table class="table">
+                <thead><tr><th>产品品类</th><th>已覆盖客户</th><th>缺失客户</th><th>覆盖率</th><th>机会</th></tr></thead>
+                <tbody id="w-table-missing">
+                  <tr><td>智能计算</td><td>45</td><td style="color:var(--danger);font-weight:600">843</td><td>5.1%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:5%"></div></div><span class="bar-num">5.1%</span></div></td></tr>
+                  <tr><td>专网摄像机</td><td>62</td><td style="color:var(--danger);font-weight:600">826</td><td>7.0%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:7%"></div></div><span class="bar-num">7.0%</span></div></td></tr>
+                  <tr><td>行业软件</td><td>78</td><td style="color:var(--warning);font-weight:600">810</td><td>8.8%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:9%"></div></div><span class="bar-num">8.8%</span></div></td></tr>
+                  <tr><td>服务</td><td>95</td><td style="color:var(--warning)">793</td><td>10.7%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:11%"></div></div><span class="bar-num">10.7%</span></div></td></tr>
+                  <tr><td>门禁</td><td>120</td><td>768</td><td>13.5%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:14%"></div></div><span class="bar-num">13.5%</span></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 低宽度筛选统计 -->
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--warning)">
+          <div class="card-title"><span class="left">🔍 低宽度客户筛选统计</span><span class="right-meta" style="display:flex;align-items:center;gap:8px">
+            <span>宽度低于</span>
+            <input type="number" id="width-threshold" value="3" min="1" max="10" style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center" onchange="App.filterLowWidth()" oninput="App.filterLowWidth()">
+            <span>的客户</span>
+          </span></div>
+          <div class="grid2" style="margin-bottom:0">
+            <div>
+              <div class="kpi-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:10px">
+                <div class="kpi-card k-orange" style="padding:10px 14px"><div class="kpi-label">⚠ 低于阈值客户数</div><div class="kpi-value" id="w-low-count" style="font-size:20px">586</div><div class="kpi-sub">占比 <span id="w-low-rate">47.0%</span></div></div>
+                <div class="kpi-card k-red" style="padding:10px 14px"><div class="kpi-label">📉 低宽度客户平均宽度</div><div class="kpi-value" id="w-low-avg" style="font-size:20px">1.62</div><div class="kpi-sub">与均值差距 <span id="w-low-gap">-2.34</span></div></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-sub);margin-bottom:6px;font-weight:600">💡 提升建议</div>
+              <ul style="font-size:11px;color:var(--text);padding-left:16px;line-height:1.8">
+                <li>人均覆盖仅 <strong style="color:var(--danger)">1.6 品类</strong>，优先推广 IPC / NVR 入门产品</li>
+                <li>建议按 <strong>行业 + 区域</strong> 分组制定突破计划</li>
+                <li>目标：3 个月内将低宽度客户 <strong style="color:var(--primary)">减少 30%</strong></li>
+              </ul>
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <span style="font-size:10px;color:var(--text-muted)">默认阈值 3（低于均值 3.96）· 点击阈值数字可修改</span>
+          </div>
+        </div>
+
+        <!-- 问题与建议 -->
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--danger)">
+          <div class="card-title"><span class="left">⚠ 问题诊断与改进建议</span><span class="tag">基于当前数据自动生成</span></div>
+          <table class="table">
+            <thead><tr><th style="width:36px">#</th><th>问题描述</th><th style="width:70px">严重度</th><th style="width:80px">影响范围</th><th>改进建议</th><th style="width:70px">优先级</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="rn rn1">1</span></td>
+                <td><strong>智能计算覆盖率仅 5.1%</strong> — 888 规上客户中仅 45 户覆盖</td>
+                <td><span class="badge" style="background:#fee2e2;color:#dc2626">🔴 严重</span></td>
+                <td>843 客户</td>
+                <td>作为新增潜力品类优先推广，制定行业模板方案，目标 3 个月覆盖率达 15%</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">P1</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn2">2</span></td>
+                <td><strong>47 个规上客户未覆盖 IPC</strong> — 最基础品类仍有空白</td>
+                <td><span class="badge" style="background:#fee2e2;color:#dc2626">🔴 严重</span></td>
+                <td>47 客户 · ¥ 2,150万</td>
+                <td>组织"IPC空白客户"专项突破，优先攻克销售额 TOP 20 中的未覆盖客户</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">P1</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn3">3</span></td>
+                <td><strong>门禁覆盖率同比下降 8.2%</strong> — 客户流失趋势明显</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">🟡 警告</span></td>
+                <td>247 → 预计持续下滑</td>
+                <td>门禁 + NVR 联动打包销售，针对流失客户定向回访，提供以旧换新方案</td>
+                <td><span class="badge" style="background:#dbeafe;color:#2563eb">P2</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn0">4</span></td>
+                <td><strong>智能交通组宽度下滑 -5.4%</strong> — 团队维度落后明显</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">🟡 警告</span></td>
+                <td>智能交通组 · 187 客户</td>
+                <td>团队专项辅导，参考政府行业组经验，重点突破存储和门禁品类</td>
+                <td><span class="badge" style="background:#dbeafe;color:#2563eb">P2</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn0">5</span></td>
+                <td><strong>非规上客户平均宽度仅 1.6</strong> — 与规上差距 4.4 品类</td>
+                <td><span class="badge" style="background:#d1fae5;color:#065f46">🔵 关注</span></td>
+                <td>359 非规上客户</td>
+                <td>建立非规上客户培育机制，目标每客户新增 1-2 品类/半年</td>
+                <td><span class="badge" style="background:#e5e7eb;color:#6b7280">P3</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📈 产品宽度历史趋势 (近12月)</span><span class="tag">月均宽度</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-width-trend"></canvas></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">🔥 产品覆盖热力图 (27品类 × 客户覆盖)</span>
+            <span class="right-meta"><span>来源:产品宽度分析</span><a>详情 →</a></span>
+          </div>
+          <div class="heatmap-grid" id="w-heatmap"></div>
+          <div class="heatmap-legend">
+            <span class="legend-item"><span class="legend-box h-low"></span>&lt; 10% 薄弱</span>
+            <span class="legend-item"><span class="legend-box h-medium"></span>10% - 40% 起步</span>
+            <span class="legend-item"><span class="legend-box h-good"></span>40% - 70% 良好</span>
+            <span class="legend-item"><span class="legend-box h-great"></span>≥ 70% 优秀</span>
+          </div>
+        </div>
+
+        <div class="ai-box" style="margin-top:14px">
+          <div class="ai-head"><span class="ai-tag">AI 智能分析</span><h3>产品宽度总览诊断</h3><span class="ai-model">DeepSeek V3</span></div>
+          <div class="ai-body">
+            <h4>一、现状概述</h4><ul><li>平均产品宽度 3.96, 同比 <strong style="color:#16a34a">+0.42</strong></li><li>规上客户覆盖率 71.2%, 最大宽度 10 品类</li></ul>
+            <h4>二、关键问题</h4><ul><li>王鹏组平均宽度 4.8, 低于部门均值 -7.1%</li><li>47 个规上客户未覆盖 IPC, 潜在金额 ¥ 2,150万</li></ul>
+            <h4>三、行动建议</h4><ul><li>P1: 组织"IPC空白客户"专项突破</li><li>P2: 智能计算、平台软件差异化竞争</li></ul>
+          </div>
+          <div class="ai-actions"><button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button></div>
+        </div>
+      </div>
+
+      <!-- ===== 2. 产品维度 ===== -->
+      <div data-tab-content="w-product" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🏆 产品覆盖率排名 (规上客户)</span><span class="tag">27品类</span></div>
+          <div class="table-wrap" style="max-height:420px">
+            <table class="table">
+              <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖客户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th><th>主要团队</th></tr></thead>
+              <tbody>
+                <tr><td><span class="rn rn1">1</span></td><td><strong>IPC</strong></td><td style="text-align:center">472</td><td style="text-align:center;font-weight:700;color:var(--success)">53.1%</td><td style="text-align:center"><span class="badge b-up">+12.3%</span></td><td>政府行业组</td></tr>
+                <tr><td><span class="rn rn2">2</span></td><td><strong>NVR</strong></td><td style="text-align:center">326</td><td style="text-align:center;font-weight:700;color:var(--success)">36.7%</td><td style="text-align:center"><span class="badge b-up">+18.5%</span></td><td>政府行业组</td></tr>
+                <tr><td><span class="rn rn3">3</span></td><td>门禁</td><td style="text-align:center">247</td><td style="text-align:center">27.8%</td><td style="text-align:center"><span class="badge b-down">-8.2%</span></td><td>公安交警组</td></tr>
+                <tr><td><span class="rn rn0">4</span></td><td>球机</td><td style="text-align:center">218</td><td style="text-align:center">24.6%</td><td style="text-align:center"><span class="badge b-up">+5.1%</span></td><td>公安交警组</td></tr>
+                <tr><td><span class="rn rn0">5</span></td><td>LCD与解码</td><td style="text-align:center">156</td><td style="text-align:center">17.6%</td><td style="text-align:center"><span class="badge b-flat">+0.8%</span></td><td>教育文化组</td></tr>
+                <tr><td><span class="rn rn0">6</span></td><td>新业务</td><td style="text-align:center">155</td><td style="text-align:center">17.4%</td><td style="text-align:center"><span class="badge b-new">新增</span></td><td>智能交通组</td></tr>
+                <tr><td><span class="rn rn0">7</span></td><td>通用</td><td style="text-align:center">145</td><td style="text-align:center">16.3%</td><td style="text-align:center"><span class="badge b-up">+3.2%</span></td><td>政府行业组</td></tr>
+                <tr><td><span class="rn rn0">8</span></td><td>网络</td><td style="text-align:center">130</td><td style="text-align:center">14.6%</td><td style="text-align:center"><span class="badge b-warn">-2.1%</span></td><td>教育文化组</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 3. 团队维度 ===== -->
+      <div data-tab-content="w-team" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">👥 各团队产品宽度排名</span><span class="tag">按客均宽度降序</span></div>
+          <table class="table">
+            <thead><tr><th>排名</th><th>团队</th><th style="text-align:center">客户数</th><th style="text-align:center">客均宽度</th><th style="text-align:center">最大宽度</th><th style="text-align:center">覆盖率</th><th>同比变化</th></tr></thead>
+            <tbody>
+              <tr><td><span class="rn rn1">1</span></td><td><strong>政府行业组</strong></td><td style="text-align:center">437</td><td style="text-align:center;font-weight:700;color:var(--primary)">4.28</td><td style="text-align:center">10</td><td style="text-align:center">76.5%</td><td><span class="badge b-up">+8.2%</span></td></tr>
+              <tr><td><span class="rn rn2">2</span></td><td>公安交警组</td><td style="text-align:center">374</td><td style="text-align:center;font-weight:700;color:var(--primary)">3.76</td><td style="text-align:center">8</td><td style="text-align:center">70.2%</td><td><span class="badge b-up">+3.5%</span></td></tr>
+              <tr><td><span class="rn rn3">3</span></td><td>教育文化组</td><td style="text-align:center">249</td><td style="text-align:center">3.48</td><td style="text-align:center">7</td><td style="text-align:center">66.8%</td><td><span class="badge b-warn">-1.2%</span></td></tr>
+              <tr><td><span class="rn rn0">4</span></td><td>智能交通组</td><td style="text-align:center">187</td><td style="text-align:center">3.24</td><td style="text-align:center">6</td><td style="text-align:center">62.1%</td><td><span class="badge b-down">-5.4%</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">🏅 销售人员规上客均宽度 TOP 10</span></div>
+          <div class="table-wrap" style="max-height:360px">
+            <table class="table">
+              <thead><tr><th>排名</th><th>姓名</th><th>团队</th><th style="text-align:center">规上客户数</th><th style="text-align:center">客均宽度</th><th style="text-align:center">最大宽度</th><th>主要缺失品类</th></tr></thead>
+              <tbody>
+                <tr><td><span class="rn rn1">1</span></td><td><strong>陈思源</strong></td><td>政府行业组</td><td style="text-align:center">18</td><td style="text-align:center;font-weight:700;color:var(--primary)">5.8</td><td style="text-align:center">10</td><td>专网摄像机、行业软件</td></tr>
+                <tr><td><span class="rn rn2">2</span></td><td>王志强</td><td>政府行业组</td><td style="text-align:center">15</td><td style="text-align:center;font-weight:700;color:var(--primary)">5.2</td><td style="text-align:center">9</td><td>智能计算、服务</td></tr>
+                <tr><td><span class="rn rn3">3</span></td><td>张伟</td><td>公安交警组</td><td style="text-align:center">12</td><td style="text-align:center;font-weight:700;color:var(--primary)">4.8</td><td style="text-align:center">8</td><td>门禁、行业软件</td></tr>
+                <tr><td><span class="rn rn0">4</span></td><td>李梦琪</td><td>政府行业组</td><td style="text-align:center">10</td><td style="text-align:center">4.3</td><td style="text-align:center">7</td><td>智能交通、存储</td></tr>
+                <tr><td><span class="rn rn0">5</span></td><td>陈伟杰</td><td>政府行业组</td><td style="text-align:center">9</td><td style="text-align:center">4.1</td><td style="text-align:center">6</td><td>智能计算、LCD</td></tr>
+                <tr><td><span class="rn rn0">6</span></td><td>罗兴华</td><td>教育文化组</td><td style="text-align:center">8</td><td style="text-align:center">3.9</td><td style="text-align:center">6</td><td>专网摄像机</td></tr>
+                <tr><td><span class="rn rn0">7</span></td><td>张继成</td><td>公安交警组</td><td style="text-align:center">8</td><td style="text-align:center">3.6</td><td style="text-align:center">5</td><td>服务、行业软件</td></tr>
+                <tr><td><span class="rn rn0">8</span></td><td>赵启超</td><td>智能交通组</td><td style="text-align:center">7</td><td style="text-align:center">3.4</td><td style="text-align:center">5</td><td>存储、门禁</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 4. 客户维度 ===== -->
+      <div data-tab-content="w-customer" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🔥 产品覆盖热力图 (TOP 10 客户 × 核心品类)</span></div>
+          <div class="scroll-x">
+            <table class="tight-table">
+              <thead><tr><th>客户</th><th>IPC</th><th>NVR</th><th>门禁</th><th>球机</th><th>LCD</th><th>新业务</th><th>通用</th><th>网络</th><th>存储</th><th>宽度</th></tr></thead>
+              <tbody>
+                <tr><td>深圳市政府</td><td class="cov-cell c5">10</td><td class="cov-cell c4">8</td><td class="cov-cell c3">6</td><td class="cov-cell c3">5</td><td class="cov-cell c2">3</td><td class="cov-cell c2">2</td><td class="cov-cell c1">1</td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td style="font-weight:700;color:var(--primary)">10</td></tr>
+                <tr><td>宝安公安局</td><td class="cov-cell c4">8</td><td class="cov-cell c3">7</td><td class="cov-cell c2">3</td><td class="cov-cell c3">6</td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td style="font-weight:700;color:var(--primary)">8</td></tr>
+                <tr><td>罗湖教育局</td><td class="cov-cell c3">7</td><td class="cov-cell c3">6</td><td class="cov-cell c2">3</td><td class="cov-cell c2">2</td><td class="cov-cell c2">2</td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td style="font-weight:700;color:var(--primary)">7</td></tr>
+                <tr><td>招商17</td><td class="cov-cell c2">6</td><td class="cov-cell c2">5</td><td class="cov-cell c1">1</td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td style="font-weight:700;color:var(--primary)">6</td></tr>
+                <tr><td>高峰10</td><td class="cov-cell c2">5</td><td class="cov-cell c2">4</td><td class="cov-cell c1">1</td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td class="cov-cell c1">1</td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td class="cov-cell c0"></td><td style="font-weight:700;color:var(--primary)">5</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="section-label"><span class="sl-icon">📐</span>客户产品宽度覆盖</div>
+        <div class="split-list">
+          <div class="good-side">
+            <h5>🟢 优质客户（产品覆盖好，Top10）</h5>
+            <table class="mini-table">
+              <thead><tr><th>#</th><th>客户</th><th style="text-align:center">客均宽度</th><th style="text-align:center">规上</th><th style="text-align:center">品类数</th><th>销售人员</th></tr></thead>
+              <tbody id="w-tbody-cust-good"></tbody>
+            </table>
+          </div>
+          <div class="bad-side">
+            <h5>🔴 待提升客户（产品覆盖弱，后10）</h5>
+            <table class="mini-table">
+              <thead><tr><th>#</th><th>客户</th><th style="text-align:center">客均宽度</th><th style="text-align:center">规上</th><th style="text-align:center">品类数</th><th>销售人员</th></tr></thead>
+              <tbody id="w-tbody-cust-bad"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 5. 用户维度 ===== -->
+      <div data-tab-content="w-user" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🏢 最终用户产品覆盖情况</span><span class="tag">用户维度</span></div>
+          <table class="table">
+            <thead><tr><th>用户名称</th><th style="text-align:center">关联客户数</th><th style="text-align:center">覆盖产品数</th><th style="text-align:center">用户宽度</th><th style="text-align:center">同比</th><th>主要覆盖品类</th></tr></thead>
+            <tbody>
+              <tr><td>深圳市公安局</td><td style="text-align:center">12</td><td style="text-align:center;font-weight:700;color:var(--primary)">18</td><td style="text-align:center">6.2</td><td style="text-align:center"><span class="badge b-up">+15.3%</span></td><td>IPC, NVR, 门禁, 球机, 智能交通</td></tr>
+              <tr><td>深圳市教育局</td><td style="text-align:center">8</td><td style="text-align:center;font-weight:700;color:var(--primary)">14</td><td style="text-align:center">5.1</td><td style="text-align:center"><span class="badge b-up">+8.7%</span></td><td>IPC, NVR, LCD, 平台软件</td></tr>
+              <tr><td>广东省交通厅</td><td style="text-align:center">6</td><td style="text-align:center">11</td><td style="text-align:center">4.5</td><td style="text-align:center"><span class="badge b-warn">+2.1%</span></td><td>智能交通, IPC, 存储</td></tr>
+              <tr><td>深圳市卫健委</td><td style="text-align:center">5</td><td style="text-align:center">9</td><td style="text-align:center">3.8</td><td style="text-align:center"><span class="badge b-down">-3.5%</span></td><td>IPC, 门禁, 通用</td></tr>
+              <tr><td>深圳市文体局</td><td style="text-align:center">4</td><td style="text-align:center">8</td><td style="text-align:center">3.2</td><td style="text-align:center"><span class="badge b-new">新增</span></td><td>LCD, 新业务, 通用</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section-label"><span class="sl-icon">📐</span>用户产品宽度覆盖</div>
+        <div class="split-list">
+          <div class="good-side">
+            <h5>🟢 优质用户（产品覆盖好，Top5）</h5>
+            <table class="mini-table">
+              <thead><tr><th>#</th><th>用户</th><th style="text-align:center">用户宽度</th><th style="text-align:center">关联客户</th><th style="text-align:center">品类数</th><th>代表客户</th></tr></thead>
+              <tbody id="w-tbody-user-good"></tbody>
+            </table>
+          </div>
+          <div class="bad-side">
+            <h5>🔴 待提升用户（产品覆盖弱，后5）</h5>
+            <table class="mini-table">
+              <thead><tr><th>#</th><th>用户</th><th style="text-align:center">用户宽度</th><th style="text-align:center">关联客户</th><th style="text-align:center">品类数</th><th>代表客户</th></tr></thead>
+              <tbody id="w-tbody-user-bad"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="left">📊 用户关联客户覆盖明细</span><span class="tag">TOP 3 用户</span></div>
+          <table class="table">
+            <thead><tr><th>用户</th><th>关联客户</th><th style="text-align:center">覆盖品类数</th><th style="text-align:center">销售额(万)</th><th>销售负责人</th></tr></thead>
+            <tbody>
+              <tr><td rowspan="3" style="vertical-align:middle;font-weight:600">深圳市公安局</td><td>深圳市政府</td><td style="text-align:center;color:var(--success)">10</td><td style="text-align:right">3,210</td><td>陈思源</td></tr>
+              <tr><td>宝安公安局</td><td style="text-align:center;color:var(--success)">8</td><td style="text-align:right">2,450</td><td>王志强</td></tr>
+              <tr><td>龙岗分局</td><td style="text-align:center">5</td><td style="text-align:right">1,120</td><td>张伟</td></tr>
+              <tr><td rowspan="2" style="vertical-align:middle;font-weight:600">深圳市教育局</td><td>罗湖教育局</td><td style="text-align:center;color:var(--success)">7</td><td style="text-align:right">1,880</td><td>李梦琪</td></tr>
+              <tr><td>南山区教育局</td><td style="text-align:center">4</td><td style="text-align:right">720</td><td>罗兴华</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 6. 数据导入与管理 ===== -->
+      <div data-tab-content="w-import" style="display:none">
+        <div class="info-banner">💡 数据导入支持 Excel / CSV 格式，导入后可新增或更新产品宽度数据。每次导入自动生成记录。</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <button style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">📤 上传文件导入</button>
+          <button class="btn-ghost" onclick="App.exportExcel('page-width')">📥 导出当前数据</button>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">📋 导入记录</span><span class="tag">最近10条</span></div>
+          <table class="table">
+            <thead><tr><th>导入时间</th><th>文件名</th><th>数据类型</th><th style="text-align:center">导入行数</th><th style="text-align:center">更新客户</th><th style="text-align:center">新增客户</th><th>操作人</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>2026-07-16 10:32</td><td>产品宽度_7月周报.xlsx</td><td>客户产品覆盖</td><td style="text-align:center">1,247</td><td style="text-align:center;color:var(--primary)">1,180</td><td style="text-align:center;color:var(--success)">67</td><td>王志强</td><td><span class="status-pill status-active">成功</span></td></tr>
+              <tr><td>2026-07-09 14:15</td><td>深圳大区_Q2汇总.csv</td><td>客户产品覆盖</td><td style="text-align:center">1,180</td><td style="text-align:center;color:var(--primary)">1,120</td><td style="text-align:center;color:var(--success)">60</td><td>陈思源</td><td><span class="status-pill status-active">成功</span></td></tr>
+              <tr><td>2026-07-02 09:08</td><td>政府行业组_6月.xlsx</td><td>销售明细</td><td style="text-align:center">437</td><td style="text-align:center;color:var(--primary)">420</td><td style="text-align:center;color:var(--success)">17</td><td>李梦琪</td><td><span class="status-pill status-active">成功</span></td></tr>
+              <tr><td>2026-06-28 16:42</td><td>公安交警组_补录.xlsx</td><td>销售明细</td><td style="text-align:center">374</td><td style="text-align:center;color:var(--primary)">370</td><td style="text-align:center;color:var(--success)">4</td><td>张伟</td><td><span class="status-pill status-paused">部分成功</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 6. 分组对比 (整合自凯玲版) ===== -->
+      <div data-tab-content="w-compare" style="display:none">
+        <!-- 筛选条 -->
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label>对比对象</label>
+            <select id="compare-mode" onchange="App.renderCompare()">
+              <option value="group">团队 vs 团队</option>
+              <option value="mean">团队 vs 全部均值</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>对比组A</label>
+            <select id="compare-groupA" onchange="App.renderCompare()">
+              <option value="政府行业组">政府行业组</option>
+              <option value="公安交警组">公安交警组</option>
+              <option value="教育文化组">教育文化组</option>
+              <option value="智能交通组">智能交通组</option>
+            </select>
+          </div>
+          <div class="filter-group" id="compare-groupB-wrap">
+            <label>对比组B</label>
+            <select id="compare-groupB" onchange="App.renderCompare()">
+              <option value="公安交警组">公安交警组</option>
+              <option value="政府行业组">政府行业组</option>
+              <option value="教育文化组">教育文化组</option>
+              <option value="智能交通组">智能交通组</option>
+            </select>
+          </div>
+          <button class="btn-ghost" onclick="App.exportExcel('page-width')">📥 导出对比结果</button>
+          <div class="right"><span class="level-tag" id="compare-level">对比模式: 团队 vs 团队</span></div>
+        </div>
+
+        <!-- 综合指标对比表 -->
+        <div class="card">
+          <div class="card-title"><span class="left">📊 综合指标对比</span><span class="tag">差异高亮</span></div>
+          <table class="compare-table" id="w-compare-summary">
+            <thead><tr><th>指标</th><th id="w-compare-th-A">对比组A</th><th id="w-compare-th-B">对比组B</th><th>差异</th></tr></thead>
+            <tbody id="w-compare-summary-body"></tbody>
+          </table>
+        </div>
+
+        <!-- 双图: 雷达 + 分布 -->
+        <div class="grid2" style="margin-top:16px">
+          <div class="card">
+            <div class="card-title"><span class="left">📡 产品覆盖率对比</span><span class="tag" id="w-compare-radar-tag">15品类</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-w-compare-radar"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">📊 产品宽度分布对比</span><span class="tag">客户分布</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-w-compare-dist"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 各产品类别覆盖对比 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📋 各产品类别覆盖对比 (27品类)</span><span class="tag">差异(A-B)</span></div>
+          <div class="table-wrap" style="max-height:480px">
+            <table class="compare-table">
+              <thead><tr><th>产品类别</th><th id="w-compare-th-A2">对比组A 覆盖率</th><th id="w-compare-th-B2">对比组B 覆盖率</th><th>差异(A-B)</th></tr></thead>
+              <tbody id="w-compare-prod-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 智能分析建议 -->
+        <div class="ai-box" style="margin-top:14px">
+          <div class="ai-head"><span class="ai-tag">AI 智能分析</span><h3 id="w-compare-ai-title">分组对比诊断</h3><span class="ai-model">DeepSeek V3</span></div>
+          <div class="ai-body" id="w-compare-ai-body"></div>
+          <div class="ai-actions">
+            <button class="ai-btn primary">🔄 重新生成</button>
+            <button class="ai-btn">📋 复制</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 7. AI建议与分析 ===== -->
+      <div data-tab-content="w-ai" style="display:none">
+        <div class="ai-box">
+          <div class="ai-head"><span class="ai-tag">AI 建议·7行业模板</span><h3>宽度问题诊断 & 行动方案</h3><span class="ai-model">DeepSeek V3</span></div>
+          <div class="ai-body">
+            <h4>一、问题诊断</h4><ul><li>王鹏组平均宽度 4.8,低于部门均值 -7.1%,主因门禁/网络未突破</li><li>47 个规上客户未覆盖 IPC,潜在金额 ¥ 2,150万</li><li>智能交通组宽度从 6.2 下滑至 5.4, 需重点关注</li></ul>
+            <h4>二、团队建议(政府行业组模板)</h4><ul><li><strong>核心</strong>: IPC/NVR/网络 → 重点推广</li><li><strong>拓展</strong>: 智能计算、平台软件 → 差异化竞争</li><li><strong>行动P1</strong>: 组织"IPC空白客户"专项</li></ul>
+            <h4>三、个人建议(王志强)</h4><ul><li>宽度 5.2,处于<strong>领先</strong>位置· 锁定 3 个未覆盖 IPC 规上客户</li></ul>
+            <h4>四、产品策略</h4><ul><li>智能计算: 覆盖率仅 5.1%, 优先在政府/教育行业推广</li><li>门禁: 下滑明显, 建议与 NVR 联动打包销售</li></ul>
+          </div>
+          <div class="ai-actions">
+            <button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button>
+            <select style="padding:4px 8px;border:1px solid #c7d2fe;border-radius:6px;font-size:11px;background:#fff;color:#4338ca"><option>DeepSeek V3</option><option>DeepSeek R1</option><option>Qwen-Max</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 3. 潜力产品 ===== -->
+    <div class="page" id="page-potential">
+      <div class="page-header page-header-tabs">
+        <div class="page-titles">
+          <div class="page-title">潜力产品分析</div>
+          <div class="page-subtitle">量价四象限 · 客户全景 · 销售排名</div>
+        </div>
+        <div class="subtabs-inline">
+          <button class="subtab active" data-tab="p-overview">📊 总览分析</button>
+          <button class="subtab" data-tab="p-product">📦 产品维度</button>
+          <button class="subtab" data-tab="p-team">👥 团队维度</button>
+          <button class="subtab" data-tab="p-customer">🔑 客户维度</button>
+          <button class="subtab" data-tab="p-user">🏢 用户维度</button>
+          <button class="subtab" data-tab="p-gap">📊 差距分析</button>
+          <button class="subtab" data-tab="p-import">📥 数据导入与管理</button>
+          <button class="subtab" data-tab="p-ai">🤖 AI建议与分析</button>
+        </div>
+        <div class="page-actions">
+          <button style="padding:7px 14px;background:#fff;border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">📊 导出报告</button>
+          <button style="padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">🤖 AI分析</button>
+        </div>
+      </div>
+
+      <!-- 筛选 -->
+      <div class="filter-bar">
+        <div class="filter-group"><label>时间</label><select><option>2026年7月</option><option>2026年Q2</option></select></div>
+        <div class="filter-group"><label>团队</label><select><option>全部团队</option></select></div>
+        <div class="filter-group"><label>分类</label><select><option>全部</option><option>量价齐升</option><option>量增价跌</option></select></div>
+        <div class="filter-group"><label>视角</label><select><option>售达方</option><option>最终用户</option></select></div>
+        <button class="btn-ghost">重置</button>
+        <div class="right"><span style="font-size:11px;color:var(--text-sub)">基线: 2025年7月</span></div>
+      </div>
+
+      <!-- ===== 1. 总览分析 (整合自乔梦杰经营概览) ===== -->
+      <div data-tab-content="p-overview">
+        <!-- ===== 5 项 KPI 卡片 (乔梦杰版) ===== -->
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+          <div class="kpi-card k-red"><div class="kpi-label">💰 总销售额</div><div class="kpi-value" id="p-kpi-sales">¥ 9,830万</div><div class="kpi-sub">万元 · 同期 <span id="p-kpi-sales-prev">7,650万</span></div></div>
+          <div class="kpi-card k-green"><div class="kpi-label">🚀 潜力产品数</div><div class="kpi-value" id="p-kpi-prodcount">12</div><div class="kpi-sub">共 12 个潜力产品</div></div>
+          <div class="kpi-card k-purple"><div class="kpi-label">👥 客户数</div><div class="kpi-value" id="p-kpi-custcount">386</div><div class="kpi-sub">个 · 同期 312 个</div></div>
+          <div class="kpi-card k-orange"><div class="kpi-label">💵 客单价</div><div class="kpi-value" id="p-kpi-avgprice">25.5</div><div class="kpi-sub">万元 / 客户</div></div>
+          <div class="kpi-card"><div class="kpi-label">🏢 二级部门数</div><div class="kpi-value" id="p-kpi-deptcount">4</div><div class="kpi-sub">个 · 政府/公安/教育/智能交通</div></div>
+        </div>
+
+        <!-- ===== 销售量构成 + 产品同比趋势 (乔梦杰版) ===== -->
+        <div class="grid2" style="margin-top:16px">
+          <div class="card">
+            <div class="card-title"><span class="left">📊 销售量构成 (按产品)</span><span class="tag">销售额</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-p-composition"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">📈 本期 vs 同期 · 产品同比趋势</span><span class="tag">折线=同比%</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-p-yoy"></canvas></div>
+          </div>
+        </div>
+
+        <!-- ===== 量价四象限 + 二级部门销售排名 (乔梦杰版) ===== -->
+        <div class="grid2" style="margin-top:16px">
+          <div class="card">
+            <div class="card-title"><span class="left">🎯 量价四象限诊断</span><span class="tag">X=数量同比 Y=金额同比</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-p-quadrant"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">🏆 二级部门销售排名</span><span class="tag">标签=同比</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-p-dept-rank"></canvas></div>
+          </div>
+        </div>
+
+        <!-- ===== 团队小组 × 潜力产品 + 本期 vs 同期 对照表 (乔梦杰版) ===== -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">🔢 团队小组 × 潜力产品 + 本期 vs 同期 对照表</span><span class="tag">hover=同比%</span></div>
+          <div class="table-wrap" style="max-height:380px">
+            <table class="tight-table" id="p-team-prod-table">
+              <thead>
+                <tr>
+                  <th style="text-align:left;min-width:140px">团队小组 \ 潜力产品</th>
+                  <th>NVR</th><th>智能计算</th><th>IPC</th><th>平台软件</th><th>门禁</th><th>智能交通</th><th>存储</th><th>LCD与解码</th><th>本期合计</th><th>同期合计</th><th>整体同比</th>
+                </tr>
+              </thead>
+              <tbody id="p-team-prod-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ===== 原潜力产品 TOP 10 (保留) ===== -->
+        <div class="grid2" style="margin-top:16px">
+          <div class="card">
+            <div class="card-title"><span class="left">🏆 潜力产品 TOP 10 排名</span><span class="tag">销售额</span></div>
+            <div class="table-wrap" style="max-height:380px">
+              <table class="table">
+                <thead><tr><th>#</th><th>产品</th><th>销售额</th><th>同比</th><th>数量同比</th><th>分类</th></tr></thead>
+                <tbody id="p-table-top10"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">📊 潜力产品四象限分布 (散点图)</span><span class="tag">点击产品查看明细</span></div>
+            <div class="chart-wrap tall"><canvas id="chart-quadrant"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 问题与建议 -->
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--danger)">
+          <div class="card-title"><span class="left">⚠ 问题诊断与改进建议</span><span class="tag">基于当前数据自动生成</span></div>
+          <table class="table">
+            <thead><tr><th style="width:36px">#</th><th>问题描述</th><th style="width:70px">严重度</th><th style="width:80px">影响范围</th><th>改进建议</th><th style="width:70px">优先级</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="rn rn1">1</span></td>
+                <td><strong>门禁连续3月量价齐跌 -23.5%</strong> — 市场份额加速流失</td>
+                <td><span class="badge" style="background:#fee2e2;color:#dc2626">🔴 严重</span></td>
+                <td>全部门 · 980万</td>
+                <td>门禁 + NVR 联动打包销售，TOP 10 客户专项回访，目标下季度回升 +15%</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">P1</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn2">2</span></td>
+                <td><strong>智能交通 -11.2%，智能交通组拖累明显</strong> — 团队维度衰退</td>
+                <td><span class="badge" style="background:#fee2e2;color:#dc2626">🔴 严重</span></td>
+                <td>智能交通组 · 850万</td>
+                <td>与技术中心联动挖掘新应用场景，目标新增 3 个客户，激活存量需求</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">P1</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn3">3</span></td>
+                <td><strong>退步5人合计流失 ¥ 1,250万</strong> — 人员维度潜力贡献下降</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">🟡 警告</span></td>
+                <td>5 人 · ¥ 1,250万</td>
+                <td>定向辅导退步人员，重点跟踪黄燕滨客户流失原因，制定个人提升计划</td>
+                <td><span class="badge" style="background:#dbeafe;color:#2563eb">P2</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn0">4</span></td>
+                <td><strong>平台软件量跌价增（数量 -3.2% 金额 +18.7%）</strong> — 结构性风险</td>
+                <td><span class="badge" style="background:#fef3c7;color:#92400e">🟡 警告</span></td>
+                <td>全部门</td>
+                <td>短期利润可观但客户基础收窄，需平衡价格策略与客户覆盖，防止长期流失</td>
+                <td><span class="badge" style="background:#dbeafe;color:#2563eb">P2</span></td>
+              </tr>
+              <tr>
+                <td><span class="rn rn0">5</span></td>
+                <td><strong>智能计算仅政府行业组覆盖</strong> — 其他3个团队为空白</td>
+                <td><span class="badge" style="background:#d1fae5;color:#065f46">🔵 关注</span></td>
+                <td>3 个团队</td>
+                <td>总结陈伟杰 +85% 成功经验，向公安交警组、教育文化组、智能交通组推广</td>
+                <td><span class="badge" style="background:#e5e7eb;color:#6b7280">P3</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📈 潜力产品历史趋势 (近12月)</span><span class="tag">月销售额</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-trend"></canvas></div>
+        </div>
+
+        <div class="ai-box" style="margin-top:14px">
+          <div class="ai-head"><span class="ai-tag">AI 智能分析</span><h3>潜力产品总览诊断</h3><span class="ai-model">DeepSeek V3</span></div>
+          <div class="ai-body">
+            <h4>现状概述</h4><ul><li>潜力产品 ¥ 9,830万, 同比 <strong style="color:#dc2626">+28.4%</strong>, 量价齐升 5 个</li><li>NVR 贡献最大 ¥ 3,210万, 智能计算为新增爆发品类</li></ul>
+            <h4>关键问题</h4><ul><li>门禁 -23.5%, 连续3月下滑, 智能交通 -11.2%</li><li>退步5人流失 ¥ 1,250万, 需重点关注</li></ul>
+            <h4>行动建议</h4><ul><li>P1: 门禁+NVR联动打包, 以NVR带动门禁回升</li><li>P2: 智能交通与技术中心联动, 挖掘新场景</li><li>P3: 智能计算成功经验向其他团队复制</li></ul>
+          </div>
+          <div class="ai-actions"><button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button></div>
+        </div>
+      </div>
+
+      <!-- ===== 2. 产品维度 ===== -->
+      <div data-tab-content="p-product" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🏆 潜力产品 TOP 10 排名</span><span class="tag">按销售额降序</span></div>
+          <table class="table">
+            <thead><tr><th>#</th><th>产品</th><th>销售额(万)</th><th>金额同比</th><th>数量同比</th><th>分类</th><th>主要贡献客户</th></tr></thead>
+            <tbody>
+              <tr><td><span class="rn rn1">1</span></td><td><strong>NVR</strong></td><td style="font-weight:700">3,210</td><td><span class="badge b-up">+58.3%</span></td><td><span class="delta-up">+42.1%</span></td><td><span class="badge b-up">量价齐升</span></td><td>深圳市政府、宝安公安局</td></tr>
+              <tr><td><span class="rn rn2">2</span></td><td><strong>智能计算</strong></td><td style="font-weight:700">2,180</td><td><span class="badge b-new">新增</span></td><td><span class="delta-up">+100%</span></td><td><span class="badge b-new">新增</span></td><td>深圳市政府、罗湖教育局</td></tr>
+              <tr><td><span class="rn rn3">3</span></td><td>IPC</td><td>1,890</td><td><span class="badge b-up">+22.4%</span></td><td><span class="delta-up">+15.2%</span></td><td><span class="badge b-up">量价齐升</span></td><td>深圳市政府、宝安公安局</td></tr>
+              <tr><td><span class="rn rn0">4</span></td><td>平台软件</td><td>1,420</td><td><span class="badge b-up">+18.7%</span></td><td><span class="delta-down">-3.2%</span></td><td><span class="badge b-warn">量跌价增</span></td><td>宝安公安局</td></tr>
+              <tr><td><span class="rn rn0">5</span></td><td>门禁</td><td>980</td><td><span class="badge b-down">-23.5%</span></td><td><span class="delta-down">-18.6%</span></td><td><span class="badge b-down">量价齐跌</span></td><td>宝安公安局、招商17</td></tr>
+              <tr><td><span class="rn rn0">6</span></td><td>智能交通</td><td>850</td><td><span class="badge b-down">-11.2%</span></td><td><span class="delta-down">-5.4%</span></td><td><span class="badge b-down">量价齐跌</span></td><td>宝安公安局</td></tr>
+              <tr><td><span class="rn rn0">7</span></td><td>存储</td><td>720</td><td><span class="badge b-up">+8.4%</span></td><td><span class="delta-up">+12.3%</span></td><td><span class="badge b-up">量价齐升</span></td><td>沙头、彭城12</td></tr>
+              <tr><td><span class="rn rn0">8</span></td><td>LCD与解码</td><td>610</td><td><span class="badge b-up">+5.2%</span></td><td><span class="delta-up">+8.7%</span></td><td><span class="badge b-up">量价齐升</span></td><td>彭城12</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 3. 团队维度 ===== -->
+      <div data-tab-content="p-team" style="display:none">
+        <!-- ===== 大部门 x 产品 差距热图 (整合自乔梦杰版) ===== -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">🔥 大部门 × 潜力产品 差距热图</span>
+            <span class="tag" style="background:#fef3c7;color:#92400e">颜色越深 = 销售越强</span>
+          </div>
+          <div class="table-wrap">
+            <table class="heatmap-table" id="p-gap-heatmap-table"></table>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:11px;color:#6b7280">
+            <span>色阶图例：</span>
+            <span class="legend-item"><span style="display:inline-block;width:14px;height:14px;background:#f3f4f6;border:1px solid #e5e7eb;vertical-align:middle;margin-right:4px"></span>0 (空白)</span>
+            <span class="legend-item"><span style="display:inline-block;width:14px;height:14px;background:#fde68a;vertical-align:middle;margin-right:4px"></span>&lt;10%</span>
+            <span class="legend-item"><span style="display:inline-block;width:14px;height:14px;background:#fbbf24;vertical-align:middle;margin-right:4px"></span>10-30%</span>
+            <span class="legend-item"><span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;margin-right:4px"></span>30-60%</span>
+            <span class="legend-item"><span style="display:inline-block;width:14px;height:14px;background:#ea580c;vertical-align:middle;margin-right:4px"></span>60-85%</span>
+            <span class="legend-item"><span style="display:inline-block;width:14px;height:14px;background:#b91c1c;vertical-align:middle;margin-right:4px"></span>≥ 85% (顶配)</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="left">👥 各团队潜力产品销售对比</span><span class="tag">横向对比</span></div>
+          <table class="table">
+            <thead><tr><th>排名</th><th>团队</th><th style="text-align:center">潜力产品销售额</th><th style="text-align:center">占总比</th><th style="text-align:center">量价齐升数</th><th style="text-align:center">量价齐跌数</th><th>同比</th><th>核心产品</th></tr></thead>
+            <tbody>
+              <tr><td><span class="rn rn1">1</span></td><td><strong>政府行业组</strong></td><td style="text-align:center;font-weight:700;color:var(--primary)">¥ 3,932万</td><td style="text-align:center">40.0%</td><td style="text-align:center;color:var(--success)">5</td><td style="text-align:center;color:var(--danger)">0</td><td><span class="badge b-up">+32.5%</span></td><td>NVR、智能计算、IPC</td></tr>
+              <tr><td><span class="rn rn2">2</span></td><td>公安交警组</td><td style="text-align:center">¥ 2,752万</td><td style="text-align:center">28.0%</td><td style="text-align:center;color:var(--success)">3</td><td style="text-align:center;color:var(--danger)">1</td><td><span class="badge b-up">+18.2%</span></td><td>NVR、IPC、智能交通</td></tr>
+              <tr><td><span class="rn rn3">3</span></td><td>教育文化组</td><td style="text-align:center">¥ 1,769万</td><td style="text-align:center">18.0%</td><td style="text-align:center;color:var(--success)">2</td><td style="text-align:center;color:var(--danger)">1</td><td><span class="badge b-warn">+5.8%</span></td><td>NVR、LCD、存储</td></tr>
+              <tr><td><span class="rn rn0">4</span></td><td>智能交通组</td><td style="text-align:center">¥ 1,376万</td><td style="text-align:center">14.0%</td><td style="text-align:center;color:var(--success)">1</td><td style="text-align:center;color:var(--danger)">2</td><td><span class="badge b-down">-8.5%</span></td><td>智能交通、专网摄像机</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">🏅 销售人员潜力产品贡献 TOP 10</span></div>
+          <table class="table">
+            <thead><tr><th>排名</th><th>姓名</th><th>团队</th><th>潜力产品销售额</th><th>同比</th><th>贡献占比</th><th>主推产品</th></tr></thead>
+            <tbody>
+              <tr><td><span class="rn rn1">1</span></td><td>陈思源</td><td>政府行业组</td><td>¥ 1,850万</td><td><span class="badge b-up">+35%</span></td><td>18.8%</td><td>NVR、智能计算</td></tr>
+              <tr><td><span class="rn rn2">2</span></td><td>王志强</td><td>政府行业组</td><td>¥ 1,420万</td><td><span class="badge b-up">+22%</span></td><td>14.4%</td><td>NVR、IPC</td></tr>
+              <tr><td><span class="rn rn3">3</span></td><td>张伟</td><td>公安交警组</td><td>¥ 980万</td><td><span class="badge b-up">+18%</span></td><td>10.0%</td><td>IPC、智能交通</td></tr>
+              <tr><td><span class="rn rn0">4</span></td><td>陈伟杰</td><td>政府行业组</td><td>¥ 850万</td><td><span class="badge b-up">+85%</span></td><td>8.6%</td><td>智能计算</td></tr>
+              <tr><td><span class="rn rn0">5</span></td><td>李梦琪</td><td>政府行业组</td><td>¥ 720万</td><td><span class="badge b-up">+12%</span></td><td>7.3%</td><td>NVR、LCD</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ===== 销售人员潜力产品排名 (整合自乔梦杰版) ===== -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">👥 销售人员潜力产品排名</span>
+            <span class="tag" style="background:#dbeafe;color:#2563eb">潜力产品覆盖能力</span>
+          </div>
+          <table class="table" id="p-sales-potential-rank-table">
+            <thead>
+              <tr>
+                <th style="width:50px">排名</th>
+                <th style="width:90px">销售员</th>
+                <th style="text-align:right;width:90px">销售额(万)</th>
+                <th style="text-align:right;width:90px">同期(万)</th>
+                <th style="width:70px">同比</th>
+                <th style="width:60px">覆盖数</th>
+                <th>覆盖/未覆盖产品</th>
+              </tr>
+            </thead>
+            <tbody id="p-sales-potential-rank-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 4. 客户维度 ===== -->
+      <div data-tab-content="p-customer" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🎯 客户 × 潜力产品交叉矩阵</span><span class="tag">TOP 10 客户</span></div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>客户</th><th>NVR</th><th>智能计算</th><th>IPC</th><th>平台</th><th>门禁</th><th>智能交通</th><th>存储</th></tr></thead>
+              <tbody>
+                <tr><td>深圳市政府</td><td><span class="badge b-up">+125%</span></td><td><span class="badge b-new">新增</span></td><td><span class="badge b-up">+45%</span></td><td><span class="badge b-up">+18%</span></td><td style="color:#9ca3af">未覆盖</td><td style="color:#9ca3af">未覆盖</td><td><span class="badge b-up">+22%</span></td></tr>
+                <tr><td>宝安公安局</td><td><span class="badge b-up">+68%</span></td><td style="color:#9ca3af">未覆盖</td><td><span class="badge b-up">+22%</span></td><td><span class="badge b-warn">-5%</span></td><td><span class="badge b-down">-32%</span></td><td><span class="badge b-up">+12%</span></td><td><span class="badge b-up">+8%</span></td></tr>
+                <tr><td>罗湖教育局</td><td><span class="badge b-up">+42%</span></td><td><span class="badge b-new">新增</span></td><td><span class="badge b-up">+15%</span></td><td style="color:#9ca3af">未覆盖</td><td style="color:#9ca3af">未覆盖</td><td style="color:#9ca3af">未覆盖</td><td><span class="badge b-up">+5%</span></td></tr>
+                <tr><td>招商17</td><td><span class="badge b-up">+38%</span></td><td style="color:#9ca3af">未覆盖</td><td><span class="badge b-up">+8%</span></td><td><span class="badge b-warn">-2%</span></td><td><span class="badge b-down">-15%</span></td><td style="color:#9ca3af">未覆盖</td><td style="color:#9ca3af">未覆盖</td></tr>
+                <tr><td>高峰10</td><td><span class="badge b-up">+85%</span></td><td><span class="badge b-new">新增</span></td><td><span class="badge b-up">+25%</span></td><td><span class="badge b-up">+12%</span></td><td style="color:#9ca3af">未覆盖</td><td style="color:#9ca3af">未覆盖</td><td><span class="badge b-up">+18%</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title"><span class="left">⭐ 潜力产品高贡献客户 TOP 10</span></div>
+            <table class="mini-table">
+              <thead><tr><th>#</th><th>客户</th><th>潜力产品</th><th style="text-align:right">贡献额(万)</th><th style="text-align:center">同比</th></tr></thead>
+              <tbody>
+                <tr><td><span class="rn rn1">1</span></td><td>深圳市政府</td><td>NVR/智能计算/IPC</td><td style="text-align:right">2,880</td><td style="text-align:center"><span class="badge b-up">+85%</span></td></tr>
+                <tr><td><span class="rn rn2">2</span></td><td>宝安公安局</td><td>NVR/IPC/平台</td><td style="text-align:right">1,650</td><td style="text-align:center"><span class="badge b-up">+42%</span></td></tr>
+                <tr><td><span class="rn rn3">3</span></td><td>罗湖教育局</td><td>NVR/智能计算</td><td style="text-align:right">1,240</td><td style="text-align:center"><span class="badge b-up">+38%</span></td></tr>
+                <tr><td><span class="rn rn0">4</span></td><td>高峰10</td><td>NVR/智能计算</td><td style="text-align:right">1,050</td><td style="text-align:center"><span class="badge b-up">+85%</span></td></tr>
+                <tr><td><span class="rn rn0">5</span></td><td>招商17</td><td>IPC/NVR</td><td style="text-align:right">890</td><td style="text-align:center"><span class="badge b-up">+25%</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">🏭 客户行业分布</span><span class="tag">11行业分类</span></div>
+            <div class="chart-wrap"><canvas id="chart-industry"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 5. 用户维度 ===== -->
+      <div data-tab-content="p-user" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🏢 最终用户潜力产品推广情况</span><span class="tag">用户维度</span></div>
+          <table class="table">
+            <thead><tr><th>用户名称</th><th style="text-align:center">关联客户数</th><th style="text-align:center">潜力产品覆盖</th><th style="text-align:center">潜力贡献(万)</th><th style="text-align:center">同比</th><th>主要潜力产品</th></tr></thead>
+            <tbody>
+              <tr><td>深圳市公安局</td><td style="text-align:center">12</td><td style="text-align:center;font-weight:700;color:var(--primary)">8 / 8</td><td style="text-align:center;font-weight:700">4,520</td><td style="text-align:center"><span class="badge b-up">+52.3%</span></td><td>NVR, 智能计算, IPC, 平台软件</td></tr>
+              <tr><td>深圳市教育局</td><td style="text-align:center">8</td><td style="text-align:center;font-weight:700;color:var(--primary)">5 / 8</td><td style="text-align:center">1,880</td><td style="text-align:center"><span class="badge b-up">+28.7%</span></td><td>NVR, 智能计算, LCD</td></tr>
+              <tr><td>广东省交通厅</td><td style="text-align:center">6</td><td style="text-align:center">4 / 8</td><td style="text-align:center">1,250</td><td style="text-align:center"><span class="badge b-warn">+5.2%</span></td><td>智能交通, IPC, 存储</td></tr>
+              <tr><td>深圳市卫健委</td><td style="text-align:center">5</td><td style="text-align:center">3 / 8</td><td style="text-align:center">820</td><td style="text-align:center"><span class="badge b-down">-8.5%</span></td><td>门禁, IPC</td></tr>
+              <tr><td>深圳市文体局</td><td style="text-align:center">4</td><td style="text-align:center">2 / 8</td><td style="text-align:center">350</td><td style="text-align:center"><span class="badge b-new">新增</span></td><td>LCD, 新业务</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">📊 用户关联客户潜力覆盖明细</span><span class="tag">TOP 3 用户</span></div>
+          <table class="table">
+            <thead><tr><th>用户</th><th>关联客户</th><th style="text-align:center">潜力产品数</th><th style="text-align:center">贡献额(万)</th><th>销售负责人</th></tr></thead>
+            <tbody>
+              <tr><td rowspan="3" style="vertical-align:middle;font-weight:600">深圳市公安局</td><td>深圳市政府</td><td style="text-align:center;color:var(--success)">8</td><td style="text-align:right">2,880</td><td>陈思源</td></tr>
+              <tr><td>宝安公安局</td><td style="text-align:center;color:var(--success)">6</td><td style="text-align:right">1,650</td><td>王志强</td></tr>
+              <tr><td>龙岗分局</td><td style="text-align:center">3</td><td style="text-align:right">620</td><td>张伟</td></tr>
+              <tr><td rowspan="2" style="vertical-align:middle;font-weight:600">深圳市教育局</td><td>罗湖教育局</td><td style="text-align:center;color:var(--success)">5</td><td style="text-align:right">1,240</td><td>李梦琪</td></tr>
+              <tr><td>南山区教育局</td><td style="text-align:center">2</td><td style="text-align:right">380</td><td>罗兴华</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 6. 差距分析 (整合自乔梦杰版) ===== -->
+      <div data-tab-content="p-gap" style="display:none">
+        <!-- 筛选维度 -->
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label>分析维度</label>
+            <select id="gap-dim" onchange="App.renderGapAnalysis()">
+              <option value="dept3">按大部门</option>
+              <option value="dept4">按团队小组</option>
+              <option value="person">按销售人员</option>
+            </select>
+          </div>
+          <button class="btn-ghost">🔄 重新计算</button>
+          <div class="right"><span class="level-tag" id="gap-level">当前粒度: 大部门</span></div>
+        </div>
+
+        <!-- 1. 大部门 x 产品 差距热图 -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">🔥 大部门 × 潜力产品 差距热图</span>
+            <span class="tag" style="background:#fef3c7;color:#92400e">颜色越深 = 销售越强</span>
+          </div>
+          <div class="table-wrap">
+            <table class="heatmap-table" id="p-gap-heatmap-table-main"></table>
+          </div>
+          <div style="display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:11px;color:#6b7280">
+            <span>色阶图例：</span>
+            <span><span style="display:inline-block;width:14px;height:14px;background:#f3f4f6;border:1px solid #e5e7eb;vertical-align:middle;margin-right:4px"></span>0 (空白)</span>
+            <span><span style="display:inline-block;width:14px;height:14px;background:#fde68a;vertical-align:middle;margin-right:4px"></span>&lt;10%</span>
+            <span><span style="display:inline-block;width:14px;height:14px;background:#fbbf24;vertical-align:middle;margin-right:4px"></span>10-30%</span>
+            <span><span style="display:inline-block;width:14px;height:14px;background:#f59e0b;vertical-align:middle;margin-right:4px"></span>30-60%</span>
+            <span><span style="display:inline-block;width:14px;height:14px;background:#ea580c;vertical-align:middle;margin-right:4px"></span>60-85%</span>
+            <span><span style="display:inline-block;width:14px;height:14px;background:#b91c1c;vertical-align:middle;margin-right:4px"></span>≥ 85% (顶配)</span>
+          </div>
+        </div>
+
+        <!-- 2. 空白产品率 & 待突破实体率 综合对比 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">📉 空白产品率 & 待突破实体率 综合对比</span>
+            <span class="tag" style="background:#fee2e2;color:#dc2626">左=空白率 ↑差　右=待突破率 ↑差</span>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-p-gap-combined"></canvas></div>
+        </div>
+
+        <!-- 3. 与团队均值的差距分析 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">📏 与团队均值的差距分析</span>
+            <span class="tag" style="background:#d1fae5;color:#065f46">绿=超均值　红=低于均值</span>
+          </div>
+          <div class="table-wrap" style="max-height:380px">
+            <table class="heatmap-table" id="p-gap-detail-table"></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 7. 数据导入与管理 ===== -->
+      <div data-tab-content="p-import" style="display:none">
+        <div class="info-banner">💡 数据导入支持 Excel / CSV 格式，导入后可新增或更新潜力产品数据。每次导入自动生成记录，支持按导入批次追溯。</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <button style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">📤 上传文件导入</button>
+          <button class="btn-ghost" onclick="App.exportExcel('page-potential')">📥 导出当前数据</button>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">📋 导入记录</span><span class="tag">最近10条</span></div>
+          <table class="table">
+            <thead><tr><th>导入时间</th><th>文件名</th><th>数据类型</th><th style="text-align:center">导入行数</th><th style="text-align:center">更新记录</th><th style="text-align:center">新增记录</th><th>操作人</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td>2026-07-16 10:45</td><td>潜力产品_7月汇总.xlsx</td><td>产品销售明细</td><td style="text-align:center">856</td><td style="text-align:center;color:var(--primary)">820</td><td style="text-align:center;color:var(--success)">36</td><td>王志强</td><td><span class="status-pill status-active">成功</span></td></tr>
+              <tr><td>2026-07-09 15:20</td><td>潜力产品_Q2汇总.csv</td><td>产品销售明细</td><td style="text-align:center">820</td><td style="text-align:center;color:var(--primary)">795</td><td style="text-align:center;color:var(--success)">25</td><td>陈思源</td><td><span class="status-pill status-active">成功</span></td></tr>
+              <tr><td>2026-07-02 11:08</td><td>政府行业组_潜力产品.xlsx</td><td>团队销售明细</td><td style="text-align:center">328</td><td style="text-align:center;color:var(--primary)">310</td><td style="text-align:center;color:var(--success)">18</td><td>李梦琪</td><td><span class="status-pill status-active">成功</span></td></tr>
+              <tr><td>2026-06-28 17:15</td><td>公安交警组_6月补录.xlsx</td><td>团队销售明细</td><td style="text-align:center">245</td><td style="text-align:center;color:var(--primary)">242</td><td style="text-align:center;color:var(--success)">3</td><td>张伟</td><td><span class="status-pill status-paused">部分成功</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== 7. AI建议与分析 ===== -->
+      <div data-tab-content="p-ai" style="display:none">
+        <div class="ai-box">
+          <div class="ai-head"><span class="ai-tag">AI 智能分析</span><h3>潜力产品诊断 & 策略建议</h3><span class="ai-model">DeepSeek V3</span></div>
+          <div class="ai-body">
+            <h4>一、现状概述</h4><ul><li>潜力产品 ¥ 9,830万, 同比 <strong style="color:#dc2626">+28.4%</strong>, 占部门 34.6%</li><li>量价齐升 5 个产品, 贡献 ¥ 5,200万</li></ul>
+            <h4>二、风险预警</h4><ul><li>门禁 -23.5%, 连续3月量价齐跌, 市场份额加速流失</li><li>智能交通 -11.2%, 智能交通组拖累明显</li><li>退步5人(黄燕滨等) 合计流失 ¥ 1,250万</li></ul>
+            <h4>三、策略建议</h4><ul><li><strong>P1 门禁振兴</strong>: 门禁+NVR联动打包, TOP 10客户专项突破, 目标回升 +15%</li><li><strong>P2 智能交通激活</strong>: 与技术中心联动挖掘新场景, 目标新增 3 个客户</li><li><strong>P3 智能计算复制</strong>: 总结陈伟杰 +85% 经验, 向公安交警组和教育文化组推广</li><li><strong>P4 人才关注</strong>: 对退步5人定向辅导, 重点跟踪黄燕滨客户流失</li></ul>
+          </div>
+          <div class="ai-actions">
+            <button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button>
+            <select style="padding:4px 8px;border:1px solid #c7d2fe;border-radius:6px;font-size:11px;background:#fff;color:#4338ca"><option>DeepSeek V3</option><option>DeepSeek R1</option><option>Qwen-Max</option></select>
+            <span style="margin-left:auto;font-size:10px;color:#6366f1">耗时 3.8s · Token 2,850</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 4. 账号管理 ===== -->
+    <div class="page" id="page-admin">
+      <div class="page-header page-header-tabs">
+        <div class="page-titles">
+          <div class="page-title">账号管理</div>
+          <div class="page-subtitle">多租户隔离 · 角色权限 · 业务参数 · 审计日志</div>
+        </div>
+        <div class="subtabs-inline">
+          <button class="subtab active" data-tab="a-users">👥 用户管理</button>
+          <button class="subtab" data-tab="a-roles">🔐 角色权限</button>
+          <button class="subtab" data-tab="a-products">📦 产品字典</button>
+          <button class="subtab" data-tab="a-params">⚙ 业务参数</button>
+          <button class="subtab" data-tab="a-audit">📋 审计日志</button>
+          <button class="subtab" data-tab="a-tenant">🏢 租户设置</button>
+        </div>
+        <div class="page-actions">
+          <button style="padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">+ 新建账号</button>
+        </div>
+      </div>
+
+      <!-- ===== Tab: 用户管理 ===== -->
+      <div data-tab-content="a-users">
+        <div class="filter-bar">
+          <div class="filter-group"><label>搜索</label><input type="text" placeholder="姓名/账号"></div>
+          <div class="filter-group"><label>角色</label><select><option>全部</option><option>部门负责人</option><option>团队主管</option><option>一线销售</option></select></div>
+          <div class="filter-group"><label>状态</label><select><option>全部</option><option>活跃</option><option>停用</option></select></div>
+          <button class="btn-ghost">重置</button>
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table class="table">
+              <thead><tr><th>姓名</th><th>账号</th><th>角色</th><th>部门</th><th>团队</th><th>数据范围</th><th>状态</th><th>最后登录</th><th>AI Key</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr><td><strong>王志强</strong></td><td>wangzq@hxlc.com</td><td><span class="badge" style="background:#f59e0b;color:#fff">部门负责人</span></td><td>销售一部</td><td>—</td><td>本部门</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
+                <tr><td>陈思源</td><td>chensy@hxlc.com</td><td><span class="badge" style="background:#8b5cf6;color:#fff">团队主管</span></td><td>销售一部</td><td>政府行业组</td><td>本团队</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
+                <tr><td>李梦琪</td><td>limq@hxlc.com</td><td><span class="badge" style="background:#2563eb;color:#fff">一线销售</span></td><td>销售一部</td><td>政府行业组</td><td>本人</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-flat">未配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
+                <tr><td>张伟</td><td>zhangw@hxlc.com</td><td><span class="badge" style="background:#2563eb;color:#fff">一线销售</span></td><td>销售一部</td><td>公安交警组</td><td>本人</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
+                <tr><td>刘洋</td><td>liuy@hxlc.com</td><td><span class="badge" style="background:#16a34a;color:#fff">分析师</span></td><td>运营中心</td><td>—</td><td>本租户(只读)</td><td><span class="status-pill status-active">活跃</span></td><td>昨日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Tab: 占位内容 ===== -->
+      <div data-tab-content="a-roles" style="display:none">
+        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">角色权限管理将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持自定义角色、功能权限、数据范围配置</div></div>
+      </div>
+      <div data-tab-content="a-products" style="display:none">
+        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">产品字典管理将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持 27 品类产品的增删改查维护</div></div>
+      </div>
+      <div data-tab-content="a-params" style="display:none">
+        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">业务参数配置将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持规上标准、潜力产品分类等参数设置</div></div>
+      </div>
+      <div data-tab-content="a-audit" style="display:none">
+        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">审计日志将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持操作日志查询、数据变更追溯</div></div>
+      </div>
+      <div data-tab-content="a-tenant" style="display:none">
+        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">租户设置将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持多租户隔离、企业信息配置</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 客户/用户悬浮详情 Tooltip -->
+<div id="custTooltip"></div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/charts.js"></script>
+
+</body>
+</html>

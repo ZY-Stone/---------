@@ -1,0 +1,2678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>产品宽度分析系统</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Microsoft YaHei', Arial, sans-serif; background: #f0f2f5; color: #333; }
+  .header { background: linear-gradient(135deg, #1a3c8f, #2563eb); color: white; padding: 20px 32px; display: flex; align-items: center; gap: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+  .main { max-width: 1600px; margin: 0 auto; padding: 24px; }
+  .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: 16px; font-weight: 700; color: #1a3c8f; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title::before { content: ''; display: inline-block; width: 4px; height: 18px; background: #2563eb; border-radius: 2px; }
+
+  /* Upload */
+  .upload-area { border: 2px dashed #93c5fd; border-radius: 10px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; background: #eff6ff; position: relative; overflow: hidden; display: block; }
+  .upload-area:hover, .upload-area.dragover { border-color: #2563eb; background: #dbeafe; }
+  .upload-area .icon { font-size: 48px; margin-bottom: 12px; }
+  .upload-area .hint { color: #6b7280; font-size: 14px; margin-top: 8px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab { padding: 10px 20px; border: none; background: none; cursor: pointer; font-size: 14px; font-weight: 500; color: #6b7280; border-radius: 8px 8px 0 0; transition: all 0.2s; }
+  .tab:hover { color: #2563eb; background: #eff6ff; }
+  .tab.active { color: #2563eb; background: #eff6ff; border-bottom: 2px solid #2563eb; margin-bottom: -2px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Controls */
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-group label { font-size: 13px; font-weight: 600; color: #374151; white-space: nowrap; }
+  select, input[type="text"] { border: 1px solid #d1d5db; border-radius: 6px; padding: 7px 12px; font-size: 13px; color: #374151; background: white; }
+  select:focus, input[type="text"]:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+  .btn { padding: 8px 18px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-success { background: #059669; color: white; }
+  .btn-success:hover { background: #047857; }
+  .btn-warning { background: #d97706; color: white; }
+  .btn-warning:hover { background: #b45309; }
+  .btn-outline { background: white; color: #2563eb; border: 1px solid #2563eb; }
+  .btn-outline:hover { background: #eff6ff; }
+  .btn-small { padding: 5px 10px; font-size: 12px; }
+
+  /* Stats Cards */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .stat-card { background: white; border-radius: 10px; padding: 16px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid #2563eb; }
+  .stat-card.green { border-left-color: #059669; }
+  .stat-card.orange { border-left-color: #d97706; }
+  .stat-card.purple { border-left-color: #7c3aed; }
+  .stat-card.red { border-left-color: #dc2626; }
+  .stat-value { font-size: 28px; font-weight: 800; color: #1a3c8f; }
+  .stat-label { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+  /* Table */
+  .table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 800px; }
+  thead tr { background: linear-gradient(135deg, #1a3c8f, #2563eb); color: white; }
+  thead th { padding: 12px 14px; text-align: left; font-weight: 600; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid #f3f4f6; transition: background 0.15s; }
+  tbody tr:hover { background: #eff6ff; }
+  tbody td { padding: 10px 14px; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .badge-yes { background: #dcfce7; color: #166534; }
+  .badge-no { background: #fee2e2; color: #991b1b; }
+  .badge-on { background: #dbeafe; color: #1e40af; }
+  .badge-off { background: #f3f4f6; color: #9ca3af; }
+  .width-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .width-bar { height: 8px; border-radius: 4px; background: #bfdbfe; flex-shrink: 0; }
+  .width-bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #2563eb, #60a5fa); transition: width 0.4s; }
+  .width-num { font-weight: 700; color: #2563eb; min-width: 24px; }
+
+  /* Chart */
+  .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
+  .chart-box { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); overflow: hidden; min-height: 0; }
+  .chart-box h3 { font-size: 14px; font-weight: 700; color: #374151; margin-bottom: 14px; }
+  .chart-container { position: relative; }
+
+  /* Suggestions */
+  .suggestion-card { border-radius: 10px; padding: 18px; margin-bottom: 12px; border-left: 5px solid; }
+  .suggestion-card.wen-jiao { border-color: #7c3aed; background: #f5f3ff; }
+  .suggestion-card.gong-an { border-color: #dc2626; background: #fff5f5; }
+  .suggestion-card.jiao-tong { border-color: #d97706; background: #fffbeb; }
+  .suggestion-card.zheng-fu { border-color: #059669; background: #f0fdf4; }
+  .suggestion-card.si-fa { border-color: #0891b2; background: #ecfeff; }
+  .suggestion-card.shui-wu { border-color: #2563eb; background: #eff6ff; }
+  .suggestion-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .suggestion-card h4 { font-size: 13px; font-weight: 700; color: #1a3c8f; margin: 12px 0 6px; }
+  .suggestion-card ul { padding-left: 18px; }
+  .suggestion-card ul li { font-size: 13px; line-height: 1.8; color: #374151; }
+  .suggestion-card .tag-group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .suggestion-card .action-item { background: rgba(255,255,255,0.7); border-radius: 6px; padding: 8px 12px; margin-bottom: 6px; font-size: 13px; }
+  .suggestion-card .action-item strong { color: #1a3c8f; }
+
+  /* Compare */
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .compare-table th, .compare-table td { padding: 10px 14px; border: 1px solid #e5e7eb; text-align: center; }
+  .compare-table thead th { background: #1a3c8f; color: white; }
+  .compare-table tbody tr:nth-child(even) { background: #f9fafb; }
+  .compare-better { color: #059669; font-weight: 700; }
+  .compare-worse { color: #dc2626; }
+  .compare-mean { background: #f0fdf4 !important; }
+
+  /* Progress rings */
+  .product-heatmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .product-item { border-radius: 8px; padding: 10px; text-align: center; font-size: 12px; }
+  .product-item .pname { font-weight: 600; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .product-item .prate { font-size: 18px; font-weight: 800; }
+
+  .info-msg { text-align: center; padding: 40px; color: #9ca3af; font-size: 15px; }
+
+  /* Export bar */
+  .export-bar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 16px; }
+
+  /* Pagination */
+  .pagination { display: flex; gap: 4px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+  .page-btn { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 6px; background: white; cursor: pointer; font-size: 13px; }
+  .page-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+  .page-btn:hover:not(.active) { background: #eff6ff; }
+
+  .section-divider { height: 1px; background: #e5e7eb; margin: 20px 0; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; display: none; justify-content: center; align-items: flex-start; padding-top: 60px; }
+  .modal-overlay.active { display: flex; }
+  .modal-box { background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); max-width: 900px; width: 90%; max-height: 80vh; overflow: auto; padding: 24px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .modal-header h3 { font-size: 16px; font-weight: 700; color: #1a3c8f; }
+  .modal-close { font-size: 24px; cursor: pointer; color: #9ca3af; border: none; background: none; }
+  .modal-close:hover { color: #374151; }
+  .modal-table { font-size: 13px; width: 100%; border-collapse: collapse; }
+  .modal-table th, .modal-table td { padding: 8px 12px; border: 1px solid #e5e7eb; }
+  .modal-table thead th { background: linear-gradient(135deg, #1a3c8f, #2563eb); color: white; font-weight: 600; }
+  .modal-table tbody tr:nth-child(even) { background: #f9fafb; }
+
+  /* Person suggestion card */
+  .person-card { background: white; border-radius: 10px; padding: 18px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid #2563eb; }
+  .person-card .person-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .person-card .person-name { font-size: 15px; font-weight: 700; color: #1a3c8f; }
+  .person-card .person-meta { display: flex; gap: 12px; font-size: 12px; color: #6b7280; }
+  .person-card .person-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .person-card .mini-stat { background: #f8fafc; border-radius: 6px; padding: 8px; text-align: center; }
+  .person-card .mini-stat .val { font-size: 16px; font-weight: 800; color: #2563eb; }
+  .person-card .mini-stat .lbl { font-size: 11px; color: #6b7280; }
+  .person-card .suggest-section { background: #f0f9ff; border-radius: 8px; padding: 12px; margin-top: 8px; }
+  .person-card .suggest-section h5 { font-size: 13px; font-weight: 700; color: #0369a1; margin-bottom: 6px; }
+  .person-card .suggest-section p { font-size: 12px; line-height: 1.7; color: #374151; }
+  .person-card .gap-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 4px; margin-bottom: 4px; }
+  .gap-tag.warning { background: #fef3c7; color: #92400e; }
+  .gap-tag.danger { background: #fee2e2; color: #991b1b; }
+  .gap-tag.info { background: #dbeafe; color: #1e40af; }
+  .gap-tag.success { background: #dcfce7; color: #166534; }
+
+  /* Action Plan */
+  .action-plan { background: linear-gradient(135deg,#fefce8,#fffbeb); border:1px solid #fde68a; border-radius:8px; padding:12px; margin-top:8px; }
+  .action-plan h5 { font-size:13px; font-weight:700; color:#92400e; margin-bottom:8px; }
+  .ap-item { padding:8px 10px; margin-bottom:6px; border-radius:6px; font-size:12px; line-height:1.75; }
+  .ap-priority-1 { background:#fef2f2; border-left:3px solid #dc2626; }
+  .ap-priority-2 { background:#fffbeb; border-left:3px solid #d97706; }
+  .ap-priority-3 { background:#f0fdf4; border-left:3px solid #16a34a; }
+  .ap-priority-4 { background:#eff6ff; border-left:3px solid #2563eb; }
+  .ap-head { display:flex; align-items:center; gap:6px; margin-bottom:6px; font-weight:600; }
+  .ap-body { padding-left:4px; }
+  .ap-body p { margin:4px 0; }
+  .ap-body ul { margin:4px 0; padding-left:18px; }
+  .ap-body ul li { margin-bottom:3px; }
+  .ap-tag { display:inline-block; padding:1px 8px; border-radius:4px; font-size:10px; font-weight:700; margin-right:6px; white-space:nowrap; }
+  .ap-tag.red { background:#dc2626; color:#fff; }
+  .ap-tag.orange { background:#d97706; color:#fff; }
+  .ap-tag.yellow { background:#ca8a04; color:#fff; }
+  .ap-tag.green { background:#16a34a; color:#fff; }
+  .ap-cust { display:inline-block; background:rgba(255,255,255,0.7); border:1px solid #e5e7eb; border-radius:4px; padding:1px 6px; margin:2px 4px 2px 0; font-size:11px; color:#374151; }
+  .ap-label { display:inline-block; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700; margin-right:4px; }
+  .ap-label.hot { background:#fee2e2; color:#b91c1c; }
+  .ap-label.warm { background:#fef3c7; color:#b45309; }
+  .ap-label.cold { background:#e5e7eb; color:#4b5563; }
+  .ap-expect { background:rgba(255,255,255,0.6); border-radius:4px; padding:4px 8px; margin-top:6px; font-weight:500; color:#111827; }
+  .ap-summary { margin-top:6px; padding:8px 10px; background:rgba(255,255,255,0.7); border-radius:6px; font-size:11.5px; line-height:1.7; color:#374151; }
+  .ap-summary ul { margin:4px 0; padding-left:18px; }
+
+  /* Guishang table */
+  .guishang-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  .guishang-table th, .guishang-table td { padding: 10px 14px; border: 1px solid #e5e7eb; text-align: center; }
+  .guishang-table thead th { background: linear-gradient(135deg, #1a3c8f, #2563eb); color: white; }
+  .guishang-table tbody tr:nth-child(even) { background: #f9fafb; }
+  .guishang-highlight { background: #fef3c7; font-weight: 700; }
+
+  @media (max-width: 768px) {
+    .main { padding: 12px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>📊 产品宽度分析系统</h1>
+    <p>支持多维度统计分析 · 分组对比 · 团队与个人建议 · 数据导出</p>
+  </div>
+</div>
+<div class="main">
+  <!-- Upload Card -->
+  <div class="card" id="uploadCard">
+    <div class="card-title">数据上传</div>
+    <label class="upload-area" id="uploadArea" for="fileInput" style="display:block;">
+      <div class="icon">📂</div>
+      <div style="font-size:16px;font-weight:600;color:#374151;">点击或拖拽文件到此处上传</div>
+      <div class="hint">支持 Excel (.xlsx, .xls) 和 CSV 格式</div>
+      <div style="display:inline-block;padding:10px 24px;border-radius:8px;font-size:14px;background:#2563eb;color:white;font-weight:500;margin-top:12px;">选择文件</div>
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+    </label>
+    <div style="text-align:center;margin:8px 0;color:#9ca3af;font-size:13px;">— 或 —</div>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
+      <div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:6px;">📋 粘贴数据（备用方式）</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:8px;">如果文件上传不可用，请打开 Excel/CSV，复制全部内容（Ctrl+A, Ctrl+C），然后粘贴到下方：</div>
+      <textarea id="pasteInput" placeholder="在此处粘贴Excel或CSV数据..." style="width:100%;height:120px;border:1px solid #cbd5e1;border-radius:6px;padding:8px;font-size:12px;font-family:monospace;resize:vertical;"></textarea>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="parsePastedData()">解析粘贴的数据</button>
+    </div>
+    <div id="uploadStatus" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- Analysis Panel -->
+  <div id="analysisPanel" style="display:none;">
+    <div class="stats-grid" id="summaryStats"></div>
+
+    <div class="card">
+      <div class="tabs" id="mainTabs">
+        <button class="tab active" data-tab="tab-overview">📋 总览分析</button>
+        <button class="tab" data-tab="tab-team">👥 团队维度</button>
+        <button class="tab" data-tab="tab-account">👤 账号维度</button>
+        <button class="tab" data-tab="tab-compare">⚖️ 分组对比</button>
+        <button class="tab" data-tab="tab-suggest">💡 团队建议</button>
+        <button class="tab" data-tab="tab-personal">🎯 个人建议</button>
+        <button class="tab" data-tab="tab-rawdata">📄 原始数据</button>
+      </div>
+
+      <!-- Tab: Overview -->
+      <div class="tab-content active" id="tab-overview">
+        <div class="controls">
+          <div class="control-group"><label>筛选团队：</label><select id="filterTeamOverview" onchange="renderOverview()"><option value="">全部团队</option></select></div>
+          <div class="control-group"><label>筛选规上：</label><select id="filterGuishang" onchange="renderOverview()"><option value="">全部</option><option value="1">规上</option><option value="0">非规上</option></select></div>
+          <button class="btn btn-warning" onclick="showPdfExportModal()" style="margin-left:auto;">📄 导出PDF报告</button>
+        </div>
+        <div class="chart-grid" id="overviewCharts"></div>
+        <div class="section-divider"></div>
+        <div class="card-title" style="margin-top:4px;">产品覆盖热力图</div>
+        <div class="product-heatmap" id="productHeatmap"></div>
+      </div>
+
+      <!-- Tab: Team -->
+      <div class="tab-content" id="tab-team">
+        <div class="controls">
+          <div class="control-group"><label>选择团队：</label><select id="filterTeamDim" onchange="renderTeamDim()"><option value="">全部团队</option></select></div>
+          <div class="control-group"><label>排序：</label><select id="sortTeam" onchange="renderTeamDim()"><option value="width_desc">产品宽度↓</option><option value="width_asc">产品宽度↑</option><option value="guishang_desc">规上数量↓</option></select></div>
+          <button class="btn btn-success" onclick="exportTeamData()">📥 导出团队数据</button>
+        </div>
+        <div class="table-wrapper" id="teamTable"></div>
+        <div class="pagination" id="teamPager"></div>
+      </div>
+
+      <!-- Tab: Account -->
+      <div class="tab-content" id="tab-account">
+        <div class="controls">
+          <div class="control-group"><label>所属团队：</label><select id="filterTeamForAccount" onchange="renderAccountDim()"><option value="">全部团队</option></select></div>
+          <div class="control-group"><label>搜索：</label><input type="text" id="searchAccount" placeholder="输入关键词..." oninput="renderAccountDim()" style="width:180px;"></div>
+          <div class="control-group"><label>规上：</label><select id="filterGuishangAccount" onchange="renderAccountDim()"><option value="">全部</option><option value="1">规上</option><option value="0">非规上</option></select></div>
+          <div class="control-group"><label>宽度≥</label><input type="text" id="filterMinWidth" placeholder="0" oninput="renderAccountDim()" style="width:60px;"></div>
+          <button class="btn btn-success" onclick="exportAccountData()">📥 导出账号数据</button>
+        </div>
+        <div class="table-wrapper" id="accountTable"></div>
+        <div class="pagination" id="accountPager"></div>
+      </div>
+
+      <!-- Tab: Compare -->
+      <div class="tab-content" id="tab-compare">
+        <div class="controls">
+          <div class="control-group"><label>对比对象：</label><select id="compareMode" onchange="renderCompare()"><option value="group">团队 vs 团队</option><option value="mean">团队 vs 全部均值</option><option value="person">个人 vs 团队均值</option></select></div>
+          <div class="control-group" id="groupAControl"><label>对比组A：</label><select id="compareGroupA" onchange="renderCompare()"><option value="">选择团队</option></select></div>
+          <div class="control-group" id="groupBControl"><label>对比组B：</label><select id="compareGroupB" onchange="renderCompare()"><option value="">选择团队</option></select></div>
+          <div class="control-group" id="meanBControl" style="display:none"><label>对比基准：</label><select id="compareMeanBase" onchange="renderCompare()"><option value="all">全部团队均值</option></select></div>
+          <div class="control-group" id="personControl" style="display:none"><label>选择个人：</label><select id="comparePerson" onchange="renderCompare()"><option value="">选择CRM账号</option></select></div>
+          <button class="btn btn-success" onclick="exportCompareData()">📥 导出对比结果</button>
+        </div>
+        <div id="compareResult"></div>
+      </div>
+
+      <!-- Tab: Suggest -->
+      <div class="tab-content" id="tab-suggest">
+        <div class="controls">
+          <div class="control-group"><label>选择团队属性：</label><select id="suggestTeamType" onchange="renderSuggestions()"><option value="">全部建议</option><option value="教育教学组">教育教学组</option><option value="文体卫组">文体卫组</option><option value="公安交警行业组">公安交警行业组</option><option value="交通行业组">交通行业组</option><option value="政府行业组">政府行业组</option><option value="司法行业组">司法行业组</option><option value="行业二部-水务">行业二部-水务</option></select></div>
+        </div>
+        <div id="suggestionsContent"></div>
+      </div>
+
+      <!-- Tab: Personal -->
+      <div class="tab-content" id="tab-personal">
+        <div class="controls">
+          <div class="control-group"><label>所属团队：</label><select id="filterTeamPersonal" onchange="renderPersonal()"><option value="">全部团队</option></select></div>
+          <div class="control-group"><label>搜索账号：</label><input type="text" id="searchPersonal" placeholder="输入关键词..." oninput="renderPersonal()" style="width:180px;"></div>
+          <div class="control-group"><label>排序：</label><select id="sortPersonal" onchange="renderPersonal()"><option value="width_desc">产品宽度↓</option><option value="width_asc">产品宽度↑</option><option value="guishang_desc">规上数↓</option><option value="gap_desc">提升空间↓</option></select></div>
+        </div>
+        <div id="personalContent"></div>
+        <div class="pagination" id="personalPager"></div>
+      </div>
+
+      <!-- Tab: Raw Data -->
+      <div class="tab-content" id="tab-rawdata">
+        <div class="controls">
+          <div class="control-group"><label>筛选团队：</label><select id="filterTeamRaw" onchange="renderRawData()"><option value="">全部</option></select></div>
+          <div class="control-group"><label>搜索：</label><input type="text" id="searchRaw" placeholder="输入关键词..." oninput="renderRawData()" style="width:180px;"></div>
+          <button class="btn btn-success" onclick="exportRawData()">📥 导出原始数据</button>
+          <button class="btn btn-warning" onclick="exportAllResults()">📦 导出全部结果</button>
+        </div>
+        <div class="table-wrapper" id="rawDataTable"></div>
+        <div class="pagination" id="rawPager"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PDF Export Modal -->
+<div class="modal-overlay" id="pdfExportModal">
+  <div class="modal-box" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>📄 导出PDF报告</h3>
+      <button class="modal-close" onclick="$('pdfExportModal').classList.remove('active')">×</button>
+    </div>
+    <div style="padding:8px 0;">
+      <div style="margin-bottom:16px;">
+        <label style="font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:8px;">选择导出团队：</label>
+        <select id="pdfTeamSelect" style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:13px;">
+          <option value="">-- 请选择团队 --</option>
+        </select>
+        <div style="font-size:12px;color:#9ca3af;margin-top:6px;">选择后将导出该团队的完整分析报告</div>
+      </div>
+      <div style="background:#f0f9ff;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#0369a1;">
+        <strong>报告内容将包含：</strong><br>
+        ① 全部团队总览分析数据及团队维度汇总<br>
+        ② 所选团队总览数据及团队维度详情<br>
+        ③ 所选团队每个账号的维度数据<br>
+        ④ 所选团队与全部团队均值的对比数据<br>
+        ⑤ 所选团队的团队建议<br>
+        ⑥ 所选团队每个账号的个人建议
+      </div>
+      <div id="pdfProgress" style="display:none;text-align:center;padding:12px;">
+        <div style="font-size:14px;color:#2563eb;margin-bottom:8px;">⏳ 正在生成PDF，请稍候...</div>
+        <div id="pdfProgressText" style="font-size:12px;color:#6b7280;"></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;" id="pdfBtns">
+        <button class="btn btn-outline" onclick="$('pdfExportModal').classList.remove('active')">取消</button>
+        <button class="btn btn-warning" onclick="exportPdfReport()">📄 开始导出</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal for drill-down -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modalTitle">明细数据</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="modalContent"></div>
+    <div class="export-bar" style="margin-top:16px">
+      <button class="btn btn-success btn-small" onclick="exportModalData()">📥 导出明细</button>
+    </div>
+  </div>
+</div>
+<script>
+const PRODUCTS = ['IPC','球机','专用摄像机','服务器','网络产品','PC产品','NVR','存储','LED与拼控','LCD与解码','智能交通','移动终端产品','出入口停车','门禁','对讲','人员通道','报警','音频产品','传感产品','智慧屏与视频会议','通用软件','行业软件','基础软件','新业务（热成像/睿影/消防等）','网络安全','综合布线与机柜机房','智能计算'];
+const PRODUCTS_CLEAN = ['IPC','球机','专用摄像机','服务器','网络产品','PC产品','NVR','存储','LED与拼控','LCD与解码','智能交通','移动终端产品','出入口停车','门禁','对讲','人员通道','报警','音频产品','传感产品','智慧屏与视频会议','通用软件','行业软件','基础软件','新业务','网络安全','综合布线与机柜机房','智能计算'];
+const TEAM_TYPES = ['教育教学组','文体卫组','公安交警行业组','交通行业组','政府行业组','司法行业组','行业二部-水务'];
+const TEAM_CSS = {'教育教学组':'wen-jiao','文体卫组':'wen-jiao','公安交警行业组':'gong-an','交通行业组':'jiao-tong','政府行业组':'zheng-fu','司法行业组':'si-fa','行业二部-水务':'shui-wu'};
+let rawData = [], headers = [], fieldMap = {}, teamPage = 1, accountPage = 1, rawPage = 1, personalPage = 1;
+const PAGE_SIZE = 20;
+let chartInstances = {}, modalDataCache = [];
+function destroyChart(id) { if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; } }
+function $(id) { return document.getElementById(id); }
+function safeInt(v) { const n = parseInt(v); return isNaN(n) ? 0 : (n >= 1 ? 1 : 0); }
+function safeNum(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
+function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function buildFieldMap(hdrs) {
+  fieldMap = {};
+  const norm = s => String(s||'').replace(/\s|\t/g,'').toLowerCase();
+  const keys = {'团队':['团队','组','部门'],'CRM销售域账号':['crm','销售域账号','账号'],'siebel编码':['siebel','编码'],'最终用户':['最终用户','用户','客户'],'产品宽度合计':['产品宽度合计','宽度合计','宽度'],'是否规上':['是否规上','规上']};
+  PRODUCTS.forEach((p,i) => { const pn = norm(p); hdrs.forEach(h => { if (norm(h) === pn || norm(h).includes(pn.substring(0,4))) fieldMap[PRODUCTS_CLEAN[i]] = h; }); });
+  Object.entries(keys).forEach(([k, aliases]) => { if (fieldMap[k]) return; for (const h of hdrs) { const hn = norm(h); if (aliases.some(a => hn.includes(norm(a)))) { fieldMap[k] = h; break; } } });
+}
+function getVal(row, key) { return row[fieldMap[key]] !== undefined ? row[fieldMap[key]] : ''; }
+function getWidth(row) { const v = getVal(row, '产品宽度合计'); if (v !== '' && v !== null && v !== undefined) return safeNum(v); return PRODUCTS_CLEAN.reduce((s, p) => s + safeInt(getVal(row, p)), 0); }
+function getGuishang(row) { const v = String(getVal(row,'是否规上')||'').toLowerCase(); return ['1','是','规上','yes','y','true'].includes(v.trim()) ? 1 : 0; }
+function getTeam(row) { return String(getVal(row,'团队')||'').trim(); }
+function getAccount(row) { return String(getVal(row,'CRM销售域账号')||'').trim(); }
+function getUser(row) { return String(getVal(row,'最终用户')||'').trim(); }
+
+function getTeamType(teamName) {
+  const t = String(teamName||'');
+  for (const type of TEAM_TYPES) { if (t.includes(type) || type.includes(t)) return type; }
+  return '';
+}
+
+function inferTeamType(teamName) {
+  if (!teamName) return '';
+  const tn = String(teamName).toLowerCase();
+  const maps = {
+    '教育教学': '教育教学组','教育': '教育教学组','学校': '教育教学组','教学': '教育教学组','培训': '教育教学组',
+    '文体卫': '文体卫组','体育': '文体卫组','文化': '文体卫组','卫生': '文体卫组','医院': '文体卫组','卫生院': '文体卫组',
+    '公安': '公安交警行业组','交警': '公安交警行业组','公安交警': '公安交警行业组',
+    '交通': '交通行业组','运输': '交通行业组',
+    '政府': '政府行业组','政务': '政府行业组',
+    '司法': '司法行业组','监狱': '司法行业组','法院': '司法行业组',
+    '水务': '行业二部-水务','水利': '行业二部-水务','水': '行业二部-水务'
+  };
+  for (const [k,v] of Object.entries(maps)) { if (tn.includes(k)) return v; }
+  return getTeamType(teamName);
+}
+// ===== User Industry Classification =====
+// Identify industry from customer (最终用户) name keywords
+const USER_INDUSTRY_KEYWORDS = {
+  '学校': ['学校','中学','小学','高中','大学','学院','职业','幼儿园','教育','培训','技校','附属学校'],
+  '医院': ['医院','卫生院','诊所','医疗','卫生','疾控','妇幼','卫生服务'],
+  '政府/机关': ['政府','局','委','部','厅','处','办公室','管委会','人民政府','机关','单位','部门','街道办','社区'],
+  '公安/交警': ['公安','交警','派出所','警察','刑警','治安','消防','拘留所','戒毒'],
+  '交通/运输': ['交通','运输','公路','铁路','港口','机场','地铁','公交','航运','轨道'],
+  '司法/监狱': ['法院','检察院','司法','监狱','看守所','拘留','法庭','律所'],
+  '水务/市政': ['水务','供水','污水','自来水','管网','水厂','水库','排水','市政','环卫','园林'],
+  '企业/园区': ['公司','集团','有限','股份','企业','工厂','园区','开发区','产业园','科技园'],
+  '小区/物业': ['小区','花园','广场','物业','住宅','社区','楼盘','苑','里','新村'],
+  '银行/金融': ['银行','信用社','保险','金融','证券','基金','支行','储蓄'],
+  '能源/电力': ['电力','供电','国家电网','南方电网','发电','变电站','电厂','能源'],
+};
+
+function getUserIndustry(userName) {
+  const name = String(userName || '').trim();
+  // 优先规则：名称含"医院"二字直接归为医院（如"XX大学XX医院"是医院不是学校）
+  if (name.includes('医院')) return '医院';
+  for (const [industry, keywords] of Object.entries(USER_INDUSTRY_KEYWORDS)) {
+    if (keywords.some(k => name.includes(k))) return industry;
+  }
+  return '其他';
+}
+
+// Analyze account's customer industry distribution
+function analyzeAccountIndustries(rows) {
+  const distMap = {};
+  rows.forEach(r => {
+    const ind = getUserIndustry(getUser(r));
+    distMap[ind] = (distMap[ind] || 0) + 1;
+  });
+  return Object.entries(distMap).sort((a, b) => b[1] - a[1]);
+}
+
+// Get tailored product suggestions based on user industry
+const INDUSTRY_PRODUCT_TIPS = {
+  '学校': { focus: ['IPC','NVR','音频产品','人员通道','智慧屏与视频会议'], note: '校园安防+广播+门禁是刚需，暑寒假前是项目推进窗口' },
+  '医院': { focus: ['IPC','NVR','存储','门禁','对讲','人员通道'], note: '医院需7×24稳定运行，存储需求大，院感管控驱动人员通道/门禁需求' },
+  '政府/机关': { focus: ['IPC','NVR','LED与拼控','智慧屏与视频会议','通用软件'], note: '指挥中心/会议室是突破口，信创要求高，优先推智慧屏+软件' },
+  '公安/交警': { focus: ['球机','专用摄像机','存储','智能交通','网络安全'], note: '雪亮工程+智慧警务，需强调AI智能分析和合规安全' },
+  '交通/运输': { focus: ['IPC','球机','智能交通','服务器','行业软件'], note: '大型交通基础设施，整体方案能力是关键，需强调后端平台' },
+  '司法/监狱': { focus: ['IPC','人员通道','门禁','对讲','存储','行业软件'], note: '安全管控要求极严，需强调产品稳定性和安全资质' },
+  '水务/市政': { focus: ['IPC','传感产品','NVR','行业软件','网络产品'], note: '智慧水务是趋势，传感+视频+软件平台三位一体方案更有竞争力' },
+  '企业/园区': { focus: ['IPC','NVR','门禁','对讲','网络产品','PC产品'], note: '企业关注ROI，建议以综合安防套餐切入，后续拓展网络/PC' },
+  '小区/物业': { focus: ['IPC','NVR','对讲','门禁','人员通道'], note: '智慧社区是增长热点，对讲+门禁+人员通道是核心产品组合' },
+  '银行/金融': { focus: ['IPC','存储','NVR','网络安全','基础软件'], note: '金融行业安全要求高，存储+安全合规+远程监控是重点' },
+  '能源/电力': { focus: ['IPC','传感产品','NVR','行业软件','网络安全'], note: '电力AI巡检、安全生产监控需求持续增长，传感+AI新业务是差异化方向' },
+};
+
+// ===== Team Suggestions Database (Enhanced) =====
+const TEAM_SUGGESTIONS = {
+  '教育教学组': {
+    core: ['IPC','NVR','音频产品','网络产品','智慧屏与视频会议'],
+    expand: ['门禁','对讲','人员通道','出入口停车','行业软件','LED与拼控'],
+    text: [
+      '教育客户高度重视安防与智慧校园一体化，优先推进IPC+NVR+网络产品基础安防套件全覆盖。',
+      '智慧屏与视频会议是教育高频需求，应重点拓展该产品线提升客户产品宽度。',
+      '门禁对讲、人员通道在学校场景需求大，可作为切入拓宽产品宽度的突破口。',
+      '出入口停车产品在校园车辆管理、校车管理场景有明确需求，建议重点推广。'
+    ],
+    actions: [
+      '针对新开拓学校客户，以"安防基础包（IPC+NVR+交换机）"作为标准方案，降低产品导入门槛。',
+      '与教育系统头部集成商建立合作，打包智慧校园综合方案，提升智慧屏+行业软件覆盖率。',
+      '利用学校寒暑假项目集中期，提前布局音频产品（校园广播）+出入口停车（校车管理）产品组合。',
+      '推动教育项目以"安防+通行+会议"三位一体方案切入，提升客户粘性和产品宽度。',
+      '针对培训机构客户，主推智慧屏+视频会议+网络产品，满足远程教学和在线培训需求。'
+    ],
+    shenzhen: [
+      '深圳2024-2025年教育信息化预算持续增长，各区中小学智慧校园改造项目密集，适合批量推广IPC+网络产品。',
+      '深圳公办学校招标周期集中在3-6月，需提前准备资质和方案储备。',
+      '深圳教育行业对国产化产品适配要求日益提高，需提前完成信创兼容性测试。',
+      '深圳高校和职业院校对智慧教室、实训室建设需求旺盛，智慧屏+音频产品+行业软件是核心增量。'
+    ],
+    bid: [
+      '教育项目多采用公开招标或竞争性谈判，品牌入围是关键，需提前完成入围资质准备。',
+      '学校项目关注预算控制，建议以高性价比NVR+IPC套装作为引流产品，后续拓展其他产品线。',
+      '教育项目招标文件常要求"产品宽度证明"，需提前准备多产品线应用案例。',
+      '深圳教育项目多通过深圳政府采购中心或各区采购平台发布，需建立常态化招标信息跟踪机制。'
+    ]
+  },
+  '文体卫组': {
+    core: ['IPC','NVR','存储','门禁','对讲'],
+    expand: ['人员通道','智慧屏与视频会议','音频产品','传感产品','行业软件'],
+    text: [
+      '文体卫客户（体育场馆、文化场馆、医疗机构）安防与通行管理并重，IPC+NVR+门禁对讲是核心配置。',
+      '医疗机构对存储产品需求量大（录像留存要求），应重点推进存储产品覆盖。',
+      '人员通道在医院院感管控、体育场馆人流管理场景有刚性需求，建议优先推广。',
+      '智慧屏与视频会议在医疗机构远程会诊、文化场馆展示场景有明确需求。'
+    ],
+    actions: [
+      '针对医院客户，以"安防+通行+存储"作为标准方案，确保IPC+NVR+门禁+人员通道全覆盖。',
+      '推动医疗机构信息化升级，将智慧屏（远程会诊）+行业软件（医院管理系统）作为重点拓展方向。',
+      '针对体育场馆客户，推广IPC+音频产品（场馆广播）+传感产品（人流监测）组合方案。',
+      '文化场馆（博物馆、图书馆）对LED与拼控+LCD与解码有展示需求，可作为差异化切入点。',
+      '结合医疗机构数据安全要求，将存储+网络安全产品作为标配方案。'
+    ],
+    shenzhen: [
+      '深圳医院数量位居全国前列，三甲医院安防智能化升级需求旺盛，NVR+存储+行业软件是核心增量。',
+      '深圳大运中心、深圳湾体育中心等大型场馆对综合安防方案需求大，IPC+音频+传感产品市场空间广。',
+      '深圳医疗机构招标集中在下半年，需提前准备资质和方案储备。',
+      '深圳文化场馆（图书馆、博物馆）数字化改造需求增长，智慧屏+LED与拼控有稳定市场空间。'
+    ],
+    bid: [
+      '医院项目多采用公开招标，关注预算控制和资质要求，需提前准备医疗器械相关资质（如涉及）。',
+      '体育场馆项目多为政府投资，投标方案需突出整体方案能力和售后服务保障。',
+      '文化场馆项目关注展示效果，LED与拼控+LCD与解码方案需准备演示案例。',
+      '文体卫项目招标文件常要求"产品宽度证明"，需提前准备多产品线应用案例。'
+    ]
+  },
+  '公安交警行业组': {
+    core: ['IPC','球机','专用摄像机','存储','智能交通'],
+    expand: ['服务器','网络安全','行业软件','传感产品','新业务'],
+    text: [
+      '公安交警对视频智能化要求极高，球机+专用摄像机+智能交通是核心产品组合，务必保持高覆盖率。',
+      '网络安全在公安行业是刚需合规项目，结合公安合规要求积极推进网络安全产品覆盖。',
+      '行业软件（视频分析、布控平台）是提升项目价值和产品宽度的重要手段。'
+    ],
+    actions: [
+      '针对公安项目，建立"前端感知（IPC+球机+专用摄像机）+后端存储+智能分析"的标准方案模板。',
+      '主动推动公安视频网安全合规改造，将网络安全产品纳入项目标准配置，提升产品宽度。',
+      '联合行业软件团队，推广AI视频分析平台，以软件平台带动服务器、网络安全等关联产品销售。',
+      '针对交警智能交通项目，将热成像/传感产品作为方案亮点，形成差异化竞争力。'
+    ],
+    shenzhen: [
+      '深圳公安智慧警务投入持续加大，雪亮工程升级、智慧派出所建设带来大量IPC+球机+智能交通需求。',
+      '深圳交警智能交通改造项目多，信号控制+视频感知+数据平台融合趋势明显，需强化综合方案能力。',
+      '深圳公安项目入围门槛高，需持续投入关系维护和技术服务。'
+    ],
+    bid: [
+      '公安项目多采用邀请招标或单一来源，需长期建立客户关系和技术信任。',
+      '交警智能交通项目预算大、周期长，投标方案需突出技术先进性和售后服务能力。',
+      '公安网络安全项目关注保密资质，需提前完成涉密资质认证。'
+    ]
+  },
+  '交通行业组': {
+    core: ['IPC','球机','专用摄像机','智能交通','NVR'],
+    expand: ['存储','服务器','行业软件','传感产品','网络安全'],
+    text: [
+      '交通行业智能化升级加速，IPC+球机+智能交通是核心配置，应保持产品优先覆盖。',
+      '大型交通项目通常需要服务器+存储+NVR的完整后端方案，建议主动组合销售。',
+      '行业软件（交通大脑、综合管控平台）能有效提升项目总价和绑定深度。'
+    ],
+    actions: [
+      '以"智能交通+视频监控+存储平台"作为交通项目标准方案，确保核心产品全覆盖。',
+      '推动交通行业数字化转型，将服务器+行业软件打包为"智慧交通平台"整体方案。',
+      '针对港口/机场/轨道等细分交通场景，定制传感产品+行业软件解决方案，提升产品宽度。',
+      '结合交通网络安全要求，将网络安全产品纳入项目标配，增加单个项目的产品宽度。'
+    ],
+    shenzhen: [
+      '深圳作为交通智慧化先行城市，地铁、公交、港口智能化改造项目密集，服务器+智能交通+行业软件需求旺盛。',
+      '深圳机场、港口安防升级需求持续增长，大型交通项目对产品宽度要求高。',
+      '深圳交通项目多由市级平台统一招标，需提前布局平台型项目。'
+    ],
+    bid: [
+      '交通项目多为大型集成项目，预算通常在百万以上，投标方案需体现整体架构设计能力。',
+      '交通行业项目周期长，投标前需充分进行技术方案交流和演示。',
+      '建议联合交通行业软件厂商，以"平台+硬件"联合投标模式提升中标率。'
+    ]
+  },
+  '政府行业组': {
+    core: ['IPC','NVR','存储','网络产品','通用软件'],
+    expand: ['智慧屏与视频会议','行业软件','基础软件','LED与拼控','LCD与解码'],
+    text: [
+      '政府数字化转型是核心驱动力，智慧屏与视频会议需求旺盛，是提升宽度的优先方向。',
+      'LED与拼控、LCD与解码在政府指挥中心/大屏展示场景有稳定需求，建议重点拓展。',
+      '基础软件和通用软件在政府信创采购中占比提升，值得着力推进。'
+    ],
+    actions: [
+      '以"智慧屏+视频会议+网络产品"作为政府数字化办公的标准方案，快速打开政府市场。',
+      '针对政府指挥中心项目，主推LED与拼控+LCD与解码+IPC+存储的完整方案。',
+      '紧跟政府信创采购趋势，推动基础软件+通用软件纳入政府采购清单。',
+      '以行业软件（智慧政务、数字孪生）作为高价值切入点，带动服务器+存储等硬件产品覆盖。'
+    ],
+    shenzhen: [
+      '深圳政府数字化转型投入全国领先，智慧政务、数字政府项目密集，智慧屏+行业软件+基础软件需求大。',
+      '深圳各区政府指挥中心升级、智慧城市项目持续推进，LED与拼控+LCD与解码有稳定市场空间。',
+      '深圳政府项目对供应商资质和本地服务能力要求较高，需提前完成相关资质准备。'
+    ],
+    bid: [
+      '政府项目多采用公开招标，需关注广东省政府采购网、深圳公共资源交易中心等平台。',
+      '政府项目预算审批严格，需关注财年预算申报节点，提前介入项目规划。',
+      '信创项目要求国产化适配，需提前完成国产操作系统和数据库的兼容性测试。'
+    ]
+  },
+  '司法行业组': {
+    core: ['IPC','球机','NVR','人员通道','门禁','对讲'],
+    expand: ['存储','行业软件','传感产品','网络安全','音频产品'],
+    text: [
+      '司法行业安全管控要求严格，IPC+人员通道+门禁对讲是标配，覆盖率应达100%。',
+      '行业软件（监狱管理系统、电子围栏平台）是司法高价值项目的核心组件。',
+      '存储产品因司法取证和录像留存要求，需求量大且稳定，应重点推进。'
+    ],
+    actions: [
+      '以"安防+通行+管控"作为司法行业标准方案，确保IPC+人员通道+门禁对讲全覆盖。',
+      '推动司法行业信息化升级，将行业软件+网络安全作为重点拓展方向。',
+      '针对监狱/看守所等特殊场景，推广传感产品+音频产品（广播、对讲）等差异化方案。',
+      '结合司法行业数据安全要求，将存储+网络安全产品作为标配方案。'
+    ],
+    shenzhen: [
+      '深圳司法信息化投入稳定增长，智慧监狱、数字法院项目逐步推进，对综合安防方案需求增加。',
+      '深圳监狱、看守所安防升级项目对产品安全性要求极高，需强化产品资质和解决方案能力。',
+      '司法行业项目预算相对集中，但项目周期较长，需做好长期跟进。'
+    ],
+    bid: [
+      '司法行业项目多采用邀请招标或单一来源，需建立长期稳定的客户关系。',
+      '司法项目关注产品安全性与稳定性，投标方案需重点突出安全资质和成功案例。',
+      '监狱看守所项目对门禁对讲、人员通道有明确技术要求，需提前准备符合要求的产品方案。'
+    ]
+  },
+  '行业二部-水务': {
+    core: ['IPC','NVR','传感产品','网络产品','存储'],
+    expand: ['行业软件','服务器','通用软件','网络安全','新业务'],
+    text: [
+      '水务行业数字化智慧化是主旋律，传感产品（水质传感、液位传感）是核心差异化切入点。',
+      '行业软件（智慧水务平台、管网监控系统）是提升项目价值和产品粘性的关键。',
+      'IPC+NVR在泵站/水厂视频监控场景有稳定需求，结合传感数据可形成完整解决方案。'
+    ],
+    actions: [
+      '以"传感产品+视频监控+行业软件"作为智慧水务的标准方案，形成差异化竞争优势。',
+      '推动水务行业数字化升级，将服务器+存储+网络安全纳入数据中心建设方案。',
+      '针对水厂/泵站等场景，推广热成像/AI新业务（设备巡检）作为亮点方案。',
+      '联合水务行业软件厂商，以"平台+硬件+传感"联合方案切入智慧水务市场。'
+    ],
+    shenzhen: [
+      '深圳水务集团智慧水务建设持续投入，水质监测、管网监控需求旺盛，传感产品+行业软件市场空间大。',
+      '深圳作为海绵城市试点，水务信息化项目预算充足，综合方案易获青睐。',
+      '深圳水务项目多由水务集团统一招标，需建立集团级客户关系。'
+    ],
+    bid: [
+      '水务项目多采用公开招标或竞争性谈判，需关注深圳水务集团招标平台。',
+      '水务项目对传感产品的技术指标要求严格，需提前准备产品检测报告和认证。',
+      '建议以"智慧水务综合解决方案"参与投标，体现整体方案能力而非单一产品。'
+    ]
+  }
+};
+
+// ===== File Upload =====
+$('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+const ua = $('uploadArea');
+
+// Prevent browser default drag/drop behavior on document
+document.ondragover = e => { if (e.target === ua || ua.contains(e.target)) { e.preventDefault(); } };
+document.ondrop = e => { if (e.target === ua || ua.contains(e.target)) { e.preventDefault(); } else { e.preventDefault(); } };
+
+ua.ondragenter = e => { e.preventDefault(); ua.classList.add('dragover'); };
+ua.ondragover = e => { e.preventDefault(); };
+ua.ondragleave = e => { e.preventDefault(); ua.classList.remove('dragover'); };
+ua.ondrop = e => {
+  e.preventDefault();
+  ua.classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files && files.length > 0) handleFile(files[0]);
+};
+
+function handleFile(file) {
+  if (!file) return;
+  console.log('handleFile called:', file.name, file.type, file.size);
+  const statusEl = $('uploadStatus');
+  statusEl.innerHTML = '<span style="color:#2563eb">⏳ 正在解析文件...</span>';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let data = [];
+      if (file.name.endsWith('.csv')) {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+        data = lines.slice(1).map(line => {
+          const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g,''));
+          const obj = {}; headers.forEach((h,i) => obj[h] = vals[i]||''); return obj;
+        });
+      } else {
+        const wb = XLSX.read(e.target.result, {type:'binary'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const arr = XLSX.utils.sheet_to_json(ws, {header:1});
+        headers = (arr[0]||[]).map(h => String(h||'').trim());
+        data = arr.slice(1).filter(r => r.some(c => c !== undefined && c !== '')).map(r => { const obj = {}; headers.forEach((h,i) => obj[h] = r[i] !== undefined ? r[i] : ''); return obj; });
+      }
+      buildFieldMap(headers);
+      rawData = data.filter(r => headers.some(h => r[h] !== '' && r[h] !== undefined));
+      statusEl.innerHTML = `<span style="color:#059669">✅ 成功加载 <strong>${rawData.length}</strong> 条数据，共 <strong>${headers.length}</strong> 列</span>`;
+      initAnalysis();
+    } catch(err) { statusEl.innerHTML = `<span style="color:#dc2626">❌ 解析失败：${err.message}</span>`; }
+  };
+  if (file.name.endsWith('.csv')) reader.readAsText(file, 'utf-8');
+  else reader.readAsBinaryString(file);
+}
+
+// ===== Paste Data (fallback) =====
+function parsePastedData() {
+  const text = $('pasteInput').value.trim();
+  if (!text) { alert('请先粘贴数据'); return; }
+  const statusEl = $('uploadStatus');
+  statusEl.innerHTML = '<span style="color:#2563eb">⏳ 正在解析粘贴数据...</span>';
+  try {
+    // Detect delimiter: tab > comma > semicolon
+    const lines = text.split('\n').filter(l => l.trim());
+    if (!lines.length) throw new Error('粘贴内容为空');
+    let delim = '\t';
+    if (lines[0].split('\t').length < 2) {
+      if (lines[0].split(',').length >= 2) delim = ',';
+      else if (lines[0].split(';').length >= 2) delim = ';';
+      else throw new Error('无法识别数据格式，请确保数据包含表头且以逗号或制表符分隔');
+    }
+    headers = lines[0].split(delim).map(h => h.trim().replace(/^"|"$/g,''));
+    const data = lines.slice(1).map(line => {
+      const vals = line.split(delim).map(v => v.trim().replace(/^"|"$/g,''));
+      const obj = {}; headers.forEach((h,i) => obj[h] = vals[i]!==undefined ? vals[i] : ''); return obj;
+    });
+    buildFieldMap(headers);
+    rawData = data.filter(r => headers.some(h => r[h] !== '' && r[h] !== undefined));
+    statusEl.innerHTML = `<span style="color:#059669">✅ 成功加载 <strong>${rawData.length}</strong> 条数据，共 <strong>${headers.length}</strong> 列（粘贴方式）</span>`;
+    initAnalysis();
+  } catch(err) { statusEl.innerHTML = `<span style="color:#dc2626">❌ 解析失败：${err.message}</span>`; }
+}
+
+function initAnalysis() {
+  $('analysisPanel').style.display = 'block';
+  populateTeamSelects();
+  renderSummaryStats();
+  renderOverview();
+  renderTeamDim();
+  renderAccountDim();
+  renderCompare();
+  renderSuggestions();
+  renderPersonal();
+  renderRawData();
+}
+
+function getTeams() { return [...new Set(rawData.map(r => getTeam(r)).filter(t => t))].sort(); }
+
+function populateTeamSelects() {
+  const teams = getTeams();
+  ['filterTeamOverview','filterTeamDim','filterTeamForAccount','compareGroupA','compareGroupB','filterTeamRaw','filterTeamPersonal'].forEach(id => {
+    const el = $(id); if (!el) return;
+    const first = el.options[0] ? el.options[0].text : '';
+    el.innerHTML = `<option value="">${first || '全部'}</option>`;
+    teams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; el.appendChild(o); });
+  });
+  // Populate person select
+  const personEl = $('comparePerson');
+  if (personEl) {
+    const allAccounts = [...new Set(rawData.map(r => getAccount(r)).filter(a => a))].sort();
+    personEl.innerHTML = '<option value="">选择CRM账号</option>';
+    allAccounts.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; personEl.appendChild(o); });
+  }
+}
+
+// ===== Summary Stats =====
+function renderSummaryStats(teamFilter) {
+  let data = rawData;
+  if (teamFilter) data = data.filter(r => getTeam(r) === teamFilter);
+  const total = data.length;
+  const guishang = data.filter(r => getGuishang(r) === 1).length;
+  const avgWidth = total ? (data.reduce((s,r) => s + getWidth(r), 0) / total).toFixed(1) : 0;
+  const teams = teamFilter ? 1 : getTeams().length;
+  const accounts = [...new Set(data.map(r => getAccount(r)).filter(a => a))].length;
+  const fullWidth = data.filter(r => getWidth(r) >= PRODUCTS_CLEAN.length).length;
+  const teamLabel = teamFilter ? `<span style="font-size:14px;color:#6b7280">（${escapeHtml(teamFilter)}）</span>` : '';
+  $('summaryStats').innerHTML = `
+    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">最终用户总数 ${teamLabel}</div></div>
+    <div class="stat-card green"><div class="stat-value">${guishang}</div><div class="stat-label">规上客户数 ${teamLabel}</div></div>
+    <div class="stat-card orange"><div class="stat-value">${avgWidth}</div><div class="stat-label">平均产品宽度 ${teamLabel}</div></div>
+    <div class="stat-card purple"><div class="stat-value">${teams}</div><div class="stat-label">团队数量 ${teamLabel}</div></div>
+    <div class="stat-card"><div class="stat-value">${accounts}</div><div class="stat-label">CRM账号数量 ${teamLabel}</div></div>
+    <div class="stat-card red"><div class="stat-value">${fullWidth}</div><div class="stat-label">全宽度覆盖客户 ${teamLabel}</div></div>
+  `;
+}
+
+// ===== Overview =====
+function renderOverview() {
+  const teamFilter = $('filterTeamOverview').value;
+  const gsFilter = $('filterGuishang').value;
+  let data = rawData;
+  if (teamFilter) data = data.filter(r => getTeam(r) === teamFilter);
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r)) === gsFilter);
+
+  const prodCoverage = PRODUCTS_CLEAN.map((p,i) => {
+    const cnt = data.filter(r => safeInt(getVal(r, p)) === 1).length;
+    return { name: p, count: cnt, rate: data.length ? (cnt/data.length*100).toFixed(1) : 0 };
+  }).sort((a,b) => b.rate - a.rate);
+
+  const widthDist = {};
+  data.forEach(r => {
+    const w = getWidth(r);
+    const bucket = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+';
+    widthDist[bucket] = (widthDist[bucket]||0)+1;
+  });
+  const wLabels = ['0','1-3','4-6','7-10','11-15','16+'];
+  const wVals = wLabels.map(l => widthDist[l]||0);
+
+  const teamAvg = getTeams().map(t => {
+    const td = rawData.filter(r => getTeam(r)===t);
+    const avg = td.length ? (td.reduce((s,r)=>s+getWidth(r),0)/td.length).toFixed(1) : 0;
+    return {team: t, avg: parseFloat(avg), count: td.length};
+  }).sort((a,b) => b.avg - a.avg);
+
+  const html = `
+    <div class="chart-box"><h3>📦 产品宽度分布 (点击柱形查看明细)</h3><div class="chart-container"><canvas id="chartWidthDist" height="260"></canvas></div></div>
+    <div class="chart-box"><h3>🏆 各团队平均产品宽度</h3><div class="chart-container"><canvas id="chartTeamAvg" height="260"></canvas></div></div>
+    <div class="chart-box"><h3>📊 产品覆盖率 TOP 15</h3><div class="chart-container"><canvas id="chartProdTop" height="260"></canvas></div></div>
+    <div class="chart-box"><h3>🎯 规上 vs 非规上对比</h3>
+      <div class="chart-container" style="height:260px;"><canvas id="chartGuishang"></canvas></div>
+    </div>
+    ${teamFilter ? '<div class="chart-box"><h3>👤 团队成员平均产品宽度</h3><div class="chart-container"><canvas id="chartAccountAvg" height="260"></canvas></div></div>' : ''}
+  `;
+  $('overviewCharts').innerHTML = html;
+
+  setTimeout(() => {
+    destroyChart('chartAccountAvg');
+    destroyChart('chartWidthDist');
+    chartInstances['chartWidthDist'] = new Chart($('chartWidthDist'), {
+      type:'bar', data:{labels:wLabels, datasets:[{label:'客户数',data:wVals,backgroundColor:['#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af'],borderRadius:6}]},
+      options:{responsive:true,layout:{padding:{top:24}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'top',color:'#1a3c8f',font:{size:13,weight:'bold'},formatter:v=>v}},scales:{x:{title:{display:true,text:'产品宽度区间（单位：个）',color:'#6b7280',font:{size:12}}},y:{beginAtZero:true,ticks:{precision:0},title:{display:true,text:'客户数量（个）',color:'#6b7280',font:{size:12}}}},onClick: (e, els) => { if (els.length>0) showWidthDrill(wLabels[els[0].index]); }},
+      plugins:[ChartDataLabels]
+    });
+    destroyChart('chartTeamAvg');
+    chartInstances['chartTeamAvg'] = new Chart($('chartTeamAvg'), {
+      type:'bar', data:{labels:teamAvg.map(t=>t.team), datasets:[{label:'平均宽度',data:teamAvg.map(t=>t.avg),backgroundColor:'#60a5fa',borderRadius:6}]},
+      options:{responsive:true,layout:{padding:{top:24}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'top',color:'#1a3c8f',font:{size:12,weight:'bold'},formatter:v=>v}},scales:{x:{title:{display:true,text:'团队名称',color:'#6b7280',font:{size:12}},ticks:{maxRotation:30}},y:{beginAtZero:true,title:{display:true,text:'平均产品宽度（个）',color:'#6b7280',font:{size:12}}}}},
+      plugins:[ChartDataLabels]
+    });
+    const top15 = prodCoverage.slice(0,15);
+    destroyChart('chartProdTop');
+    chartInstances['chartProdTop'] = new Chart($('chartProdTop'), {
+      type:'bar', data:{labels:top15.map(p=>p.name), datasets:[{label:'覆盖率%',data:top15.map(p=>parseFloat(p.rate)),backgroundColor:'#34d399',borderRadius:6}]},
+      options:{responsive:true,layout:{padding:{right:20}},indexAxis:'y',plugins:{legend:{display:false},datalabels:{anchor:'end',align:'right',color:'#065f46',font:{size:12,weight:'bold'},formatter:v=>v+'%'}},scales:{x:{beginAtZero:true,max:115,title:{display:true,text:'覆盖率（%）',color:'#6b7280',font:{size:12}}},y:{title:{display:true,text:'产品类别',color:'#6b7280',font:{size:12}}}}},
+      plugins:[ChartDataLabels]
+    });
+    // Guishang - split into two side-by-side charts
+    const gs = data.filter(r=>getGuishang(r)===1);
+    const ngs = data.filter(r=>getGuishang(r)===0);
+    const gsAvg = gs.length ? (gs.reduce((s,r)=>s+getWidth(r),0)/gs.length).toFixed(1) : 0;
+    const ngsAvg = ngs.length ? (ngs.reduce((s,r)=>s+getWidth(r),0)/ngs.length).toFixed(1) : 0;
+    destroyChart('chartGuishang');
+    chartInstances['chartGuishang'] = new Chart($('chartGuishang'), {
+      type:'bar',
+      data:{labels:['规上客户','非规上客户'], datasets:[
+        {type:'bar',label:'客户数量',data:[gs.length,ngs.length],backgroundColor:['#fbbf24','#93c5fd'],borderRadius:6,order:2,yAxisID:'y'},
+        {type:'line',label:'平均产品宽度',data:[parseFloat(gsAvg),parseFloat(ngsAvg)],borderColor:'#f97316',backgroundColor:'#f97316',borderWidth:3,pointRadius:6,pointBackgroundColor:'#fff',pointBorderColor:'#f97316',pointBorderWidth:2,order:1,yAxisID:'y1'}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:24}},plugins:{legend:{display:true,position:'top'},datalabels:{anchor:'end',align:'top',color:'#1a3c8f',font:{size:12,weight:'bold'},formatter:function(v,ctx){return v;}}},scales:{x:{title:{display:true,text:'客户类型',color:'#6b7280',font:{size:12}}},y:{beginAtZero:true,position:'left',title:{display:true,text:'客户数量（个）',color:'#6b7280',font:{size:12}}},y1:{beginAtZero:true,max:16,position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'平均产品宽度（个）',color:'#6b7280',font:{size:12}}}}},
+      plugins:[ChartDataLabels]
+    });
+    // Team account average width chart (when team is selected)
+    if (teamFilter) {
+      destroyChart('chartAccountAvg');
+      const accMap = {};
+      data.forEach(r => {
+        const acc = getAccount(r);
+        if (!accMap[acc]) accMap[acc] = { count: 0, totalWidth: 0 };
+        accMap[acc].count++;
+        accMap[acc].totalWidth += getWidth(r);
+      });
+      const accList = Object.entries(accMap).map(([acc, v]) => ({
+        account: acc,
+        avg: parseFloat((v.totalWidth / v.count).toFixed(1))
+      })).sort((a, b) => b.avg - a.avg);
+      chartInstances['chartAccountAvg'] = new Chart($('chartAccountAvg'), {
+        type:'bar',
+        data:{labels:accList.map(a=>a.account), datasets:[{label:'平均宽度',data:accList.map(a=>a.avg),backgroundColor:'#a78bfa',borderRadius:6}]},
+        options:{responsive:true,layout:{padding:{top:24}},plugins:{legend:{display:false},datalabels:{anchor:'end',align:'top',color:'#1a3c8f',font:{size:12,weight:'bold'},formatter:v=>v}},scales:{x:{title:{display:true,text:'CRM账号',color:'#6b7280',font:{size:12}},ticks:{maxRotation:45}},y:{beginAtZero:true,title:{display:true,text:'平均产品宽度（个）',color:'#6b7280',font:{size:12}}}}},
+        plugins:[ChartDataLabels]
+      });
+    }
+  }, 50);
+
+  $('productHeatmap').innerHTML = prodCoverage.map(p => {
+    const rate = parseFloat(p.rate);
+    const bg = rate >= 70 ? '#bbf7d0' : rate >= 40 ? '#fef9c3' : rate >= 10 ? '#fed7aa' : '#fee2e2';
+    const col = rate >= 70 ? '#166534' : rate >= 40 ? '#854d0e' : rate >= 10 ? '#7c2d12' : '#991b1b';
+    return `<div class="product-item" style="background:${bg};color:${col}"><div class="pname" title="${p.name}">${p.name}</div><div class="prate">${p.rate}%</div><div style="font-size:11px;">${p.count}/${data.length}</div></div>`;
+  }).join('');
+
+  renderSummaryStats(teamFilter);
+}
+
+/* Modal drill-down state */
+let modalDrillState = { bucket: '', team: '', account: '', level: 1 };
+
+function showWidthDrill(bucket) {
+  const teamFilter = $('filterTeamOverview').value;
+  const gsFilter = $('filterGuishang').value;
+  let data = rawData;
+  if (teamFilter) data = data.filter(r => getTeam(r) === teamFilter);
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r)) === gsFilter);
+
+  const filtered = data.filter(r => {
+    const w = getWidth(r);
+    const b = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+';
+    return b === bucket;
+  });
+
+  modalDrillState = { bucket, team: '', account: '', level: 1 };
+  renderModalLevel1(filtered, bucket);
+  $('modalOverlay').classList.add('active');
+}
+
+function renderModalLevel1(data, bucket) {
+  modalDataCache = data;
+  $('modalTitle').textContent = `产品宽度 ${bucket} — 团队统计（共 ${data.length} 条）`;
+
+  // Group by team
+  const teamMap = {};
+  data.forEach(r => {
+    const t = getTeam(r) || '(未分组)';
+    if (!teamMap[t]) teamMap[t] = { team: t, rows: [] };
+    teamMap[t].rows.push(r);
+  });
+
+  let rows = Object.values(teamMap).map(tm => {
+    const widths = tm.rows.map(r => getWidth(r));
+    const avgW = tm.rows.length ? (widths.reduce((s, w) => s + w, 0) / tm.rows.length).toFixed(1) : 0;
+    const gs = tm.rows.filter(r => getGuishang(r) === 1).length;
+    return { team: tm.team, count: tm.rows.length, avgWidth: parseFloat(avgW), guishang: gs };
+  }).sort((a, b) => b.count - a.count);
+
+  let html = `<div style="margin-bottom:12px;font-size:13px;color:#6b7280">点击团队名称查看该团队内的个人统计 →</div>`;
+  html += `<table class="modal-table"><thead><tr><th>团队</th><th>客户数</th><th>平均宽度</th><th>规上数</th><th>操作</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr>
+      <td><strong>${escapeHtml(r.team)}</strong></td>
+      <td>${r.count}</td>
+      <td><span style="color:#2563eb;font-weight:700">${r.avgWidth}</span></td>
+      <td><span class="badge ${r.guishang > 0 ? 'badge-on' : 'badge-off'}">${r.guishang}</span></td>
+      <td><button class="btn btn-primary btn-small" onclick="modalDrillToTeam('${escapeHtml(r.team).replace(/'/g, "\\'")}')">查看个人</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  $('modalContent').innerHTML = html;
+}
+
+function modalDrillToTeam(teamName) {
+  const bucket = modalDrillState.bucket;
+  const gsFilter = $('filterGuishang').value;
+  let data = rawData;
+  if ($('filterTeamOverview').value) data = data.filter(r => getTeam(r) === $('filterTeamOverview').value);
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r)) === gsFilter);
+
+  const filtered = data.filter(r => {
+    const w = getWidth(r);
+    const b = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+';
+    return b === bucket && getTeam(r) === teamName;
+  });
+
+  modalDrillState = { bucket, team: teamName, account: '', level: 2 };
+  modalDataCache = filtered;
+  $('modalTitle').textContent = `产品宽度 ${bucket} — ${teamName} 个人统计（共 ${filtered.length} 条）`;
+
+  // Group by account
+  const accMap = {};
+  filtered.forEach(r => {
+    const a = getAccount(r) || '(未填写)';
+    if (!accMap[a]) accMap[a] = { account: a, rows: [] };
+    accMap[a].rows.push(r);
+  });
+
+  let rows = Object.values(accMap).map(am => {
+    const widths = am.rows.map(r => getWidth(r));
+    const avgW = am.rows.length ? (widths.reduce((s, w) => s + w, 0) / am.rows.length).toFixed(1) : 0;
+    const gs = am.rows.filter(r => getGuishang(r) === 1).length;
+    return { account: am.account, count: am.rows.length, avgWidth: parseFloat(avgW), guishang: gs };
+  }).sort((a, b) => b.count - a.count);
+
+  let html = `<div style="margin-bottom:8px;"><button class="btn btn-outline btn-small" onclick="modalDrillBack()">← 返回团队统计</button></div>`;
+  html += `<div style="margin-bottom:12px;font-size:13px;color:#6b7280">点击账号查看明细数据 →</div>`;
+  html += `<table class="modal-table"><thead><tr><th>CRM账号</th><th>客户数</th><th>平均宽度</th><th>规上数</th><th>操作</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr>
+      <td><strong>${escapeHtml(r.account)}</strong></td>
+      <td>${r.count}</td>
+      <td><span style="color:#2563eb;font-weight:700">${r.avgWidth}</span></td>
+      <td><span class="badge ${r.guishang > 0 ? 'badge-on' : 'badge-off'}">${r.guishang}</span></td>
+      <td><button class="btn btn-primary btn-small" onclick="modalDrillToAccount('${escapeHtml(r.account).replace(/'/g, "\\'")}')">查看明细</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  $('modalContent').innerHTML = html;
+}
+
+function modalDrillToAccount(accountName) {
+  const bucket = modalDrillState.bucket;
+  const teamName = modalDrillState.team;
+  const gsFilter = $('filterGuishang').value;
+  let data = rawData;
+  if ($('filterTeamOverview').value) data = data.filter(r => getTeam(r) === $('filterTeamOverview').value);
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r)) === gsFilter);
+
+  const filtered = data.filter(r => {
+    const w = getWidth(r);
+    const b = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+';
+    return b === bucket && getTeam(r) === teamName && getAccount(r) === accountName;
+  });
+
+  modalDrillState = { bucket, team: teamName, account: accountName, level: 3 };
+  modalDataCache = filtered;
+  $('modalTitle').textContent = `产品宽度 ${bucket} — ${teamName} / ${accountName} 明细（共 ${filtered.length} 条）`;
+
+  let html = `<div style="margin-bottom:8px;"><button class="btn btn-outline btn-small" onclick="modalDrillBack()">← 返回个人统计</button></div>`;
+  html += `<table class="modal-table"><thead><tr><th>团队</th><th>CRM账号</th><th>最终用户</th><th>规上</th><th>产品宽度</th>`;
+  PRODUCTS_CLEAN.forEach(p => html += `<th>${p}</th>`);
+  html += '</tr></thead><tbody>';
+  filtered.slice(0, 200).forEach(r => {
+    html += `<tr><td>${escapeHtml(getTeam(r))}</td><td>${escapeHtml(getAccount(r))}</td><td>${escapeHtml(getUser(r))}</td>`;
+    html += `<td><span class="badge ${getGuishang(r) ? 'badge-yes' : 'badge-no'}">${getGuishang(r) ? '规上' : '非规上'}</span></td>`;
+    html += `<td><strong>${getWidth(r)}</strong></td>`;
+    PRODUCTS_CLEAN.forEach(p => {
+      const has = safeInt(getVal(r, p)) === 1;
+      html += `<td style="text-align:center;color:${has ? '#059669' : '#d1d5db'}">${has ? '✓' : '-'}</td>`;
+    });
+    html += '</tr>';
+  });
+  if (filtered.length > 200) html += `<tr><td colspan="${5 + PRODUCTS_CLEAN.length}" style="text-align:center;color:#9ca3af">还有 ${filtered.length - 200} 条数据，请导出查看完整明细</td></tr>`;
+  html += '</tbody></table>';
+  $('modalContent').innerHTML = html;
+}
+
+function modalDrillBack() {
+  const gsFilter = $('filterGuishang').value;
+  let data = rawData;
+  if ($('filterTeamOverview').value) data = data.filter(r => getTeam(r) === $('filterTeamOverview').value);
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r)) === gsFilter);
+
+  const filtered = data.filter(r => {
+    const w = getWidth(r);
+    const b = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+';
+    return b === modalDrillState.bucket;
+  });
+
+  if (modalDrillState.level === 3) {
+    modalDrillState.level = 2;
+    modalDrillToTeam(modalDrillState.team);
+  } else if (modalDrillState.level === 2) {
+    modalDrillState.level = 1;
+    modalDrillState.team = '';
+    renderModalLevel1(filtered, modalDrillState.bucket);
+  }
+}
+
+function closeModal() { $('modalOverlay').classList.remove('active'); modalDataCache = []; modalDrillState = { bucket: '', team: '', account: '', level: 1 }; }
+
+// ===== Non-Guishang Detail Modal =====
+function showNonGuishangDetail(type, name) {
+  let filtered;
+  let title;
+  if (type === 'team') {
+    filtered = rawData.filter(r => getTeam(r) === name && getGuishang(r) === 0);
+    title = `非规上客户明细 — ${name}（共 ${filtered.length} 条）`;
+  } else {
+    filtered = rawData.filter(r => getAccount(r) === name && getGuishang(r) === 0);
+    title = `非规上客户明细 — ${name}（共 ${filtered.length} 条）`;
+  }
+  modalDataCache = filtered;
+  $('modalTitle').textContent = title;
+
+  if (!filtered.length) {
+    $('modalContent').innerHTML = '<div class="info-msg">该范围内无非规上客户数据</div>';
+    $('modalOverlay').classList.add('active');
+    return;
+  }
+
+  // Group by account for context
+  let html = '';
+  if (type === 'team') {
+    // Show summary by account first
+    const accMap = {};
+    filtered.forEach(r => {
+      const a = getAccount(r) || '(未填写)';
+      if (!accMap[a]) accMap[a] = { account: a, rows: [] };
+      accMap[a].rows.push(r);
+    });
+    const accRows = Object.values(accMap).sort((a, b) => b.rows.length - a.rows.length);
+    html += `<div style="margin-bottom:12px;font-size:13px;color:#6b7280">📋 按CRM账号分组统计</div>`;
+    html += `<table class="modal-table" style="margin-bottom:16px"><thead><tr><th>CRM账号</th><th>非规上客户数</th><th>平均宽度</th></tr></thead><tbody>`;
+    accRows.forEach(a => {
+      const avgW = (a.rows.reduce((s,r) => s + getWidth(r), 0) / a.rows.length).toFixed(1);
+      html += `<tr><td><strong>${escapeHtml(a.account)}</strong></td><td>${a.rows.length}</td><td>${avgW}</td></tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  html += `<div style="margin-bottom:8px;font-size:13px;color:#6b7280">📋 客户明细（共 ${filtered.length} 条）</div>`;
+  html += `<table class="modal-table"><thead><tr><th>团队</th><th>CRM账号</th><th>最终用户</th><th>产品宽度</th>`;
+  PRODUCTS_CLEAN.forEach(p => html += `<th style="min-width:36px">${p.length>4?p.substring(0,3)+'…':p}</th>`);
+  html += '</tr></thead><tbody>';
+  filtered.slice(0, 200).forEach(r => {
+    html += `<tr>
+      <td>${escapeHtml(getTeam(r))}</td>
+      <td>${escapeHtml(getAccount(r))}</td>
+      <td>${escapeHtml(getUser(r))}</td>
+      <td><strong style="color:#2563eb">${getWidth(r)}</strong></td>`;
+    PRODUCTS_CLEAN.forEach(p => {
+      const has = safeInt(getVal(r, p)) === 1;
+      html += `<td style="text-align:center;color:${has ? '#059669' : '#d1d5db'}">${has ? '✓' : '-'}</td>`;
+    });
+    html += '</tr>';
+  });
+  if (filtered.length > 200) html += `<tr><td colspan="${4 + PRODUCTS_CLEAN.length}" style="text-align:center;color:#9ca3af">还有 ${filtered.length - 200} 条数据，请导出查看完整明细</td></tr>`;
+  html += '</tbody></table>';
+  $('modalContent').innerHTML = html;
+  $('modalOverlay').classList.add('active');
+}
+
+function exportModalData() {
+  if (!modalDataCache.length) return;
+  const wb = XLSX.utils.book_new();
+  const rows = modalDataCache.map(r => {
+    const obj = {团队:getTeam(r), CRM账号:getAccount(r), 最终用户:getUser(r), 是否规上:getGuishang(r)?'规上':'非规上', 产品宽度:getWidth(r)};
+    PRODUCTS_CLEAN.forEach(p => obj[p] = safeInt(getVal(r,p))===1?'有':'无');
+    return obj;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '明细');
+  XLSX.writeFile(wb, '产品宽度明细导出.xlsx');
+}
+
+// ===== Team Dimension =====
+function renderTeamDim(page) {
+  if (page !== undefined) teamPage = page;
+  const teamFilter = $('filterTeamDim').value;
+  const sortBy = $('sortTeam').value;
+  const teams = teamFilter ? [teamFilter] : getTeams();
+  let rows = teams.map(t => {
+    const td = rawData.filter(r => getTeam(r)===t);
+    const widths = td.map(r=>getWidth(r));
+    const avgW = td.length ? (widths.reduce((s,w)=>s+w,0)/td.length).toFixed(1) : 0;
+    const maxW = td.length ? Math.max(...widths) : 0;
+    const gs = td.filter(r=>getGuishang(r)===1).length;
+    const ngs = td.filter(r=>getGuishang(r)===0).length;
+    const prodCnt = PRODUCTS_CLEAN.map(p => td.filter(r=>safeInt(getVal(r,p))===1).length);
+    return {team:t, count:td.length, avgWidth:parseFloat(avgW), maxWidth:maxW, guishang:gs, nonGuishang:ngs, prodCnt};
+  }).filter(r=>r.count>0);
+  if (sortBy === 'width_desc') rows.sort((a,b)=>b.avgWidth-a.avgWidth);
+  else if (sortBy === 'width_asc') rows.sort((a,b)=>a.avgWidth-b.avgWidth);
+  else if (sortBy === 'guishang_desc') rows.sort((a,b)=>b.guishang-a.guishang);
+  const total = rows.length;
+  const start = (teamPage-1)*PAGE_SIZE;
+  const paged = rows.slice(start, start+PAGE_SIZE);
+  const maxProd = PRODUCTS_CLEAN.length;
+  let html = `<table><thead><tr><th>团队</th><th>客户数</th><th>平均宽度</th><th>最大宽度</th><th>规上数</th><th>非规上数</th>`;
+  PRODUCTS_CLEAN.forEach(p => html += `<th title="${p}">${p.length>4?p.substring(0,4)+'…':p}</th>`);
+  html += '</tr></thead><tbody>';
+  paged.forEach(r => {
+    const pct = (r.avgWidth/maxProd*100).toFixed(0);
+    const teamEnc = encodeURIComponent(r.team);
+    html += `<tr><td><strong>${escapeHtml(r.team)}</strong></td><td>${r.count}</td>
+      <td><div class="width-bar-wrap"><div class="width-bar" style="width:80px"><div class="width-bar-fill" style="width:${pct}%"></div></div><span class="width-num">${r.avgWidth}</span></div></td>
+      <td>${r.maxWidth}</td>
+      <td><span class="badge badge-on">${r.guishang}</span></td>
+      <td><span class="badge badge-no" style="cursor:pointer;text-decoration:underline;" title="点击查看非规上客户明细" onclick="showNonGuishangDetail('team','${escapeHtml(r.team).replace(/'/g,"\\'")}')">${r.nonGuishang}</span></td>`;
+    r.prodCnt.forEach(c => { html += `<td style="text-align:center;color:${c>0?'#059669':'#d1d5db'}">${c>0?'✓ '+c:'-'}</td>`; });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  $('teamTable').innerHTML = html;
+  renderPager('teamPager', total, teamPage, p => renderTeamDim(p));
+}
+
+// ===== Account Dimension =====
+function renderAccountDim(page) {
+  if (page !== undefined) accountPage = page;
+  const teamFilter = $('filterTeamForAccount').value;
+  const search = ($('searchAccount').value||'').trim().toLowerCase();
+  const gsFilter = $('filterGuishangAccount').value;
+  const minWidth = parseInt($('filterMinWidth').value)||0;
+  let data = rawData;
+  if (teamFilter) data = data.filter(r => getTeam(r)===teamFilter);
+  if (search) data = data.filter(r => getAccount(r).toLowerCase().includes(search)||getUser(r).toLowerCase().includes(search));
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r))===gsFilter);
+  if (minWidth > 0) data = data.filter(r => getWidth(r)>=minWidth);
+  const accountMap = {};
+  data.forEach(r => {
+    const acc = getAccount(r)||'(未填写)';
+    const team = getTeam(r);
+    if (!accountMap[acc]) accountMap[acc] = {account:acc, team, rows:[]};
+    accountMap[acc].rows.push(r);
+  });
+  let rows = Object.values(accountMap).map(a => {
+    const widths = a.rows.map(r=>getWidth(r));
+    const avgW = widths.length ? (widths.reduce((s,w)=>s+w,0)/widths.length).toFixed(1) : 0;
+    const gs = a.rows.filter(r=>getGuishang(r)===1).length;
+    const ngs = a.rows.filter(r=>getGuishang(r)===0).length;
+    const prodCnt = PRODUCTS_CLEAN.map(p => a.rows.filter(r=>safeInt(getVal(r,p))===1).length);
+    return {account:a.account, team:a.team, userCount:a.rows.length, avgWidth:parseFloat(avgW), guishang:gs, nonGuishang:ngs, prodCnt};
+  }).sort((a,b)=>b.avgWidth-a.avgWidth);
+  const total = rows.length;
+  const start = (accountPage-1)*PAGE_SIZE;
+  const paged = rows.slice(start, start+PAGE_SIZE);
+  const maxProd = PRODUCTS_CLEAN.length;
+  let html = `<table><thead><tr><th>CRM账号</th><th>所属团队</th><th>客户数</th><th>平均宽度</th><th>规上数</th><th>非规上数</th>`;
+  PRODUCTS_CLEAN.forEach(p => html += `<th title="${p}">${p.length>4?p.substring(0,4)+'…':p}</th>`);
+  html += '</tr></thead><tbody>';
+  paged.forEach(r => {
+    const pct = (r.avgWidth/maxProd*100).toFixed(0);
+    html += `<tr><td><strong>${escapeHtml(r.account)}</strong></td><td>${escapeHtml(r.team)}</td><td>${r.userCount}</td>
+      <td><div class="width-bar-wrap"><div class="width-bar" style="width:80px"><div class="width-bar-fill" style="width:${pct}%"></div></div><span class="width-num">${r.avgWidth}</span></div></td>
+      <td><span class="badge badge-on">${r.guishang}</span></td>
+      <td><span class="badge badge-no" style="cursor:pointer;text-decoration:underline;" title="点击查看非规上客户明细" onclick="showNonGuishangDetail('account','${escapeHtml(r.account).replace(/'/g,"\\'")}')">${r.nonGuishang}</span></td>`;
+    r.prodCnt.forEach(c => { html += `<td style="text-align:center;color:${c>0?'#059669':'#d1d5db'}">${c>0?'✓':'-'}</td>`; });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  $('accountTable').innerHTML = html;
+  renderPager('accountPager', total, accountPage, p => renderAccountDim(p));
+}
+
+function renderPager(containerId, total, current, cb) {
+  const totalPages = Math.ceil(total/PAGE_SIZE);
+  if (totalPages <= 1) { $(containerId).innerHTML = `<span style="font-size:12px;color:#9ca3af">共 ${total} 条</span>`; return; }
+  let html = `<span style="font-size:12px;color:#6b7280;margin-right:8px">共${total}条</span>`;
+  const pages = [];
+  for (let i=1;i<=totalPages;i++) { if (i===1||i===totalPages||Math.abs(i-current)<=2) pages.push(i); else if (pages[pages.length-1]!=='...') pages.push('...'); }
+  pages.forEach(p => {
+    if (p==='...') html += `<span class="page-btn" style="cursor:default">…</span>`;
+    else html += `<button class="page-btn${p===current?' active':''}" onclick="(${cb.toString()})(${p})">${p}</button>`;
+  });
+  $(containerId).innerHTML = html;
+}
+
+// ===== Compare =====
+$('compareMode').onchange = function() {
+  const mode = this.value;
+  $('groupAControl').style.display = (mode === 'group' || mode === 'mean') ? 'flex' : 'none';
+  $('groupBControl').style.display = mode === 'group' ? 'flex' : 'none';
+  $('meanBControl').style.display = mode === 'mean' ? 'flex' : 'none';
+  $('personControl').style.display = mode === 'person' ? 'flex' : 'none';
+  renderCompare();
+};
+
+function renderCompare() {
+  const mode = $('compareMode').value;
+  if (mode === 'person') {
+    const person = $('comparePerson').value;
+    if (!person) { $('compareResult').innerHTML = '<div class="info-msg">请先选择个人（CRM账号）</div>'; return; }
+    return renderComparePerson();
+  }
+  const gA = $('compareGroupA').value;
+  if (!gA) { $('compareResult').innerHTML = '<div class="info-msg">请先选择对比团队</div>'; return; }
+
+  let dataA, dataB, labelB;
+  dataA = rawData.filter(r=>getTeam(r)===gA);
+  if (mode === 'group') {
+    const gB = $('compareGroupB').value;
+    if (!gB || gA === gB) { $('compareResult').innerHTML = '<div class="info-msg">请选择另一个不同的团队进行对比</div>'; return; }
+    dataB = rawData.filter(r=>getTeam(r)===gB);
+    labelB = gB;
+  } else if (mode === 'mean') {
+    dataB = rawData; // 全部数据作为均值基准
+    labelB = '全部团队均值';
+  } else {
+    // person mode handled separately
+    return renderComparePerson();
+  }
+
+  function groupStats(d, isMeanBase) {
+    const widths = d.map(r=>getWidth(r));
+    const totalAccounts = [...new Set(rawData.map(r=>getAccount(r)).filter(a=>a))].length;
+    const dAccounts = [...new Set(d.map(r=>getAccount(r)).filter(a=>a))].length;
+    const allTotal = rawData.length;
+    const allWidthSum = rawData.reduce((s,r)=>s+getWidth(r),0);
+    if (isMeanBase) {
+      // 全部团队均值：客户数=最终用户总数/账号总数，平均宽度=产品宽度合计/最终用户总数，规上客户数=规上客户总数/团队总数
+      const allGuishang = rawData.filter(r=>getGuishang(r)===1).length;
+      const allTeams = [...new Set(rawData.map(r=>getTeam(r)).filter(t=>t))].length;
+      return {
+        count: totalAccounts ? (allTotal / totalAccounts).toFixed(2) : 0,
+        avgWidth: allTotal ? (allWidthSum / allTotal).toFixed(2) : 0,
+        guishang: allTeams ? (allGuishang / allTeams).toFixed(2) : 0,
+        guishangRate: allTotal ? (allGuishang / allTotal * 100).toFixed(1) : 0,
+        prodCnt: PRODUCTS_CLEAN.map(p => {
+          const cnt = rawData.filter(r=>safeInt(getVal(r,p))===1).length;
+          return { p, cnt: totalAccounts ? (cnt / totalAccounts).toFixed(2) : 0, rate: allTotal ? (cnt / allTotal * 100).toFixed(1) : 0 };
+        })
+      };
+    }
+    return {
+      count: d.length,
+      avgWidth: d.length ? (widths.reduce((s,w)=>s+w,0)/d.length).toFixed(2) : 0,
+      maxWidth: d.length ? Math.max(...widths) : 0,
+      guishang: d.filter(r=>getGuishang(r)===1).length,
+      guishangRate: d.length ? (d.filter(r=>getGuishang(r)===1).length/d.length*100).toFixed(1) : 0,
+      prodCnt: PRODUCTS_CLEAN.map(p => ({ p, cnt: d.filter(r=>safeInt(getVal(r,p))===1).length, rate: d.length?(d.filter(r=>safeInt(getVal(r,p))===1).length/d.length*100).toFixed(1):0 }))
+    };
+  }
+  const sA = groupStats(dataA, false);
+  const sB = groupStats(dataB, mode === 'mean');
+
+  let summaryHtml = `<table class="compare-table" style="margin-bottom:20px"><thead><tr><th>指标</th><th>${escapeHtml(gA)}</th><th>${escapeHtml(labelB)}</th><th>差异</th></tr></thead><tbody>`;
+  const metrics = [
+    ['客户数', sA.count, sB.count, ''],
+    ['平均产品宽度', sA.avgWidth, sB.avgWidth, '越大越好'],
+    ['规上客户数', sA.guishang, sB.guishang, '越大越好'],
+    ['规上比率%', sA.guishangRate+'%', sB.guishangRate+'%', '越大越好'],
+  ];
+  metrics.forEach(([label, va, vb, dir]) => {
+    const na = parseFloat(va), nb = parseFloat(vb);
+    let diff = '', cls = '';
+    if (!isNaN(na) && !isNaN(nb)) {
+      diff = (na-nb >= 0 ? '+' : '') + (na-nb).toFixed(dir?2:0);
+      if (dir === '越大越好') cls = na > nb ? 'compare-better' : na < nb ? 'compare-worse' : '';
+    }
+    summaryHtml += `<tr><td>${label}</td><td class="${na>=nb&&dir?'compare-better':''}">${va}</td><td class="${nb>na&&dir?'compare-better':''}">${vb}</td><td class="${parseFloat(diff)>=0?'compare-better':'compare-worse'}">${diff}</td></tr>`;
+  });
+  summaryHtml += '</tbody></table>';
+
+  let prodHtml = `<table class="compare-table"><thead><tr><th>产品类别</th><th>${escapeHtml(gA)} 覆盖率</th><th>${escapeHtml(labelB)} 覆盖率</th><th>差异(A-B)</th></tr></thead><tbody>`;
+  PRODUCTS_CLEAN.forEach((p,i) => {
+    const a = sA.prodCnt[i], b = sB.prodCnt[i];
+    const aRate = parseFloat(a.rate), bRate = parseFloat(b.rate);
+    const diff = aRate - bRate;
+    const diffCls = diff > 0 ? 'compare-better' : diff < 0 ? 'compare-worse' : '';
+    prodHtml += `<tr><td>${p}</td><td>${a.rate}%</td><td>${b.rate}%</td><td class="${diffCls}">${diff>0?'+':''}${diff.toFixed(1)}%</td></tr>`;
+  });
+  prodHtml += '</tbody></table>';
+
+  // ===== Analysis Suggestions =====
+  let suggestHtml = '';
+  const avgDiff = parseFloat(sA.avgWidth) - parseFloat(sB.avgWidth);
+  const weakProds = [];
+  const strongProds = [];
+  PRODUCTS_CLEAN.forEach((p, i) => {
+    const aRate = parseFloat(sA.prodCnt[i].rate);
+    const bRate = parseFloat(sB.prodCnt[i].rate);
+    if (aRate < bRate - 10) weakProds.push({ p, gap: (bRate - aRate).toFixed(1) });
+    else if (aRate > bRate + 10) strongProds.push({ p, lead: (aRate - bRate).toFixed(1) });
+  });
+
+  if (mode === 'mean') {
+    if (avgDiff > 0) {
+      suggestHtml = `<div class="suggestion-card zheng-fu" style="margin-top:16px;">
+        <h3>📊 ${escapeHtml(gA)} vs 全部团队均值 — 分析建议</h3>
+        <div style="font-size:13px;line-height:1.8;">
+          <p><strong>✅ 整体表现优于均值：</strong>平均产品宽度 <strong>${sA.avgWidth}</strong>，高于全部均值 <strong>${sB.avgWidth}</strong>（+${avgDiff.toFixed(2)}）。该团队整体产品覆盖能力较强。</p>
+          ${strongProds.length ? `<p><strong>🏆 优势产品（覆盖率领先均值10%以上）：</strong>${strongProds.map(x => x.p + '(+' + x.lead + '%)').join('、')}</p>` : ''}
+          ${weakProds.length ? `<p><strong>⚠️ 待提升产品（覆盖率低于均值10%以上）：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+          <p><strong>💡 建议：</strong>继续保持优势产品覆盖，同时${weakProds.length ? '重点补齐' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等短板产品，提升整体产品宽度。' : '巩固现有优势，关注新业务拓展机会。'}</p>
+        </div>
+      </div>`;
+    } else if (avgDiff < 0) {
+      suggestHtml = `<div class="suggestion-card gong-an" style="margin-top:16px;">
+        <h3>📊 ${escapeHtml(gA)} vs 全部团队均值 — 分析建议</h3>
+        <div style="font-size:13px;line-height:1.8;">
+          <p><strong>⚠️ 整体表现低于均值：</strong>平均产品宽度 <strong>${sA.avgWidth}</strong>，低于全部均值 <strong>${sB.avgWidth}</strong>（${avgDiff.toFixed(2)}）。该团队产品覆盖能力有待提升。</p>
+          ${strongProds.length ? `<p><strong>🏆 相对优势产品：</strong>${strongProds.map(x => x.p + '(+' + x.lead + '%)').join('、')}</p>` : ''}
+          ${weakProds.length ? `<p><strong>🔴 明显短板产品（覆盖率低于均值10%以上）：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+          <p><strong>💡 建议：</strong>${weakProds.length ? '优先推进' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等产品覆盖，缩小与均值的差距；' : ''}${strongProds.length ? '发挥' + strongProds.slice(0, 2).map(x => x.p).join('、') + '等优势产品经验，带动其他产品覆盖。' : '建议从核心基础产品入手，逐步扩展产品线。'}</p>
+        </div>
+      </div>`;
+    } else {
+      suggestHtml = `<div class="suggestion-card wen-jiao" style="margin-top:16px;">
+        <h3>📊 ${escapeHtml(gA)} vs 全部团队均值 — 分析建议</h3>
+        <div style="font-size:13px;line-height:1.8;">
+          <p><strong>➡️ 整体表现与均值持平：</strong>平均产品宽度 <strong>${sA.avgWidth}</strong>，与全部均值基本一致。</p>
+          ${weakProds.length ? `<p><strong>⚠️ 仍有提升空间：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+          <p><strong>💡 建议：</strong>对标均值找出差距，${weakProds.length ? '重点补齐' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等薄弱产品。' : '保持现有产品覆盖，寻求差异化突破。'}</p>
+        </div>
+      </div>`;
+    }
+  } else {
+    // group mode suggestions
+    if (avgDiff > 0) {
+      suggestHtml = `<div class="suggestion-card zheng-fu" style="margin-top:16px;">
+        <h3>📊 ${escapeHtml(gA)} vs ${escapeHtml(labelB)} — 分析建议</h3>
+        <div style="font-size:13px;line-height:1.8;">
+          <p><strong>✅ ${escapeHtml(gA)} 整体领先：</strong>平均产品宽度 <strong>${sA.avgWidth}</strong>，高于 ${escapeHtml(labelB)} 的 <strong>${sB.avgWidth}</strong>（+${avgDiff.toFixed(2)}）。</p>
+          ${strongProds.length ? `<p><strong>🏆 领先产品：</strong>${strongProds.map(x => x.p + '(+' + x.lead + '%)').join('、')}</p>` : ''}
+          ${weakProds.length ? `<p><strong>⚠️ 落后产品：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+          <p><strong>💡 建议：</strong>保持领先优势，${weakProds.length ? '同时关注' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等差距产品。' : '全面巩固产品覆盖能力。'}</p>
+        </div>
+      </div>`;
+    } else if (avgDiff < 0) {
+      suggestHtml = `<div class="suggestion-card gong-an" style="margin-top:16px;">
+        <h3>📊 ${escapeHtml(gA)} vs ${escapeHtml(labelB)} — 分析建议</h3>
+        <div style="font-size:13px;line-height:1.8;">
+          <p><strong>⚠️ ${escapeHtml(gA)} 整体落后：</strong>平均产品宽度 <strong>${sA.avgWidth}</strong>，低于 ${escapeHtml(labelB)} 的 <strong>${sB.avgWidth}</strong>（${avgDiff.toFixed(2)}）。</p>
+          ${strongProds.length ? `<p><strong>🏆 相对优势：</strong>${strongProds.map(x => x.p + '(+' + x.lead + '%)').join('、')}</p>` : ''}
+          ${weakProds.length ? `<p><strong>🔴 明显差距：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+          <p><strong>💡 建议：</strong>${weakProds.length ? '重点突破' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等差距产品；' : ''}${strongProds.length ? '以' + strongProds.slice(0, 2).map(x => x.p).join('、') + '为突破口，复制成功经验。' : '学习对标团队经验，补齐产品覆盖短板。'}</p>
+        </div>
+      </div>`;
+    } else {
+      suggestHtml = `<div class="suggestion-card wen-jiao" style="margin-top:16px;">
+        <h3>📊 ${escapeHtml(gA)} vs ${escapeHtml(labelB)} — 分析建议</h3>
+        <div style="font-size:13px;line-height:1.8;">
+          <p><strong>➡️ 整体持平：</strong>平均产品宽度 <strong>${sA.avgWidth}</strong>，与 ${escapeHtml(labelB)} 基本一致。</p>
+          ${weakProds.length ? `<p><strong>⚠️ 差距产品：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+          <p><strong>💡 建议：</strong>${weakProds.length ? '重点补齐' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等薄弱产品，实现全面领先。' : '寻求差异化优势，打造特色产品组合。'}</p>
+        </div>
+      </div>`;
+    }
+  }
+
+  const compareHtml = `
+    <div class="chart-grid" style="margin-bottom:20px">
+      <div class="chart-box"><h3>产品覆盖率对比 (${gA} vs ${labelB})</h3><div class="chart-container"><canvas id="chartCompare" height="300"></canvas></div></div>
+      <div class="chart-box"><h3>产品宽度分布对比</h3><div class="chart-container"><canvas id="chartCompareWidth" height="300"></canvas></div></div>
+    </div>
+  `;
+
+  $('compareResult').innerHTML = `
+    <div class="card-title" style="margin-bottom:12px;">综合指标对比</div>
+    ${summaryHtml}
+    ${compareHtml}
+    <div class="card-title" style="margin:16px 0 12px;">各产品类别覆盖对比</div>
+    <div class="table-wrapper">${prodHtml}</div>
+    ${suggestHtml}
+  `;
+
+  setTimeout(() => {
+    destroyChart('chartCompare');
+    chartInstances['chartCompare'] = new Chart($('chartCompare'), {
+      type:'radar',
+      data:{ labels: PRODUCTS_CLEAN.slice(0,15),
+        datasets:[
+          {label:gA, data:sA.prodCnt.slice(0,15).map(p=>parseFloat(p.rate)), fill:true, backgroundColor:'rgba(37,99,235,0.15)', borderColor:'#2563eb', pointRadius:3},
+          {label:labelB, data:sB.prodCnt.slice(0,15).map(p=>parseFloat(p.rate)), fill:true, backgroundColor:'rgba(220,38,38,0.15)', borderColor:'#dc2626', pointRadius:3}
+        ]},
+      options:{responsive:true, scales:{r:{beginAtZero:true, max:100}}}
+    });
+    const buckets = ['0','1-3','4-6','7-10','11-15','16+'];
+    function getBuckets(d, isMean) {
+      if (isMean) {
+        const totalAccounts = [...new Set(rawData.map(r=>getAccount(r)).filter(a=>a))].length;
+        const dist = {};
+        rawData.forEach(r=>{const w=getWidth(r);const b=w<=0?'0':w<=3?'1-3':w<=6?'4-6':w<=10?'7-10':w<=15?'11-15':'16+';dist[b]=(dist[b]||0)+1;});
+        return buckets.map(b=>totalAccounts?(dist[b]||0)/totalAccounts:0);
+      }
+      const dist = {};
+      d.forEach(r=>{const w=getWidth(r);const b=w<=0?'0':w<=3?'1-3':w<=6?'4-6':w<=10?'7-10':w<=15?'11-15':'16+';dist[b]=(dist[b]||0)+1;});
+      return buckets.map(b=>dist[b]||0);
+    }
+    destroyChart('chartCompareWidth');
+    chartInstances['chartCompareWidth'] = new Chart($('chartCompareWidth'), {
+      type:'bar',
+      data:{labels:buckets, datasets:[
+        {label:gA, data:getBuckets(dataA, false), backgroundColor:'rgba(37,99,235,0.7)', borderRadius:4},
+        {label:labelB, data:getBuckets(dataB, mode==='mean'), backgroundColor:'rgba(220,38,38,0.7)', borderRadius:4}
+      ]},
+      options:{responsive:true, scales:{y:{beginAtZero:true,ticks:{precision:0}}}}
+    });
+  }, 50);
+}
+
+// ===== Compare Person vs Team Mean =====
+function renderComparePerson() {
+  const person = $('comparePerson').value;
+  if (!person) { $('compareResult').innerHTML = '<div class="info-msg">请先选择个人（CRM账号）</div>'; return; }
+
+  // Find person's data and team
+  const personData = rawData.filter(r => getAccount(r) === person);
+  if (!personData.length) { $('compareResult').innerHTML = '<div class="info-msg">未找到该账号的数据</div>'; return; }
+  const personTeam = getTeam(personData[0]) || '(未分组)';
+  const teamData = rawData.filter(r => getTeam(r) === personTeam);
+
+  function personStats(d) {
+    const widths = d.map(r => getWidth(r));
+    return {
+      count: d.length,
+      avgWidth: d.length ? (widths.reduce((s, w) => s + w, 0) / d.length).toFixed(2) : 0,
+      maxWidth: d.length ? Math.max(...widths) : 0,
+      guishang: d.filter(r => getGuishang(r) === 1).length,
+      guishangRate: d.length ? (d.filter(r => getGuishang(r) === 1).length / d.length * 100).toFixed(1) : 0,
+      prodCnt: PRODUCTS_CLEAN.map(p => ({ p, cnt: d.filter(r => safeInt(getVal(r, p)) === 1).length, rate: d.length ? (d.filter(r => safeInt(getVal(r, p)) === 1).length / d.length * 100).toFixed(1) : 0 }))
+    };
+  }
+  const sP = personStats(personData), sT = personStats(teamData);
+
+  let summaryHtml = `<table class="compare-table" style="margin-bottom:20px"><thead><tr><th>指标</th><th>${escapeHtml(person)}（个人）</th><th>${escapeHtml(personTeam)}（团队均值）</th><th>差异</th></tr></thead><tbody>`;
+  const metrics = [
+    ['客户数', sP.count, sT.count, ''],
+    ['平均产品宽度', sP.avgWidth, sT.avgWidth, '越大越好'],
+    ['最大产品宽度', sP.maxWidth, sT.maxWidth, '越大越好'],
+    ['规上客户数', sP.guishang, sT.guishang, '越大越好'],
+    ['规上比率%', sP.guishangRate + '%', sT.guishangRate + '%', '越大越好'],
+  ];
+  metrics.forEach(([label, va, vb, dir]) => {
+    const na = parseFloat(va), nb = parseFloat(vb);
+    let diff = '', cls = '';
+    if (!isNaN(na) && !isNaN(nb)) {
+      diff = (na - nb >= 0 ? '+' : '') + (na - nb).toFixed(dir ? 2 : 0);
+      if (dir === '越大越好') cls = na > nb ? 'compare-better' : na < nb ? 'compare-worse' : '';
+    }
+    summaryHtml += `<tr><td>${label}</td><td class="${na >= nb && dir ? 'compare-better' : ''}">${va}</td><td class="${nb > na && dir ? 'compare-better' : ''}">${vb}</td><td class="${parseFloat(diff) >= 0 ? 'compare-better' : 'compare-worse'}">${diff}</td></tr>`;
+  });
+  summaryHtml += '</tbody></table>';
+
+  let prodHtml = `<table class="compare-table"><thead><tr><th>产品类别</th><th>${escapeHtml(person)} 数量</th><th>${escapeHtml(person)} 覆盖率</th><th>${escapeHtml(personTeam)} 数量</th><th>${escapeHtml(personTeam)} 覆盖率</th><th>差异(个人-团队)</th></tr></thead><tbody>`;
+  PRODUCTS_CLEAN.forEach((p, i) => {
+    const a = sP.prodCnt[i], b = sT.prodCnt[i];
+    const diff = a.cnt - b.cnt;
+    const diffRate = parseFloat(a.rate) - parseFloat(b.rate);
+    const diffCls = diffRate > 0 ? 'compare-better' : diffRate < 0 ? 'compare-worse' : '';
+    prodHtml += `<tr><td>${p}</td><td>${a.cnt}</td><td>${a.rate}%</td><td>${b.cnt}</td><td>${b.rate}%</td><td class="${diffCls}">${diffRate > 0 ? '+' : ''}${diffRate.toFixed(1)}%</td></tr>`;
+  });
+  prodHtml += '</tbody></table>';
+
+  // Analysis suggestions
+  const avgDiff = parseFloat(sP.avgWidth) - parseFloat(sT.avgWidth);
+  const weakProds = [];
+  const strongProds = [];
+  PRODUCTS_CLEAN.forEach((p, i) => {
+    const pRate = parseFloat(sP.prodCnt[i].rate);
+    const tRate = parseFloat(sT.prodCnt[i].rate);
+    if (pRate < tRate - 10) weakProds.push({ p, gap: (tRate - pRate).toFixed(1) });
+    else if (pRate > tRate + 10) strongProds.push({ p, lead: (pRate - tRate).toFixed(1) });
+  });
+
+  let suggestHtml = '';
+  if (avgDiff > 0) {
+    suggestHtml = `<div class="suggestion-card zheng-fu" style="margin-top:16px;">
+      <h3>📊 ${escapeHtml(person)} vs ${escapeHtml(personTeam)} 团队均值 — 分析建议</h3>
+      <div style="font-size:13px;line-height:1.8;">
+        <p><strong>✅ 个人表现优于团队均值：</strong>平均产品宽度 <strong>${sP.avgWidth}</strong>，高于团队均值 <strong>${sT.avgWidth}</strong>（+${avgDiff.toFixed(2)}）。该账号在团队中表现突出。</p>
+        ${strongProds.length ? `<p><strong>🏆 个人优势产品（覆盖率领先团队均值10%以上）：</strong>${strongProds.map(x => x.p + '(+' + x.lead + '%)').join('、')}</p>` : ''}
+        ${weakProds.length ? `<p><strong>⚠️ 个人短板产品（覆盖率低于团队均值10%以上）：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+        <p><strong>💡 建议：</strong>继续保持优势产品覆盖，${weakProds.length ? '同时补齐' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等短板，带动团队整体提升。' : '发挥示范效应，分享成功经验，帮助团队其他成员提升产品覆盖。'}</p>
+      </div>
+    </div>`;
+  } else if (avgDiff < 0) {
+    suggestHtml = `<div class="suggestion-card gong-an" style="margin-top:16px;">
+      <h3>📊 ${escapeHtml(person)} vs ${escapeHtml(personTeam)} 团队均值 — 分析建议</h3>
+      <div style="font-size:13px;line-height:1.8;">
+        <p><strong>⚠️ 个人表现低于团队均值：</strong>平均产品宽度 <strong>${sP.avgWidth}</strong>，低于团队均值 <strong>${sT.avgWidth}</strong>（${avgDiff.toFixed(2)}）。该账号有较大的提升空间。</p>
+        ${strongProds.length ? `<p><strong>🏆 相对优势产品：</strong>${strongProds.map(x => x.p + '(+' + x.lead + '%)').join('、')}</p>` : ''}
+        ${weakProds.length ? `<p><strong>🔴 明显差距产品（覆盖率低于团队均值10%以上）：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+        <p><strong>💡 建议：</strong>${weakProds.length ? '优先学习团队标杆经验，补齐' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等差距产品；' : ''}${strongProds.length ? '以' + strongProds.slice(0, 2).map(x => x.p).join('、') + '为起点，逐步扩展其他产品覆盖。' : '建议向团队优秀成员学习，从产品宽度入手提升客户覆盖能力。'}</p>
+      </div>
+    </div>`;
+  } else {
+    suggestHtml = `<div class="suggestion-card wen-jiao" style="margin-top:16px;">
+      <h3>📊 ${escapeHtml(person)} vs ${escapeHtml(personTeam)} 团队均值 — 分析建议</h3>
+      <div style="font-size:13px;line-height:1.8;">
+        <p><strong>➡️ 个人表现与团队均值持平：</strong>平均产品宽度 <strong>${sP.avgWidth}</strong>，与团队均值基本一致。</p>
+        ${weakProds.length ? `<p><strong>⚠️ 仍有提升空间：</strong>${weakProds.map(x => x.p + '(-' + x.gap + '%)').join('、')}</p>` : ''}
+        <p><strong>💡 建议：</strong>${weakProds.length ? '重点补齐' + weakProds.slice(0, 3).map(x => x.p).join('、') + '等薄弱产品，实现超越团队均值。' : '保持现有水平，寻求突破点，打造个人特色产品组合。'}</p>
+      </div>
+    </div>`;
+  }
+
+  const compareHtml = `
+    <div class="chart-grid" style="margin-bottom:20px">
+      <div class="chart-box"><h3>产品覆盖率对比 (${escapeHtml(person)} vs ${escapeHtml(personTeam)})</h3><div class="chart-container"><canvas id="chartCompare" height="300"></canvas></div></div>
+      <div class="chart-box"><h3>产品宽度分布对比</h3><div class="chart-container"><canvas id="chartCompareWidth" height="300"></canvas></div></div>
+    </div>
+  `;
+
+  $('compareResult').innerHTML = `
+    <div class="card-title" style="margin-bottom:12px;">个人 vs 团队均值对比</div>
+    <div style="margin-bottom:12px;font-size:13px;color:#6b7280"><strong>个人：</strong>${escapeHtml(person)}（所属团队：${escapeHtml(personTeam)}） | <strong>对比基准：</strong>${escapeHtml(personTeam)} 团队均值（共 ${teamData.length} 个客户）</div>
+    ${summaryHtml}
+    ${compareHtml}
+    <div class="card-title" style="margin:16px 0 12px;">各产品类别覆盖对比</div>
+    <div class="table-wrapper">${prodHtml}</div>
+    ${suggestHtml}
+  `;
+
+  setTimeout(() => {
+    destroyChart('chartCompare');
+    chartInstances['chartCompare'] = new Chart($('chartCompare'), {
+      type: 'radar',
+      data: {
+        labels: PRODUCTS_CLEAN.slice(0, 15),
+        datasets: [
+          { label: person, data: sP.prodCnt.slice(0, 15).map(p => parseFloat(p.rate)), fill: true, backgroundColor: 'rgba(37,99,235,0.15)', borderColor: '#2563eb', pointRadius: 3 },
+          { label: personTeam + '均值', data: sT.prodCnt.slice(0, 15).map(p => parseFloat(p.rate)), fill: true, backgroundColor: 'rgba(220,38,38,0.15)', borderColor: '#dc2626', pointRadius: 3 }
+        ]
+      },
+      options: { responsive: true, scales: { r: { beginAtZero: true, max: 100 } } }
+    });
+    const buckets = ['0', '1-3', '4-6', '7-10', '11-15', '16+'];
+    function getBuckets(d) {
+      const dist = {};
+      d.forEach(r => { const w = getWidth(r); const b = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+'; dist[b] = (dist[b] || 0) + 1; });
+      return buckets.map(b => dist[b] || 0);
+    }
+    destroyChart('chartCompareWidth');
+    chartInstances['chartCompareWidth'] = new Chart($('chartCompareWidth'), {
+      type: 'bar',
+      data: { labels: buckets, datasets: [
+        { label: person, data: getBuckets(personData), backgroundColor: 'rgba(37,99,235,0.7)', borderRadius: 4 },
+        { label: personTeam + '均值', data: getBuckets(teamData), backgroundColor: 'rgba(220,38,38,0.7)', borderRadius: 4 }
+      ]},
+      options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+    });
+  }, 50);
+}
+
+// ===== Suggestions =====
+function renderSuggestions() {
+  const selected = $('suggestTeamType').value;
+  const types = selected ? [selected] : TEAM_TYPES;
+
+  function getTeamTypeData(typeName) {
+    return rawData.filter(r => {
+      const t = getTeam(r);
+      return t === typeName || t.includes(typeName) || typeName.includes(t);
+    });
+  }
+
+  let html = '';
+  types.forEach(type => {
+    const sug = TEAM_SUGGESTIONS[type];
+    const typeData = getTeamTypeData(type);
+    const cssClass = TEAM_CSS[type] || 'wen-jiao';
+
+    let dataInsight = '';
+    if (typeData.length > 0) {
+      const avgW = (typeData.reduce((s,r)=>s+getWidth(r),0)/typeData.length).toFixed(1);
+      const gs = typeData.filter(r=>getGuishang(r)===1).length;
+      const ngs = typeData.filter(r=>getGuishang(r)===0).length;
+      const lowProds = PRODUCTS_CLEAN.map(p=>({p, rate: typeData.filter(r=>safeInt(getVal(r,p))===1).length/typeData.length*100})).filter(x=>x.rate<30).sort((a,b)=>a.rate-b.rate).slice(0,3).map(x=>`${x.p}(${x.rate.toFixed(0)}%)`).join('、');
+      const highProds = PRODUCTS_CLEAN.map(p=>({p, rate: typeData.filter(r=>safeInt(getVal(r,p))===1).length/typeData.length*100})).filter(x=>x.rate>=50).sort((a,b)=>b.rate-a.rate).slice(0,3).map(x=>`${x.p}(${x.rate.toFixed(0)}%)`).join('、');
+
+      // Industry distribution from user names
+      const indDist = analyzeAccountIndustries(typeData);
+      const topInds = indDist.filter(x=>x[0]!=='其他').slice(0,3);
+      const indHtml = topInds.length ? `<br>🏢 <strong>主要客户行业：</strong>${topInds.map(x=>`${x[0]}(${x[1]}个)`).join('、')}` : '';
+
+      // Industry-specific product gap analysis
+      let industryGapHtml = '';
+      if (topInds.length > 0) {
+        const topInd = topInds[0][0];
+        const tips = INDUSTRY_PRODUCT_TIPS[topInd];
+        if (tips) {
+          const missingTips = tips.focus.filter(p => {
+            const rate = typeData.filter(r=>safeInt(getVal(r,p))===1).length/typeData.length*100;
+            return rate < 30;
+          });
+          if (missingTips.length > 0) {
+            industryGapHtml = `<br>🔍 <strong>基于${topInd}客户的产品补齐建议：</strong>${missingTips.join('、')} — ${tips.note}`;
+          }
+        }
+      }
+
+      dataInsight = `<div style="background:rgba(255,255,255,0.6);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;">
+        <strong>📊 当前数据概览：</strong> 共 <strong>${typeData.length}</strong> 个客户，平均产品宽度 <strong>${avgW}</strong>，规上 <strong>${gs}</strong> 个，非规上 <strong>${ngs}</strong> 个。
+        ${highProds ? `<br>✅ <strong>优势产品：</strong>${highProds}` : ''}
+        ${lowProds ? `<br>⚠️ <strong>待拓展产品：</strong>${lowProds}` : ''}
+        ${indHtml}
+        ${industryGapHtml}
+      </div>`;
+    }
+
+    html += `<div class="suggestion-card ${cssClass}">
+      <h3>🏷️ ${type}</h3>
+      ${dataInsight}
+      <div style="margin-bottom:10px;font-size:13px;">
+        <strong>🎯 核心产品：</strong> ${sug.core.map(p=>`<span class="badge badge-on" style="margin:2px">${p}</span>`).join('')}
+        &nbsp;&nbsp;<strong>🚀 拓展方向：</strong> ${sug.expand.map(p=>`<span class="badge badge-yes" style="margin:2px">${p}</span>`).join('')}
+      </div>
+      <h4>💡 策略建议</h4>
+      <ul>${sug.text.map(t=>`<li>${t}</li>`).join('')}</ul>
+      <h4>🎯 具体举措</h4>
+      ${sug.actions.map(a=>`<div class="action-item">${a}</div>`).join('')}
+      <h4>📍 深圳本地市场情况</h4>
+      <ul>${sug.shenzhen.map(t=>`<li>${t}</li>`).join('')}</ul>
+      <h4>📝 招投标参考</h4>
+      <ul>${sug.bid.map(t=>`<li>${t}</li>`).join('')}</ul>
+    </div>`;
+  });
+
+  $('suggestionsContent').innerHTML = html || '<div class="info-msg">暂无建议内容</div>';
+}
+
+// ===== Data-driven Action Plan Generator =====
+function buildActionPlan(r, topInd, indTips, indMissing, teamAvgW, vsTeam, sug) {
+  const rows = r.rows || [];
+  let html = `<div class="action-plan"><h5>🎯 近期行动建议与转化计划</h5>`;
+
+  // ---- Helper: build customer list with missing products ----
+  function fmtCustList(custs, max) {
+    return custs.slice(0, max).map(c => {
+      const extra = c.missing ? `（缺 ${c.missing.join('+')}）` : c.w ? `（宽度 ${c.w}）` : '';
+      return `<span class="ap-cust">${c.name}${extra}</span>`;
+    }).join('');
+  }
+
+  // ---- Priority 1: Core product gap (most urgent) ----
+  if (r.missingCore.length > 0) {
+    const weakCustomers = rows
+      .filter(row => r.missingCore.some(p => safeInt(getVal(row, p)) !== 1))
+      .map(row => ({ name: getUser(row), w: getWidth(row), missing: r.missingCore.filter(p => safeInt(getVal(row, p)) !== 1) }))
+      .sort((a, b) => b.missing.length - a.missing.length)
+      .slice(0, 3);
+    const coreBundle = sug ? sug.core.slice(0, 3).join(' + ') : r.missingCore.slice(0, 3).join(' + ');
+    html += `<div class="ap-item ap-priority-1">
+      <div class="ap-head"><span class="ap-tag red">🔴 紧急（本周）</span><strong>补齐核心产品缺口</strong></div>
+      <div class="ap-body">
+        <p><strong>缺口产品：</strong>${r.missingCore.join('、')}。</p>
+        <p><strong>重点客户：</strong>${fmtCustList(weakCustomers, 3)}</p>
+        <p><strong>本周执行计划：</strong></p>
+        <ul>
+          <li>第1步：梳理上述客户现有采购记录，定位缺失原因（预算/需求/竞争）</li>
+          <li>第2步：以「${coreBundle}」核心方案包为切入点，制作针对客户行业的1页报价/方案</li>
+          <li>第3步：本周内完成至少 <strong>${Math.min(weakCustomers.length, 2)}</strong> 家客户电话/拜访触达，优先补齐 ${r.missingCore.slice(0, 2).join('、')}</li>
+        </ul>
+        <p class="ap-expect"><strong>预期效果：</strong>预计平均宽度提升 ${(r.missingCore.length * 0.3).toFixed(1)}，核心覆盖率由 ${(r.hasProds.length / PRODUCTS_CLEAN.length * 100).toFixed(0)}% 提升至 ${(Math.min(r.hasProds.length + r.missingCore.length, PRODUCTS_CLEAN.length) / PRODUCTS_CLEAN.length * 100).toFixed(0)}%。</p>
+      </div>
+    </div>`;
+  }
+
+  // ---- Priority 2: Industry-based conversion plan ----
+  if (topInd && indMissing.length > 0) {
+    const indCustomers = rows.filter(row => getUserIndustry(getUser(row)) === topInd);
+    const indWeak = indCustomers
+      .filter(row => indMissing.some(p => safeInt(getVal(row, p)) !== 1))
+      .map(row => ({ name: getUser(row), w: getWidth(row), missing: indMissing.filter(p => safeInt(getVal(row, p)) !== 1) }))
+      .sort((a, b) => b.missing.length - a.missing.length)
+      .slice(0, 3);
+    const policyHot = topInd === '学校' ? '智慧校园/安全开学季/护校安园' :
+      topInd === '医院' ? '院感管控/智慧医院/平安医院' :
+      topInd === '政府/机关' ? '信创改造/数字政府/政务安全' :
+      topInd === '公安/交警' ? '雪亮工程/AI警务/交通治理' :
+      topInd === '企业/园区' ? '降本增效/安全生产/智慧园区' :
+      topInd === '小区/物业' ? '智慧社区/平安社区/老旧小区改造' : '行业标准升级/数字化改造';
+    html += `<div class="ap-item ap-priority-2">
+      <div class="ap-head"><span class="ap-tag orange">🟠 重要（本月）</span><strong>${topInd}行业专项提升</strong></div>
+      <div class="ap-body">
+        <p><strong>行业画像：</strong>您负责 ${indCustomers.length} 个${topInd}客户，行业缺口产品为 ${indMissing.join('、')}。</p>
+        <p><strong>政策切入点：</strong>${policyHot}</p>
+        <p><strong>重点客户：</strong>${fmtCustList(indWeak, 3)}</p>
+        <p><strong>本月执行计划：</strong></p>
+        <ul>
+          <li>整理 1 份《${topInd}行业${indMissing.slice(0, 2).join('、')}典型应用场景》资料</li>
+          <li>针对上述客户发起定向邀约，演示行业标杆案例（如有）</li>
+          <li>结合政策时间节点，在客户预算申报前完成方案触达</li>
+        </ul>
+        <p class="ap-expect"><strong>预期效果：</strong>${topInd}行业适配产品补齐 ${indMissing.length} 个，预计带动 ${Math.min(indWeak.length, 2)} 家客户本季度产生采购意向。</p>
+      </div>
+    </div>`;
+  }
+
+  // ---- Priority 3: Non-guishang to guishang conversion plan ----
+  if (r.nonGuishang > 0) {
+    const ngsAll = rows.filter(row => getGuishang(row) === 0)
+      .map(row => ({ name: getUser(row), w: getWidth(row), missing: r.missingCore.filter(p => safeInt(getVal(row, p)) !== 1) }))
+      .sort((a, b) => b.w - a.w);
+    const ngsHigh = ngsAll.filter(c => c.w >= 4);
+    const ngsMid = ngsAll.filter(c => c.w >= 2 && c.w < 4);
+    const ngsLow = ngsAll.filter(c => c.w < 2);
+    const target = Math.max(1, Math.min(r.nonGuishang, Math.ceil(r.nonGuishang * 0.3)));
+    const basePack = sug ? sug.core.slice(0, 3).join(' + ') : 'IPC + NVR + 存储';
+    const phase2Focus = r.missingCore.length > 0 ? `针对缺失产品（${r.missingCore.slice(0, 3).join('、')}）补齐方案` : '重点补齐核心产品并提升方案完整性';
+    const phase3Target = ngsHigh.length > 0 ? `至少 ${Math.min(ngsHigh.length, target)} 家` : `${target} 家（优先从中潜力客户中筛选培育）`;
+    const widthLift = ngsHigh.length > 0 ? (Math.min(ngsHigh.length, target) * 0.5).toFixed(1) : (target * 0.3).toFixed(1);
+
+    html += `<div class="ap-item ap-priority-3">
+      <div class="ap-head"><span class="ap-tag yellow">🟡 重点（本季度）</span><strong>规上转化计划</strong></div>
+      <div class="ap-body">
+        <p><strong>转化目标：</strong>本季度从 ${r.nonGuishang} 个非规上客户中，转化 <strong>${target}</strong> 个至规上客户。</p>
+        <p><strong>客户分层：</strong></p>
+        <ul>
+          <li><span class="ap-label hot">高潜力（宽度≥4，共${ngsHigh.length}个）</span>：${ngsHigh.length ? fmtCustList(ngsHigh, 4) : '暂无高潜力客户，需通过补齐产品培育'} —— 优先推进，本季度重点突破</li>
+          <li><span class="ap-label warm">中潜力（宽度2-3，共${ngsMid.length}个）</span>：${ngsMid.length ? ngsMid.slice(0, 3).map(c => `<span class="ap-cust">${c.name}（宽度${c.w}）</span>`).join('') : '暂无'} —— 补齐核心产品后有望提升至规上</li>
+          <li><span class="ap-label cold">低潜力（宽度<2，共${ngsLow.length}个）</span>：需长期培育或重新评估价值</li>
+        </ul>
+        <p><strong>分阶段转化路径：</strong></p>
+        <ul>
+          <li><strong>第一阶段（第1-2周）：</strong>对高潜力客户进行深度盘点，输出客户画像与采购决策链，准备「${basePack}」基础方案包</li>
+          <li><strong>第二阶段（第3-6周）：</strong>逐家拜访/演示，${phase2Focus}，提交报价</li>
+          <li><strong>第三阶段（第7-10周）：</strong>跟进商务谈判与招投标，推动合同落地，目标是 ${phase3Target} 达到规上标准</li>
+          <li><strong>第四阶段（第11-12周）：</strong>总结转化案例，沉淀可复用的打法，复制到中潜力客户</li>
+        </ul>
+        <p><strong>转化标准：</strong>产品宽度≥${r.guishang > 0 ? '团队规上客户平均宽度' : '5'} 或 年度采购金额达到规上门槛。</p>
+        <p class="ap-expect"><strong>预期效果：</strong>成功转化 ${target} 个规上客户后，规上客户数从 ${r.guishang} 提升至 ${r.guishang + target}，平均宽度预计提升 ${widthLift}。</p>
+      </div>
+    </div>`;
+  }
+
+  // ---- Priority 4: Expand products to existing guishang customers ----
+  if (r.guishang > 0 && r.missingExpand.length > 0) {
+    const gsExpandTargets = rows
+      .filter(row => getGuishang(row) === 1 && r.missingExpand.some(p => safeInt(getVal(row, p)) !== 1))
+      .map(row => ({ name: getUser(row), w: getWidth(row), missingExpand: r.missingExpand.filter(p => safeInt(getVal(row, p)) !== 1) }))
+      .sort((a, b) => b.missingExpand.length - a.missingExpand.length)
+      .slice(0, 3);
+    html += `<div class="ap-item ap-priority-4">
+      <div class="ap-head"><span class="ap-tag green">🟢 持续（日常）</span><strong>规上客户深度经营</strong></div>
+      <div class="ap-body">
+        <p><strong>可拓展产品：</strong>${r.missingExpand.slice(0, 3).join('、')}。</p>
+        <p><strong>推荐目标客户：</strong>${fmtCustList(gsExpandTargets, 3)}</p>
+        <p><strong>日常执行计划：</strong></p>
+        <ul>
+          <li>每月至少回访 1 次规上客户，挖掘新增场景与扩容需求</li>
+          <li>针对已交付项目，主动推送 ${r.missingExpand.slice(0, 2).join('、')} 等关联产品方案</li>
+          <li>利用客户成功案例，申请联合拜访或内部推介，扩大交叉销售面</li>
+        </ul>
+        <p class="ap-expect"><strong>预期效果：</strong>规上客户平均宽度提升 1-2 个，客单价提升 10%-20%。</p>
+      </div>
+    </div>`;
+  }
+
+  // ---- Summary metrics ----
+  const targetWidth = Math.max(parseFloat(r.avgWidth) + 0.2, parseFloat(teamAvgW) + 0.5).toFixed(1);
+  html += `<div class="ap-summary">
+    <strong>📋 本月关键指标：</strong>
+    <ul>
+      <li>平均宽度目标：从 <b>${r.avgWidth}</b> 提升至 <b>${Math.min(targetWidth, PRODUCTS_CLEAN.length).toFixed(1)}</b>（团队均值 ${teamAvgW}，当前${vsTeam}团队均值）</li>
+      <li>核心覆盖率：已有 ${r.hasProds.length}/${PRODUCTS_CLEAN.length}（${(r.hasProds.length / PRODUCTS_CLEAN.length * 100).toFixed(0)}%），缺口 ${r.missingCore.length} 个</li>
+      <li>规上转化目标：${r.nonGuishang > 0 ? `本季度从 ${r.nonGuishang} 个非规上中转化 ${Math.max(1, Math.ceil(r.nonGuishang * 0.3))} 个至规上` : '已全部规上'}</li>
+      <li>${topInd ? `${topInd}行业渗透率提升：${indMissing.length > 0 ? `补齐 ${indMissing.length} 个行业适配产品（${indMissing.join('、')}）` : '核心产品已覆盖，建议深化客户粘性与交叉销售'}` : '本月需聚焦核心产品与规上转化'}</li>
+    </ul>
+  </div></div>`;
+  return html;
+}
+
+// ===== Personal Suggestions =====
+function renderPersonal(page) {
+  if (page !== undefined) personalPage = page;
+  const teamFilter = $('filterTeamPersonal').value;
+  const search = ($('searchPersonal').value||'').trim().toLowerCase();
+  const sortBy = $('sortPersonal').value;
+
+  let data = rawData;
+  if (teamFilter) data = data.filter(r=>getTeam(r)===teamFilter);
+  if (search) data = data.filter(r=>getAccount(r).toLowerCase().includes(search)||getUser(r).toLowerCase().includes(search));
+
+  const accountMap = {};
+  data.forEach(r => {
+    const acc = getAccount(r)||'(未填写)';
+    if (!accountMap[acc]) accountMap[acc] = {account:acc, team:getTeam(r), rows:[]};
+    accountMap[acc].rows.push(r);
+  });
+
+  let rows = Object.values(accountMap).map(a => {
+    const widths = a.rows.map(r=>getWidth(r));
+    const avgW = widths.length ? (widths.reduce((s,w)=>s+w,0)/widths.length).toFixed(1) : 0;
+    const gs = a.rows.filter(r=>getGuishang(r)===1).length;
+    const ngs = a.rows.filter(r=>getGuishang(r)===0).length;
+    const type = inferTeamType(a.team);
+    const sug = type && TEAM_SUGGESTIONS[type] ? TEAM_SUGGESTIONS[type] : null;
+    const hasProds = PRODUCTS_CLEAN.filter(p => a.rows.some(r=>safeInt(getVal(r,p))===1));
+    const missingCore = sug ? sug.core.filter(p => !hasProds.includes(p)) : [];
+    const missingExpand = sug ? sug.expand.filter(p => !hasProds.includes(p)) : [];
+    const gapScore = missingCore.length*3 + missingExpand.length;
+    const indDist = analyzeAccountIndustries(a.rows);
+    return {account:a.account, team:a.team, type, userCount:a.rows.length, avgWidth:parseFloat(avgW), guishang:gs, nonGuishang:ngs, hasProds, missingCore, missingExpand, gapScore, sug, indDist, rows:a.rows};
+  });
+
+  if (sortBy === 'width_desc') rows.sort((a,b)=>b.avgWidth-a.avgWidth);
+  else if (sortBy === 'width_asc') rows.sort((a,b)=>a.avgWidth-b.avgWidth);
+  else if (sortBy === 'guishang_desc') rows.sort((a,b)=>b.guishang-a.guishang);
+  else if (sortBy === 'gap_desc') rows.sort((a,b)=>b.gapScore-a.gapScore);
+
+  const total = rows.length;
+  const start = (personalPage-1)*PAGE_SIZE;
+  const paged = rows.slice(start, start+PAGE_SIZE);
+  const maxProd = PRODUCTS_CLEAN.length;
+
+  let html = '';
+  paged.forEach(r => {
+    const pct = (r.avgWidth/maxProd*100).toFixed(0);
+    const typeLabel = r.type || '通用';
+
+    // Industry distribution
+    const topInds = r.indDist.filter(x=>x[0]!=='其他').slice(0,3);
+    const topInd = topInds.length > 0 ? topInds[0][0] : null;
+    const indTips = topInd ? INDUSTRY_PRODUCT_TIPS[topInd] : null;
+
+    // Industry-based missing products
+    let indMissing = [];
+    if (indTips) {
+      indMissing = indTips.focus.filter(p => !r.hasProds.includes(p));
+    }
+
+    html += `<div class="person-card" style="border-left-color:${r.type&&TEAM_SUGGESTIONS[r.type]?'#2563eb':'#9ca3af'}">
+      <div class="person-header">
+        <div class="person-name">${escapeHtml(r.account)} <span style="font-size:12px;color:#6b7280;font-weight:400">| ${escapeHtml(r.team)}</span></div>
+        <div class="person-meta">
+          <span>🧑‍💼 客户 ${r.userCount}</span>
+          <span>📊 平均宽度 ${r.avgWidth}</span>
+          <span>🏷️ ${typeLabel}</span>
+          ${topInd ? `<span>🏢 主要行业: ${topInds.slice(0,2).map(x=>x[0]+'('+x[1]+')').join('/')}</span>` : ''}
+        </div>
+      </div>
+      <div class="person-stats">
+        <div class="mini-stat"><div class="val">${r.avgWidth}</div><div class="lbl">平均宽度</div></div>
+        <div class="mini-stat"><div class="val">${r.guishang}</div><div class="lbl">规上客户</div></div>
+        <div class="mini-stat"><div class="val">${r.nonGuishang}</div><div class="lbl">非规上客户</div></div>
+        <div class="mini-stat"><div class="val">${r.hasProds.length}</div><div class="lbl">已有产品</div></div>
+        <div class="mini-stat"><div class="val">${r.missingCore.length}</div><div class="lbl">核心缺失</div></div>
+        <div class="mini-stat"><div class="val">${r.missingExpand.length}</div><div class="lbl">拓展缺失</div></div>
+      </div>`;
+
+    if (r.missingCore.length > 0 || r.missingExpand.length > 0) {
+      html += `<div style="margin-bottom:8px;"><strong>产品缺口（基于团队属性）：</strong>`;
+      r.missingCore.forEach(p => html += `<span class="gap-tag danger">${p} 缺失</span>`);
+      r.missingExpand.forEach(p => html += `<span class="gap-tag warning">${p} 待拓展</span>`);
+      html += `</div>`;
+    }
+
+    if (indMissing.length > 0) {
+      html += `<div style="margin-bottom:8px;"><strong>产品缺口（基于${topInd}客户行业）：</strong>`;
+      indMissing.forEach(p => html += `<span class="gap-tag info">${p}</span>`);
+      html += `</div>`;
+    }
+
+    if (r.sug || indTips) {
+      html += `<div class="suggest-section">
+        <h5>🎯 个人提升建议</h5>`;
+
+      // Step 1: Overall width assessment with team context
+      const teamAvg = rawData.filter(row => getTeam(row) === r.team);
+      const teamAvgWidth = teamAvg.length ? (teamAvg.reduce((s, row) => s + getWidth(row), 0) / teamAvg.length).toFixed(1) : 0;
+      const vsTeam = r.avgWidth > parseFloat(teamAvgWidth) ? '高于' : r.avgWidth < parseFloat(teamAvgWidth) ? '低于' : '持平';
+      
+      if (r.avgWidth < 5) {
+        html += `<p><strong>1. 产品宽度偏低（${r.avgWidth}，团队均值${teamAvgWidth}）：</strong>建议从${r.sug ? r.sug.core.slice(0,3).join('、') : '基础安防产品'}等核心产品入手，快速建立基础方案能力。当前${vsTeam}团队均值，需加快补齐。</p>`;
+      } else if (r.missingCore.length > 0) {
+        html += `<p><strong>1. 核心产品存在缺口：</strong>优先推进 <strong>${r.missingCore.join('、')}</strong> 覆盖，确保团队属性核心方案完整。当前${vsTeam}团队均值，${vsTeam === '低于' ? '需重点提升' : '保持优势'}。</p>`;
+      } else if (r.missingExpand.length > 0) {
+        html += `<p><strong>1. 核心产品已覆盖，拓展方向：</strong>推进 <strong>${r.missingExpand.slice(0,3).join('、')}</strong> 等产品，提升产品宽度和客户粘性。当前${vsTeam}团队均值，${vsTeam === '低于' ? '仍有提升空间' : '表现优秀'}。</p>`;
+      } else {
+        html += `<p><strong>1. ✅ 产品宽度优秀（${r.avgWidth}，团队均值${teamAvgWidth}）：</strong>建议关注新业务（热成像/AI/消防）保持领先，发挥示范效应。当前${vsTeam}团队均值，可分享经验带动团队提升。</p>`;
+      }
+
+      // Step 2: Industry-based suggestion with transaction insight
+      if (indTips && topInd) {
+        if (indMissing.length > 0) {
+          html += `<p><strong>2. 针对${topInd}客户（${topInds[0][1]}个）：</strong>重点补齐 <strong>${indMissing.slice(0,3).join('、')}</strong>。${indTips.note}</p>`;
+        } else {
+          html += `<p><strong>2. 针对${topInd}客户（${topInds[0][1]}个）：</strong>${indTips.note}，当前行业核心产品已覆盖，建议深化客户粘性，探索关联产品交叉销售。</p>`;
+        }
+      }
+
+      // Step 3: Transaction-based customer segmentation
+      if (r.guishang > 0 && r.nonGuishang > 0) {
+        html += `<p><strong>3. 规上/非规上分层经营：</strong>规上客户（${r.guishang}个）以综合方案提升客单价，重点推${r.missingExpand.length > 0 ? r.missingExpand.slice(0,2).join('、') : '拓展产品'}；非规上客户（${r.nonGuishang}个）以${r.sug?r.sug.core.slice(0,2).join('+'):'基础安防套装'}作为切入口，培育未来规上潜力。建议关注非规上客户中产品宽度>3的客户，作为规上培育重点。</p>`;
+      } else if (r.nonGuishang > 0) {
+        html += `<p><strong>3. 非规上客户经营（${r.nonGuishang}个）：</strong>以高性价比基础方案建立信任，关注客户增长机会，培育规上潜在客户。建议筛选产品宽度>3的非规上客户，制定专项提升计划。</p>`;
+      } else if (r.guishang > 0) {
+        html += `<p><strong>3. 规上客户深化（${r.guishang}个）：</strong>以综合解决方案提升客单价，${r.missingExpand.length>0?'补充'+r.missingExpand.slice(0,2).join('、')+'等拓展产品':'持续深耕现有产品线并寻求新品类突破'}。建议定期回访，挖掘二次销售机会。</p>`;
+      }
+
+      // Step 4: Market & policy based suggestions
+      if (r.sug) {
+        html += `<p><strong>4. 📍 深圳市场机会：</strong>${r.sug.shenzhen[0]}</p>`;
+        html += `<p><strong>5. 📝 投标策略：</strong>${r.sug.bid[0]}</p>`;
+      }
+
+      // Step 5: Data-driven personalized action plan
+      html += buildActionPlan(r, topInd, indTips, indMissing, teamAvgWidth, vsTeam, r.sug);
+
+      html += `</div>`;
+    }
+    html += `</div>`;
+  });
+
+  $('personalContent').innerHTML = html || '<div class="info-msg">暂无数据</div>';
+  renderPager('personalPager', total, personalPage, p => renderPersonal(p));
+}
+
+// ===== Raw Data =====
+function renderRawData(page) {
+  if (page !== undefined) rawPage = page;
+  const teamFilter = $('filterTeamRaw').value;
+  const search = ($('searchRaw').value||'').trim().toLowerCase();
+  let data = rawData;
+  if (teamFilter) data = data.filter(r=>getTeam(r)===teamFilter);
+  if (search) data = data.filter(r => Object.values(r).some(v => String(v||'').toLowerCase().includes(search)));
+  const total = data.length;
+  const start = (rawPage-1)*PAGE_SIZE;
+  const paged = data.slice(start, start+PAGE_SIZE);
+  const showCols = ['团队','CRM销售域账号','最终用户','产品宽度合计','是否规上',...PRODUCTS_CLEAN];
+  const colKeys = showCols.map(k => fieldMap[k]||k);
+  let html = '<table><thead><tr>';
+  showCols.forEach((c,i) => html += `<th>${escapeHtml(c)}</th>`);
+  html += '</tr></thead><tbody>';
+  paged.forEach(r => {
+    const gs = getGuishang(r);
+    html += '<tr>';
+    showCols.forEach((c,i) => {
+      const v = r[colKeys[i]] !== undefined ? r[colKeys[i]] : '';
+      if (c === '是否规上') html += `<td><span class="badge ${gs?'badge-yes':'badge-no'}">${gs?'规上':'非规上'}</span></td>`;
+      else if (PRODUCTS_CLEAN.includes(c)) html += `<td style="text-align:center;color:${safeInt(v)===1?'#059669':'#d1d5db'}">${safeInt(v)===1?'✓':'-'}</td>`;
+      else if (c === '产品宽度合计') html += `<td><strong style="color:#2563eb">${getWidth(r)}</strong></td>`;
+      else html += `<td>${escapeHtml(v)}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  $('rawDataTable').innerHTML = html;
+  renderPager('rawPager', total, rawPage, p => renderRawData(p));
+}
+
+// ===== Export =====
+function exportTeamData() {
+  const wb = XLSX.utils.book_new();
+  const teamRows = getTeams().map(t => {
+    const td = rawData.filter(r=>getTeam(r)===t);
+    const obj = {'团队': t, '客户总数': td.length, '平均产品宽度': td.length?(td.reduce((s,r)=>s+getWidth(r),0)/td.length).toFixed(2):0, '规上客户数': td.filter(r=>getGuishang(r)===1).length};
+    PRODUCTS_CLEAN.forEach(p => { obj[p+'_有交易数'] = td.filter(r=>safeInt(getVal(r,p))===1).length; obj[p+'_覆盖率'] = td.length?(td.filter(r=>safeInt(getVal(r,p))===1).length/td.length*100).toFixed(1)+'%':'0%'; });
+    return obj;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(teamRows), '团队统计');
+  XLSX.writeFile(wb, '产品宽度分析_团队维度.xlsx');
+}
+
+function exportAccountData() {
+  const wb = XLSX.utils.book_new();
+  // Apply same filters as renderAccountDim to ensure exported data matches webpage display
+  const teamFilter = $('filterTeamForAccount').value;
+  const search = ($('searchAccount').value||'').trim().toLowerCase();
+  const gsFilter = $('filterGuishangAccount').value;
+  const minWidth = parseInt($('filterMinWidth').value)||0;
+  let data = rawData;
+  if (teamFilter) data = data.filter(r => getTeam(r)===teamFilter);
+  if (search) data = data.filter(r => getAccount(r).toLowerCase().includes(search)||getUser(r).toLowerCase().includes(search));
+  if (gsFilter !== '') data = data.filter(r => String(getGuishang(r))===gsFilter);
+  if (minWidth > 0) data = data.filter(r => getWidth(r)>=minWidth);
+  const accMap = {};
+  data.forEach(r => { const a=getAccount(r)||'未知'; if(!accMap[a]) accMap[a]={account:a,team:getTeam(r),rows:[]}; accMap[a].rows.push(r); });
+  const accRows = Object.values(accMap).map(a => {
+    const obj = {'CRM账号': a.account, '所属团队': a.team, '客户总数': a.rows.length, '平均产品宽度': a.rows.length?(a.rows.reduce((s,r)=>s+getWidth(r),0)/a.rows.length).toFixed(2):0, '规上客户数': a.rows.filter(r=>getGuishang(r)===1).length};
+    PRODUCTS_CLEAN.forEach(p => { const cnt = a.rows.filter(r=>safeInt(getVal(r,p))===1).length; obj[p] = a.rows.length ? (cnt / a.rows.length * 100).toFixed(1) + '%' : '0%'; });
+    return obj;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accRows), '账号统计');
+  XLSX.writeFile(wb, '产品宽度分析_账号维度.xlsx');
+}
+
+function exportCompareData() {
+  const mode = $('compareMode').value;
+  const wb = XLSX.utils.book_new();
+  if (mode === 'person') {
+    const person = $('comparePerson').value;
+    if (!person) { alert('请先选择个人'); return; }
+    const personData = rawData.filter(r => getAccount(r) === person);
+    const personTeam = personData.length ? getTeam(personData[0]) : '';
+    const teamData = personTeam ? rawData.filter(r => getTeam(r) === personTeam) : [];
+    const rowsP = personData.map(r => { const o={...r}; o['产品宽度(计算)']=getWidth(r); o['规上']=getGuishang(r)?'是':'否'; return o; });
+    const rowsT = teamData.map(r => { const o={...r}; o['产品宽度(计算)']=getWidth(r); o['规上']=getGuishang(r)?'是':'否'; return o; });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsP), person.substring(0,28));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsT), (personTeam||'团队').substring(0,28));
+    XLSX.writeFile(wb, `产品宽度对比_${person}.xlsx`);
+    return;
+  }
+  const gA = $('compareGroupA').value;
+  if (!gA) { alert('请先选择对比团队'); return; }
+  const dataA = rawData.filter(r=>getTeam(r)===gA);
+  const rowsA = dataA.map(r => { const o={...r}; o['产品宽度(计算)']=getWidth(r); o['规上']=getGuishang(r)?'是':'否'; return o; });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsA), gA.substring(0,28));
+  if (mode === 'group') {
+    const gB = $('compareGroupB').value;
+    if (gB && gB !== gA) {
+      const dataB = rawData.filter(r=>getTeam(r)===gB);
+      const rowsB = dataB.map(r => { const o={...r}; o['产品宽度(计算)']=getWidth(r); o['规上']=getGuishang(r)?'是':'否'; return o; });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsB), gB.substring(0,28));
+    }
+  } else {
+    const dataB = rawData;
+    const rowsB = dataB.map(r => { const o={...r}; o['产品宽度(计算)']=getWidth(r); o['规上']=getGuishang(r)?'是':'否'; return o; });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsB), '全部均值');
+  }
+  XLSX.writeFile(wb, `产品宽度对比_${gA}.xlsx`);
+}
+
+function exportRawData() {
+  const wb = XLSX.utils.book_new();
+  const rows = rawData.map(r => {const o={...r};o['产品宽度(计算)']=getWidth(r);o['规上标准化']=getGuishang(r)?'规上':'非规上';return o;});
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '原始数据');
+  XLSX.writeFile(wb, '产品宽度原始数据导出.xlsx');
+}
+
+function exportAllResults() {
+  const wb = XLSX.utils.book_new();
+  const rawRows = rawData.map(r => {const o={...r};o['__产品宽度(计算)']=getWidth(r);o['__是否规上(标准化)']=getGuishang(r)?'规上':'非规上';return o;});
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawRows), '原始数据');
+  const teamRows = getTeams().map(t => {
+    const td = rawData.filter(r=>getTeam(r)===t);
+    const obj = {'团队': t, '客户总数': td.length, '平均产品宽度': td.length?(td.reduce((s,r)=>s+getWidth(r),0)/td.length).toFixed(2):0, '规上客户数': td.filter(r=>getGuishang(r)===1).length};
+    PRODUCTS_CLEAN.forEach(p => { obj[p+'_有交易数'] = td.filter(r=>safeInt(getVal(r,p))===1).length; obj[p+'_覆盖率'] = td.length?(td.filter(r=>safeInt(getVal(r,p))===1).length/td.length*100).toFixed(1)+'%':'0%'; });
+    return obj;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(teamRows), '团队统计');
+  const accMap = {};
+  rawData.forEach(r => { const a=getAccount(r)||'未知'; if(!accMap[a]) accMap[a]={account:a,team:getTeam(r),rows:[]}; accMap[a].rows.push(r); });
+  const accRows = Object.values(accMap).map(a => {
+    const obj = {'CRM账号': a.account, '所属团队': a.team, '客户总数': a.rows.length, '平均产品宽度': a.rows.length?(a.rows.reduce((s,r)=>s+getWidth(r),0)/a.rows.length).toFixed(2):0, '规上客户数': a.rows.filter(r=>getGuishang(r)===1).length};
+    PRODUCTS_CLEAN.forEach(p => obj[p] = a.rows.filter(r=>safeInt(getVal(r,p))===1).length);
+    return obj;
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accRows), '账号统计');
+  XLSX.writeFile(wb, '产品宽度分析_全部结果.xlsx');
+}
+
+// ===== PDF Export =====
+function showPdfExportModal() {
+  const sel = $('pdfTeamSelect');
+  sel.innerHTML = '<option value="">-- 请选择团队 --</option><option value="全部团队">📊 全部团队（导出所有团队数据）</option>';
+  getTeams().forEach(t => sel.innerHTML += `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`);
+  $('pdfProgress').style.display = 'none';
+  $('pdfBtns').style.display = 'flex';
+  $('pdfExportModal').classList.add('active');
+}
+
+function setProgress(msg) {
+  $('pdfProgressText').textContent = msg;
+}
+
+// Build an HTML string for PDF rendering
+function buildPdfHtml(teamName) {
+  const isAllTeams = teamName === '全部团队';
+  const teamsToExport = isAllTeams ? getTeams() : [teamName];
+  const allTeams = getTeams();
+  const totalAccounts = [...new Set(rawData.map(r => getAccount(r)).filter(a => a))].length;
+
+  // Helper: team stats
+  function calcTeamStats(data) {
+    const widths = data.map(r => getWidth(r));
+    const avgW = data.length ? (widths.reduce((s, w) => s + w, 0) / data.length).toFixed(1) : 0;
+    const gs = data.filter(r => getGuishang(r) === 1).length;
+    const ngs = data.filter(r => getGuishang(r) === 0).length;
+    return { count: data.length, avgWidth: parseFloat(avgW), guishang: gs, nonGuishang: ngs };
+  }
+
+  // ① All teams overview stats
+  const allStats = calcTeamStats(rawData);
+
+  // Width distribution for all and selected
+  function widthDist(data) {
+    const dist = { '0': 0, '1-3': 0, '4-6': 0, '7-10': 0, '11-15': 0, '16+': 0 };
+    data.forEach(r => { const w = getWidth(r); const b = w <= 0 ? '0' : w <= 3 ? '1-3' : w <= 6 ? '4-6' : w <= 10 ? '7-10' : w <= 15 ? '11-15' : '16+'; dist[b]++; });
+    return dist;
+  }
+
+  // Product coverage for all and selected
+  function prodCov(data) {
+    return PRODUCTS_CLEAN.map(p => ({ p, cnt: data.filter(r => safeInt(getVal(r, p)) === 1).length, rate: data.length ? (data.filter(r => safeInt(getVal(r, p)) === 1).length / data.length * 100).toFixed(1) : '0.0' }));
+  }
+
+  const allDist = widthDist(rawData);
+  const allProd = prodCov(rawData);
+
+  // Mean stats
+  const allTeamsCount = allTeams.length;
+  const allWidthSum = rawData.reduce((s, r) => s + getWidth(r), 0);
+  const meanAvgWidth = rawData.length ? (allWidthSum / rawData.length).toFixed(1) : 0;
+  const meanGuishang = allTeamsCount ? (rawData.filter(r => getGuishang(r) === 1).length / allTeamsCount).toFixed(1) : 0;
+  const meanCount = totalAccounts ? (rawData.length / totalAccounts).toFixed(1) : 0;
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
+
+  let html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body { font-family: 'Microsoft YaHei', Arial, sans-serif; font-size: 12px; color: #333; padding: 25px; max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 20px; color: #1a3c8f; border-bottom: 3px solid #2563eb; padding-bottom: 8px; margin-bottom: 16px; }
+    h2 { font-size: 16px; color: #1a3c8f; background: #eff6ff; padding: 8px 12px; border-left: 4px solid #2563eb; margin: 20px 0 12px; page-break-inside: avoid; break-inside: avoid; }
+    h3 { font-size: 14px; color: #374151; margin: 14px 0 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; page-break-inside: avoid; break-inside: avoid; }
+    h4 { font-size: 13px; color: #1a3c8f; margin: 10px 0 6px; page-break-inside: avoid; break-inside: avoid; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 12px; }
+    th { background: #1a3c8f; color: white; padding: 7px 10px; text-align: left; }
+    td { padding: 6px 10px; border: 1px solid #e5e7eb; }
+    tr:nth-child(even) { background: #f9fafb; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
+    thead { display: table-header-group; }
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; page-break-inside: avoid; break-inside: avoid; }
+    .stat-box { background: #eff6ff; border-radius: 8px; padding: 10px; text-align: center; border-left: 3px solid #2563eb; }
+    .stat-box .val { font-size: 22px; font-weight: 800; color: #1a3c8f; }
+    .stat-box .lbl { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .tag { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; margin: 2px; }
+    .tag-blue { background: #dbeafe; color: #1e40af; }
+    .tag-green { background: #dcfce7; color: #166534; }
+    .tag-orange { background: #fef3c7; color: #92400e; }
+    .tag-red { background: #fee2e2; color: #991b1b; }
+    .better { color: #059669; font-weight: 700; }
+    .worse { color: #dc2626; }
+    .page-break { page-break-before: always; }
+    .suggest-box { background: #f0f9ff; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 3px solid #0891b2; page-break-inside: avoid; break-inside: avoid; }
+    .suggest-box p { margin: 4px 0; line-height: 1.7; }
+    .section-block { background: white; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; border-left: 3px solid #e5e7eb; page-break-inside: avoid; break-inside: avoid; }
+    .person-box { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 14px; border-left: 4px solid #2563eb; page-break-inside: avoid; break-inside: avoid; }
+    .person-box .name { font-size: 14px; font-weight: 700; color: #1a3c8f; margin-bottom: 8px; }
+    .mini-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 8px; page-break-inside: avoid; break-inside: avoid; }
+    .mini-box { background: #f8fafc; border-radius: 4px; padding: 5px; text-align: center; }
+    .mini-box .v { font-size: 15px; font-weight: 800; color: #2563eb; }
+    .mini-box .l { font-size: 10px; color: #6b7280; }
+    /* CSS Bar Charts */
+    .bar-chart { display: flex; align-items: flex-end; gap: 16px; height: 130px; padding: 10px 0 30px; border-bottom: 1px solid #e5e7eb; margin-bottom: 12px; position: relative; page-break-inside: avoid; break-inside: avoid; }
+    .bar-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; }
+    .bar-fill { width: 40px; border-radius: 4px 4px 0 0; min-height: 2px; transition: all 0.3s; }
+    .bar-val { position: absolute; top: -18px; font-size: 12px; font-weight: 700; color: #1a3c8f; }
+    .bar-lbl { position: absolute; bottom: -24px; font-size: 11px; color: #6b7280; text-align: center; white-space: nowrap; }
+    .bar-y-label { position: absolute; left: -32px; top: 50%; transform: translateY(-50%) rotate(-90deg); font-size: 11px; color: #6b7280; white-space: nowrap; }
+    /* Horizontal bar chart */
+    .hbar-chart { display: flex; flex-direction: column; gap: 3px; page-break-inside: avoid; break-inside: avoid; }
+    .hbar-item { display: flex; align-items: center; gap: 8px; }
+    .hbar-label { width: 100px; font-size: 11px; color: #374151; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hbar-track { flex: 1; height: 18px; background: #f3f4f6; border-radius: 4px; position: relative; }
+    .hbar-fill { height: 100%; border-radius: 4px; background: #34d399; }
+    .hbar-val { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; font-weight: 600; color: #065f46; }
+    /* Heatmap */
+    .heatmap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; page-break-inside: avoid; break-inside: avoid; }
+    .heatmap-item { border-radius: 6px; padding: 8px; text-align: center; font-size: 11px; border: 1px solid #e5e7eb; }
+    .heatmap-item .hname { font-weight: 600; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .heatmap-item .hrate { font-size: 16px; font-weight: 800; }
+    .heatmap-item .hcnt { font-size: 10px; color: #6b7280; }
+    .section-block { margin-bottom: 30px; page-break-inside: avoid; break-inside: avoid; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; page-break-inside: avoid; break-inside: avoid; }
+  </style></head><body>`;
+  html += `<h1>📊 ${isAllTeams ? '全部团队' : escapeHtml(teamName)} — 产品宽度分析报告</h1>`;
+  html += `<div style="font-size:12px;color:#6b7280;margin-bottom:20px;">报告生成日期：${dateStr} | 数据总量：${rawData.length} 条 | 参与团队：${allTeams.length} 个</div>`;
+  html += `<div style="font-size:12px;color:#6b7280;margin-bottom:20px;">报告生成日期：${dateStr} | 数据总量：${rawData.length} 条 | 参与团队：${allTeams.length} 个</div>`;
+
+  // ① All teams overview
+  html += `<h2>① 全部团队总览分析</h2>`;
+  html += `<div class="stat-grid">
+    <div class="stat-box"><div class="val">${allStats.count}</div><div class="lbl">最终用户总数</div></div>
+    <div class="stat-box"><div class="val">${meanAvgWidth}</div><div class="lbl">平均产品宽度</div></div>
+    <div class="stat-box"><div class="val">${allStats.guishang}</div><div class="lbl">规上客户总数</div></div>
+    <div class="stat-box"><div class="val">${(allStats.guishang / (allStats.count || 1) * 100).toFixed(1)}%</div><div class="lbl">规上比率</div></div>
+  </div>`;
+
+  // All teams dimension table
+  html += `<h3>全部团队维度汇总</h3><table><thead><tr><th>团队</th><th>客户数</th><th>平均宽度</th><th>规上数</th><th>非规上数</th><th>规上率%</th></tr></thead><tbody>`;
+  allTeams.forEach(t => {
+    const td = rawData.filter(r => getTeam(r) === t);
+    const avgW = td.length ? (td.reduce((s, r) => s + getWidth(r), 0) / td.length).toFixed(1) : 0;
+    const gs = td.filter(r => getGuishang(r) === 1).length;
+    const ngs = td.filter(r => getGuishang(r) === 0).length;
+    const isSelected = isAllTeams ? false : (t === teamName);
+    html += `<tr style="${isSelected ? 'background:#fffbeb;font-weight:700' : ''}">
+      <td>${escapeHtml(t)}${isSelected ? ' ⭐' : ''}</td>
+      <td>${td.length}</td><td>${avgW}</td><td>${gs}</td><td>${ngs}</td>
+      <td>${td.length ? (gs / td.length * 100).toFixed(1) : 0}%</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+
+  // ②-⑥ Loop for each team
+  teamsToExport.forEach((tName, tIdx) => {
+    const teamData = rawData.filter(r => getTeam(r) === tName);
+    const teamAccounts = [...new Set(teamData.map(r => getAccount(r)).filter(a => a))];
+    const selStats = calcTeamStats(teamData);
+    const selDist = widthDist(teamData);
+    const selProd = prodCov(teamData);
+    const teamType = inferTeamType(tName);
+    const sug = teamType && TEAM_SUGGESTIONS[teamType] ? TEAM_SUGGESTIONS[teamType] : null;
+    
+    const accountMap = {};
+    teamData.forEach(r => {
+      const acc = getAccount(r) || '(未填写)';
+      if (!accountMap[acc]) accountMap[acc] = { account: acc, rows: [] };
+      accountMap[acc].rows.push(r);
+    });
+    const accRows = Object.values(accountMap).map(a => {
+      const widths = a.rows.map(r => getWidth(r));
+      const avgW = widths.length ? (widths.reduce((s, w) => s + w, 0) / widths.length).toFixed(1) : 0;
+      const gs = a.rows.filter(r => getGuishang(r) === 1).length;
+      const ngs = a.rows.filter(r => getGuishang(r) === 0).length;
+      const hasProds = PRODUCTS_CLEAN.filter(p => a.rows.some(r => safeInt(getVal(r, p)) === 1));
+      const missingCore = sug ? sug.core.filter(p => !hasProds.includes(p)) : [];
+      const missingExpand = sug ? sug.expand.filter(p => !hasProds.includes(p)) : [];
+      const indDist = analyzeAccountIndustries(a.rows);
+      return { account: a.account, count: a.rows.length, avgWidth: parseFloat(avgW), guishang: gs, nonGuishang: ngs, hasProds, missingCore, missingExpand, indDist, rows: a.rows };
+    }).sort((a, b) => b.avgWidth - a.avgWidth);
+    // ② Selected team overview
+    html += `<h2 class="page-break">${isAllTeams ? '团队 ' + (tIdx + 1) : '②'} ${escapeHtml(tName)} — 团队总览分析</h2>`;
+    html += `<div class="stat-grid">
+      <div class="stat-box"><div class="val">${selStats.count}</div><div class="lbl">最终用户数</div></div>
+      <div class="stat-box"><div class="val">${selStats.avgWidth}</div><div class="lbl">平均产品宽度</div></div>
+      <div class="stat-box"><div class="val">${selStats.guishang}</div><div class="lbl">规上客户数</div></div>
+      <div class="stat-box"><div class="val">${(selStats.guishang / (selStats.count || 1) * 100).toFixed(1)}%</div><div class="lbl">规上比率</div></div>
+    </div>`;
+
+    // Selected team product coverage + horizontal bar chart
+    const selProdSorted = [...selProd].sort((a, b) => parseFloat(b.rate) - parseFloat(a.rate));
+    const maxRate = Math.max(...selProdSorted.map(p => parseFloat(p.rate)));
+    html += `<h3>${escapeHtml(tName)} 产品覆盖率 TOP 15</h3>`;
+    html += `<div class="hbar-chart">`;
+    selProdSorted.slice(0, 10).forEach(p => {
+      const w = maxRate ? (parseFloat(p.rate) / maxRate * 100).toFixed(1) : 0;
+      html += `<div class="hbar-item"><div class="hbar-label">${p.p}</div><div class="hbar-track"><div class="hbar-fill" style="width:${w}%;"></div><div class="hbar-val">${p.rate}%</div></div></div>`;
+    });
+    html += `</div>`;
+    html += `<h3>${escapeHtml(tName)} 产品覆盖情况</h3><table><thead><tr><th>产品类别</th><th>有交易数</th><th>覆盖率%</th></tr></thead><tbody>`;
+    selProd.forEach(p => {
+      html += `<tr><td>${p.p}</td><td>${p.cnt}</td><td>${p.rate}%</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    // Selected team width distribution + CSS bar chart
+    const distMax = Math.max(...Object.values(selDist));
+    html += `<h3>${escapeHtml(tName)} 产品宽度分布</h3>`;
+    html += `<div style="position:relative;margin-bottom:12px;"><div class="bar-chart">`;
+    const distColors = ['#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af'];
+    const distLabels = ['0','1-3','4-6','7-10','11-15','16+'];
+    distLabels.forEach((b, i) => {
+      const cnt = selDist[b];
+      const h = distMax ? (cnt / distMax * 130).toFixed(1) : 0;
+      html += `<div class="bar-item"><div class="bar-val">${cnt}</div><div class="bar-fill" style="height:${h}px;background:${distColors[i]};"></div><div class="bar-lbl">${b}</div></div>`;
+    });
+    html += `<div class="bar-y-label">客户数量（个）</div></div></div>`;
+    html += `<table><thead><tr><th>产品宽度区间</th><th>客户数</th><th>占比%</th></tr></thead><tbody>`;
+    Object.entries(selDist).forEach(([b, cnt]) => {
+      html += `<tr><td>${b}</td><td>${cnt}</td><td>${selStats.count ? (cnt / selStats.count * 100).toFixed(1) : 0}%</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    // Guishang vs non-guishang CSS bar charts
+    const pdfGs = teamData.filter(r => getGuishang(r) === 1);
+    const pdfNgs = teamData.filter(r => getGuishang(r) === 0);
+    const pdfGsAvg = pdfGs.length ? (pdfGs.reduce((s, r) => s + getWidth(r), 0) / pdfGs.length).toFixed(1) : 0;
+    const pdfNgsAvg = pdfNgs.length ? (pdfNgs.reduce((s, r) => s + getWidth(r), 0) / pdfNgs.length).toFixed(1) : 0;
+    html += `<h3>规上 vs 非规上对比</h3>`;
+    html += `<div class="two-col">`;
+    const countMax = Math.max(pdfGs.length, pdfNgs.length);
+    html += `<div><div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">客户数量</div><div style="position:relative;"><div class="bar-chart" style="height:120px;">`;
+    [{lbl:'规上客户',val:pdfGs.length,color:'#fbbf24'},{lbl:'非规上客户',val:pdfNgs.length,color:'#93c5fd'}].forEach(item => {
+      const h = countMax ? (item.val / countMax * 90).toFixed(1) : 0;
+      html += `<div class="bar-item"><div class="bar-val">${item.val}</div><div class="bar-fill" style="height:${h}px;background:${item.color};"></div><div class="bar-lbl">${item.lbl}</div></div>`;
+    });
+    html += `</div></div></div>`;
+    const widthMax = Math.max(parseFloat(pdfGsAvg)||0, parseFloat(pdfNgsAvg)||0);
+    html += `<div><div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;">平均产品宽度</div><div style="position:relative;"><div class="bar-chart" style="height:120px;">`;
+    [{lbl:'规上客户',val:parseFloat(pdfGsAvg)||0,color:'#f97316'},{lbl:'非规上客户',val:parseFloat(pdfNgsAvg)||0,color:'#60a5fa'}].forEach(item => {
+      const h = widthMax ? (item.val / widthMax * 90).toFixed(1) : 0;
+      html += `<div class="bar-item"><div class="bar-val">${item.val}</div><div class="bar-fill" style="height:${h}px;background:${item.color};"></div><div class="bar-lbl">${item.lbl}</div></div>`;
+    });
+    html += `</div></div></div>`;
+    html += `</div>`;
+
+    // Product heatmap
+    html += `<h3>产品覆盖热力图</h3>`;
+    html += `<div class="heatmap-grid">`;
+    selProd.forEach(p => {
+      const rate = parseFloat(p.rate);
+      const bg = rate >= 70 ? '#bbf7d0' : rate >= 40 ? '#fef9c3' : rate >= 10 ? '#fed7aa' : '#fee2e2';
+      const col = rate >= 70 ? '#166534' : rate >= 40 ? '#854d0e' : rate >= 10 ? '#7c2d12' : '#991b1b';
+      html += `<div class="heatmap-item" style="background:${bg};color:${col};"><div class="hname">${p.p}</div><div class="hrate">${p.rate}%</div><div class="hcnt">${p.cnt}/${selStats.count}</div></div>`;
+    });
+    html += `</div>`;
+
+    // ③ Account dimension for selected team
+    html += `<h2 class="page-break">${isAllTeams ? '团队 ' + (tIdx + 1) : '③'} ${escapeHtml(tName)} — 账号维度数据</h2>`;
+    html += `<table><thead><tr><th>CRM账号</th><th>客户数</th><th>平均宽度</th><th>规上数</th><th>非规上数</th><th>已有产品</th><th>核心缺失</th><th>拓展缺失</th></tr></thead><tbody>`;
+    accRows.forEach(r => {
+      html += `<tr>
+        <td><strong>${escapeHtml(r.account)}</strong></td>
+        <td>${r.count}</td>
+        <td>${r.avgWidth}</td>
+        <td>${r.guishang}</td>
+        <td>${r.nonGuishang}</td>
+        <td>${r.hasProds.length}</td>
+        <td>${r.missingCore.length > 0 ? '<span style="color:#dc2626">' + r.missingCore.join('、') + '</span>' : '<span style="color:#059669">无</span>'}</td>
+        <td>${r.missingExpand.slice(0, 3).join('、') || '-'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+
+    // Account product detail
+    html += `<h3>账号产品覆盖明细</h3><table><thead><tr><th>CRM账号</th>`;
+    PRODUCTS_CLEAN.forEach(p => html += `<th style="font-size:10px;white-space:nowrap;">${p}</th>`);
+    html += '</tr></thead><tbody>';
+    accRows.forEach(r => {
+      html += `<tr><td><strong>${escapeHtml(r.account)}</strong></td>`;
+      PRODUCTS_CLEAN.forEach(p => {
+        const has = r.hasProds.includes(p);
+        html += `<td style="text-align:center;color:${has ? '#059669' : '#d1d5db'}">${has ? '✓' : '-'}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+
+    // ④ Compare selected team vs all mean
+    html += `<h2 class="page-break">${isAllTeams ? '团队 ' + (tIdx + 1) : '④'} ${escapeHtml(tName)} vs 全部团队均值 — 对比数据</h2>`;
+    const cmpData = [
+      ['指标', escapeHtml(tName), '全部团队均值', '差异'],
+      ['客户数', selStats.count, meanCount, (selStats.count - parseFloat(meanCount)).toFixed(1)],
+      ['平均产品宽度', selStats.avgWidth, meanAvgWidth, (selStats.avgWidth - parseFloat(meanAvgWidth)).toFixed(2)],
+      ['规上客户数', selStats.guishang, meanGuishang, (selStats.guishang - parseFloat(meanGuishang)).toFixed(1)],
+      ['规上比率%', (selStats.guishang / (selStats.count || 1) * 100).toFixed(1) + '%', (rawData.filter(r => getGuishang(r) === 1).length / (rawData.length || 1) * 100).toFixed(1) + '%', '—'],
+    ];
+    html += `<table><thead><tr>${cmpData[0].map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>`;
+    cmpData.slice(1).forEach(row => {
+      const diff = parseFloat(row[3]);
+      const diffClass = isNaN(diff) ? '' : diff >= 0 ? 'better' : 'worse';
+      html += `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td><td class="${diffClass}">${!isNaN(diff) && diff >= 0 ? '+' : ''}${row[3]}</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    // Product coverage comparison
+    html += `<h3>产品覆盖率对比（${escapeHtml(tName)} vs 全部均值）</h3>`;
+    html += `<table><thead><tr><th>产品类别</th><th>${escapeHtml(tName)} 覆盖率</th><th>全部团队均值覆盖率</th><th>差异</th></tr></thead><tbody>`;
+    selProd.forEach((s, i) => {
+      const a = parseFloat(s.rate);
+      const b = parseFloat(allProd[i].rate);
+      const diff = a - b;
+      html += `<tr><td>${s.p}</td><td>${s.rate}%</td><td>${allProd[i].rate}%</td><td class="${diff >= 0 ? 'better' : 'worse'}">${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%</td></tr>`;
+    });
+    html += '</tbody></table>';
+
+    // ⑤ Team suggestions
+    html += `<h2 class="page-break">${isAllTeams ? '团队 ' + (tIdx + 1) : '⑤'} ${escapeHtml(tName)} — 团队建议</h2>`;
+    if (sug) {
+      const typeData = rawData.filter(r => getTeam(r) === tName);
+      const avgW = typeData.length ? (typeData.reduce((s, r) => s + getWidth(r), 0) / typeData.length).toFixed(1) : 0;
+      const gs = typeData.filter(r => getGuishang(r) === 1).length;
+      const ngs = typeData.filter(r => getGuishang(r) === 0).length;
+      const lowProds = PRODUCTS_CLEAN.map(p => ({ p, rate: typeData.filter(r => safeInt(getVal(r, p)) === 1).length / (typeData.length || 1) * 100 })).filter(x => x.rate < 30).sort((a, b) => a.rate - b.rate).slice(0, 3).map(x => `${x.p}(${x.rate.toFixed(0)}%)`).join('、');
+      const highProds = PRODUCTS_CLEAN.map(p => ({ p, rate: typeData.filter(r => safeInt(getVal(r, p)) === 1).length / (typeData.length || 1) * 100 })).filter(x => x.rate >= 50).sort((a, b) => b.rate - a.rate).slice(0, 3).map(x => `${x.p}(${x.rate.toFixed(0)}%)`).join('、');
+      const indDist = analyzeAccountIndustries(typeData);
+      const topInds = indDist.filter(x => x[0] !== '其他').slice(0, 3);
+
+      html += `<div class="suggest-box">
+        <p><strong>团队属性：</strong>${escapeHtml(teamType)}</p>
+        <p><strong>数据概览：</strong>共 ${typeData.length} 个客户，平均产品宽度 <strong>${avgW}</strong>，规上 <strong>${gs}</strong> 个，非规上 <strong>${ngs}</strong> 个</p>
+        ${highProds ? `<p><strong>✅ 优势产品：</strong>${highProds}</p>` : ''}
+        ${lowProds ? `<p><strong>⚠️ 待拓展产品：</strong>${lowProds}</p>` : ''}
+        ${topInds.length ? `<p><strong>🏢 主要客户行业：</strong>${topInds.map(x => `${x[0]}(${x[1]}个)`).join('、')}</p>` : ''}
+      </div>`;
+      html += `<div class="section-block"><h4>🎯 核心产品</h4><p>${sug.core.map(p => `<span class="tag tag-blue">${p}</span>`).join('')}</p></div>`;
+      html += `<div class="section-block"><h4>🚀 拓展方向</h4><p>${sug.expand.map(p => `<span class="tag tag-green">${p}</span>`).join('')}</p></div>`;
+      html += `<div class="section-block"><h4>💡 策略建议</h4><ul>${sug.text.map(t => `<li>${t}</li>`).join('')}</ul></div>`;
+      html += `<div class="section-block"><h4>🎯 具体举措</h4><ul>${sug.actions.map(a => `<li>${a}</li>`).join('')}</ul></div>`;
+      html += `<div class="section-block"><h4>📍 深圳本地市场</h4><ul>${sug.shenzhen.map(t => `<li>${t}</li>`).join('')}</ul></div>`;
+      html += `<div class="section-block"><h4>📝 招投标参考</h4><ul>${sug.bid.map(t => `<li>${t}</li>`).join('')}</ul></div>`;
+    } else {
+      html += `<p style="color:#9ca3af">暂无该团队的专属建议，请参考通用产品宽度提升策略。</p>`;
+    }
+
+    // ⑥ Personal suggestions for each account in the team
+    html += `<h2 class="page-break">${isAllTeams ? '团队 ' + (tIdx + 1) : '⑥'} ${escapeHtml(tName)} — 各账号个人建议</h2>`;
+    const teamAvgWidthNum = selStats.avgWidth;
+
+    accRows.forEach(r => {
+      const topInds = r.indDist.filter(x => x[0] !== '其他').slice(0, 3);
+      const topInd = topInds.length > 0 ? topInds[0][0] : null;
+      const indTips = topInd ? INDUSTRY_PRODUCT_TIPS[topInd] : null;
+      const indMissing = indTips ? indTips.focus.filter(p => !r.hasProds.includes(p)) : [];
+      const vsTeam = r.avgWidth > teamAvgWidthNum ? '高于' : r.avgWidth < teamAvgWidthNum ? '低于' : '持平';
+
+      html += `<div class="person-box">
+        <div class="name">${escapeHtml(r.account)} <span style="font-size:11px;color:#6b7280;font-weight:400">| ${escapeHtml(tName)}</span></div>
+        <div class="mini-grid">
+          <div class="mini-box"><div class="v">${r.avgWidth}</div><div class="l">平均宽度</div></div>
+          <div class="mini-box"><div class="v">${r.count}</div><div class="l">客户数</div></div>
+          <div class="mini-box"><div class="v">${r.guishang}</div><div class="l">规上</div></div>
+          <div class="mini-box"><div class="v">${r.nonGuishang}</div><div class="l">非规上</div></div>
+          <div class="mini-box"><div class="v">${r.hasProds.length}</div><div class="l">已有产品</div></div>
+          <div class="mini-box"><div class="v">${r.missingCore.length}</div><div class="l">核心缺失</div></div>
+        </div>`;
+
+      if (topInds.length) {
+        html += `<p style="font-size:11px;color:#6b7280;margin-bottom:6px;">🏢 主要行业：${topInds.map(x => x[0] + '(' + x[1] + ')').join('、')}</p>`;
+      }
+
+      if (r.missingCore.length > 0) {
+        html += `<p><span class="tag tag-red">核心缺失：${r.missingCore.join('、')}</span></p>`;
+      }
+      if (r.missingExpand.length > 0) {
+        html += `<p><span class="tag tag-orange">拓展缺失：${r.missingExpand.slice(0, 5).join('、')}</span></p>`;
+      }
+      if (indMissing.length > 0) {
+        html += `<p><span class="tag tag-blue">行业缺失(${topInd})：${indMissing.slice(0, 3).join('、')}</span></p>`;
+      }
+
+      html += `<div class="suggest-box" style="margin-top:8px;">`;
+
+      if (r.avgWidth < 5) {
+        html += `<div class="section-block"><p><strong>1. 产品宽度偏低（${r.avgWidth}，团队均值${teamAvgWidthNum}）：</strong>建议从${sug ? sug.core.slice(0, 3).join('、') : 'IPC、NVR、网络产品'}等核心产品入手，快速建立基础方案能力。当前${vsTeam}团队均值，需加快补齐。</p></div>`;
+      } else if (r.missingCore.length > 0) {
+        html += `<div class="section-block"><p><strong>1. 核心产品存在缺口：</strong>优先推进 <strong>${r.missingCore.join('、')}</strong> 覆盖，确保团队属性核心方案完整。当前${vsTeam}团队均值。</p></div>`;
+      } else if (r.missingExpand.length > 0) {
+        html += `<div class="section-block"><p><strong>1. 核心产品已覆盖，拓展方向：</strong>推进 <strong>${r.missingExpand.slice(0, 3).join('、')}</strong> 等产品，提升产品宽度和客户粘性。当前${vsTeam}团队均值。</p></div>`;
+      } else {
+        html += `<div class="section-block"><p><strong>1. ✅ 产品宽度优秀（${r.avgWidth}，团队均值${teamAvgWidthNum}）：</strong>建议关注新业务（热成像/AI/消防）保持领先，分享经验带动团队提升。</p></div>`;
+      }
+
+      if (indTips && topInd) {
+        if (indMissing.length > 0) {
+          html += `<div class="section-block"><p><strong>2. 针对${topInd}客户（${topInds[0][1]}个）：</strong>重点补齐 <strong>${indMissing.slice(0, 3).join('、')}</strong>。${indTips.note}</p></div>`;
+        } else {
+          html += `<div class="section-block"><p><strong>2. 针对${topInd}客户：</strong>${indTips.note}，行业核心产品已覆盖，建议深化客户粘性。</p></div>`;
+        }
+      }
+
+      if (r.guishang > 0 && r.nonGuishang > 0) {
+        html += `<div class="section-block"><p><strong>3. 规上/非规上分层经营：</strong>规上客户（${r.guishang}个）以综合方案提升客单价；非规上客户（${r.nonGuishang}个）以基础安防套装切入，培育规上潜力客户。</p></div>`;
+      }
+
+      if (sug) {
+        html += `<div class="section-block"><p><strong>4. 📍 深圳市场机会：</strong>${sug.shenzhen[0]}</p></div>`;
+        html += `<div class="section-block"><p><strong>5. 📝 投标策略：</strong>${sug.bid[0]}</p></div>`;
+      }
+
+      // 6. Enhanced action plan (inlined for PDF)
+      const accRawRows = accRows.find(a => a.account === r.account)?.rows || [];
+      html += `<h4 style="margin-top:10px;color:#92400e;">🎯 近期行动建议与转化计划</h4>`;
+      if (r.missingCore.length > 0) {
+        const weakCustomers = accRawRows.filter(row => r.missingCore.some(p => safeInt(getVal(row,p)) !== 1)).map(row => getUser(row)).slice(0,3);
+        html += `<div class="section-block"><p><span style="color:#dc2626;font-weight:bold">[🔴 紧急-本周]</span> 补齐核心产品缺口：${r.missingCore.join('、')}。${weakCustomers.length?'重点客户：'+weakCustomers.join('、')+'。':''}以团队属性方案为切入点，优先完成覆盖，预计可提升平均宽度${(r.missingCore.length*0.3).toFixed(1)}。</p></div>`;
+      }
+      if (topInd && indMissing.length > 0) {
+        html += `<div class="section-block"><p><span style="color:#d97706;font-weight:bold">[🟠 重要-本月]</span> ${topInd}行业专项：缺${indMissing.join('、')}。${indTips?indTips.note:''} 建议结合行业政策热点进行切入。</p></div>`;
+      }
+      if (r.nonGuishang > 0) {
+        const ngsHigh = accRawRows.filter(row => getGuishang(row)===0 && getWidth(row)>=4).map(row => getUser(row)).slice(0,4);
+        html += `<div class="section-block"><p><span style="color:#16a34a;font-weight:bold">[🟡 重点-本季度]</span> 规上转化计划：${r.nonGuishang}个非规上，目标转化${Math.min(r.nonGuishang, Math.ceil(r.nonGuishang*0.3))}个至规上。${ngsHigh.length?'高潜力目标（宽度≥4）：'+ngsHigh.join('、')+'。':''}策略：基础套装建立合作，逐步拓展产品线。</p></div>`;
+      }
+      if (r.guishang > 0 && r.missingExpand.length > 0) {
+        html += `<div class="section-block"><p><span style="color:#2563eb;font-weight:bold">[🟢 持续-日常]</span> 规上深度经营：向规上客户推广${r.missingExpand.slice(0,3).join('、')}，交叉销售提升客单价。</p></div>`;
+      }
+      html += `<div class="section-block" style="background:#f8fafc;padding:8px;border-radius:6px;font-size:11px;line-height:1.7;">
+        <strong>📋 本月关键指标：</strong>
+        平均宽度从 ${r.avgWidth} 提升至 ${Math.max(parseFloat(r.avgWidth) + 0.2, parseFloat(teamAvgWidthNum) + 0.5).toFixed(1)}；
+        核心覆盖率 ${r.hasProds.length}/${PRODUCTS_CLEAN.length}（${(r.hasProds.length/PRODUCTS_CLEAN.length*100).toFixed(0)}%），缺口${r.missingCore.length}个；
+        规上转化目标${r.nonGuishang>0?`培育${Math.max(1, Math.ceil(r.nonGuishang*0.3))}个`:''}；
+        ${topInd?`${topInd}行业补齐${indMissing.length||0}个适配产品`:''}
+      </div>`;
+
+      html += `</div></div>`;
+    });
+  });
+
+  html += '</body></html>';
+  return html;
+}
+async function exportPdfReport() {
+  const teamName = $('pdfTeamSelect').value;
+  if (!teamName) { alert('请先选择要导出的团队'); return; }
+  if (!rawData.length) { alert('请先上传数据'); return; }
+
+  $('pdfProgress').style.display = 'block';
+  $('pdfBtns').style.display = 'none';
+
+  try {
+    setProgress('正在生成报告内容...');
+    const htmlContent = buildPdfHtml(teamName);
+
+    setProgress('正在渲染报告页面...');
+    // Create a hidden iframe to render the HTML
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1000px;height:1px;border:none;';
+    document.body.appendChild(iframe);
+
+    await new Promise(resolve => {
+      iframe.onload = resolve;
+      iframe.srcdoc = htmlContent;
+    });
+
+    // Wait for fonts and images
+    await new Promise(r => setTimeout(r, 800));
+
+    // Fix page breaks: insert spacers before elements that cross page boundaries
+    setProgress('正在优化页面分页...');
+    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+    function fixPageBreaks(doc) {
+      const pageHeight = 1050;
+      const selectors = '.hbar-chart, table, .suggest-box, .person-box, .stat-grid, .bar-chart, .heatmap-grid, .two-col, .section-block';
+      let changed = true;
+      let iterations = 0;
+      const moved = new WeakSet();
+      while (changed && iterations < 8) {
+        changed = false;
+        iterations++;
+        const elements = Array.from(doc.querySelectorAll(selectors));
+        for (const el of elements) {
+          if (moved.has(el)) continue;
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          const bottom = top + height;
+          // Skip elements that are too tall to fit on a single page
+          if (height > pageHeight * 0.8) continue;
+          for (let ph = pageHeight; ph < doc.body.scrollHeight + pageHeight; ph += pageHeight) {
+            if (top < ph && bottom > ph) {
+              const spaceNeeded = ph - top + 10;
+              // Only push if the element starts in the top 70% of the page (avoid excessive whitespace)
+              if (spaceNeeded < pageHeight * 0.7) {
+                const spacer = doc.createElement('div');
+                spacer.style.cssText = `height:${spaceNeeded}px;margin:0;padding:0;border:none;background:transparent;`;
+                el.parentNode.insertBefore(spacer, el);
+                moved.add(el);
+                changed = true;
+              }
+              break;
+            }
+          }
+          if (changed) break;
+        }
+      }
+    }
+    fixPageBreaks(iframeDoc);
+
+    setProgress('正在截图生成PDF...');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    const body = iframeDoc.body;
+    const totalHeight = body.scrollHeight;
+    const pageHeight = 1050; // px per pdf page (reduced for safety margin)
+    const pageCount = Math.ceil(totalHeight / pageHeight);
+    const a4Width = 210; // mm
+    const a4Height = 297; // mm
+
+    for (let i = 0; i < pageCount; i++) {
+      setProgress(`正在处理第 ${i + 1}/${pageCount} 页...`);
+      const canvas = await html2canvas(body, {
+        scale: 2.0,
+        useCORS: true,
+        logging: false,
+        y: i * pageHeight,
+        height: Math.min(pageHeight, totalHeight - i * pageHeight),
+        width: 1000,
+        windowWidth: 1000
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      const imgWidth = a4Width;
+      const imgHeight = (canvas.height / canvas.width) * imgWidth;
+
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, a4Height));
+    }
+
+    document.body.removeChild(iframe);
+    setProgress('PDF生成完成，正在下载...');
+    pdf.save(`产品宽度分析报告_${teamName}_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '')}.pdf`);
+
+    setTimeout(() => {
+      $('pdfProgress').style.display = 'none';
+      $('pdfBtns').style.display = 'flex';
+      $('pdfExportModal').classList.remove('active');
+    }, 1500);
+  } catch (err) {
+    console.error('PDF生成错误:', err);
+    setProgress('PDF生成失败：' + err.message);
+    $('pdfBtns').style.display = 'flex';
+    alert('PDF生成遇到问题，请尝试使用浏览器打印功能（Ctrl+P）将页面保存为PDF。错误：' + err.message);
+  }
+}
+
+// ===== Modal click-outside close =====
+$('modalOverlay').onclick = e => { if (e.target === $('modalOverlay')) closeModal(); };
+$('pdfExportModal').onclick = e => { if (e.target === $('pdfExportModal')) $('pdfExportModal').classList.remove('active'); };
+
+// ===== Tab Switch =====
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = function() {
+    const target = this.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    this.classList.add('active');
+    $(target).classList.add('active');
+  };
+});
+</script>
+</body>
+</html>

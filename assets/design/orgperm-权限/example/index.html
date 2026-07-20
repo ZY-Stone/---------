@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrgPerm Demo — 组织与权限管理</title>
+<link rel="stylesheet" href="../frontend/css/orgperm.css">
+<style>
+  body { margin: 0; background: #f5f6fa; }
+  .demo-header {
+    background: #fff; padding: 12px 24px; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .demo-header h2 { font-size: 18px; margin: 0; color: #1e293b; }
+  .demo-content { max-width: 960px; margin: 40px auto; padding: 0 24px; }
+  .demo-card {
+    background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; padding: 32px;
+    text-align: center;
+  }
+  .demo-card h3 { font-size: 24px; margin: 0 0 8px; }
+  .demo-card p { color: #64748b; margin: 0 0 24px; }
+  .demo-card .demo-info {
+    display: inline-flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; justify-content: center;
+  }
+  .demo-card .demo-info span {
+    padding: 6px 14px; background: #f1f5f9; border-radius: 6px; font-size: 13px; color: #475569;
+  }
+  .demo-footer { text-align: center; margin-top: 40px; color: #94a3b8; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="demo-header">
+  <h2>📋 OrgPerm Demo</h2>
+  <div id="orgpermHeader"></div>
+</div>
+
+<div class="demo-content">
+  <div class="demo-card">
+    <h3>🚀 组织与权限管理模块</h3>
+    <p>这是一个独立的、可复用的组织架构和权限管理前端模块。<br>包含：用户管理、角色管理、权限分配、部门/组管理。</p>
+    <div class="demo-info">
+      <span id="demoUserInfo">请先登录</span>
+    </div>
+    <p style="font-size:12px;color:#94a3b8">
+      点击右上角头像 → 权限设置 / 组织管理 / 角色管理<br>
+      Demo 模式（Mock 数据）· 管理员初始账号 admin / admin123
+    </p>
+  </div>
+  <div class="demo-footer">OrgPerm v1.0 · 纯原生 JS，无框架依赖</div>
+</div>
+
+<!-- 按顺序加载 JS 文件 -->
+<script src="../frontend/js/orgperm-core.js"></script>
+<script src="../frontend/js/orgperm-api.js"></script>
+<script src="../frontend/js/orgperm-auth.js"></script>
+<script src="../frontend/js/orgperm-filter.js"></script>
+<script src="../frontend/js/orgperm-users.js"></script>
+<script src="../frontend/js/orgperm-orgs.js"></script>
+<script src="../frontend/js/orgperm-roles.js"></script>
+
+<script>
+  // 初始化 OrgPerm
+  OrgPerm.init({
+    apiBase: '/api',
+    useApi: false,    // Demo 使用 Mock 数据
+    appTitle: 'OrgPerm Demo',
+    onLogin: function (user) {
+      document.getElementById('demoUserInfo').innerHTML =
+        '<strong>' + user.name + '</strong> · ' + (user.role || '') + ' · 数据范围：' + OrgPerm.getDataScope();
+    },
+    onLogout: function () {
+      document.getElementById('demoUserInfo').textContent = '已登出';
+    }
+  });
+
+  // 渲染登录遮罩
+  OrgPerm.renderLoginOverlay();
+
+  // 渲染右上角用户头像
+  OrgPerm.renderUserHeader(document.getElementById('orgpermHeader'));
+
+  // 默认显示登录页
+  if (!OrgPerm.state.isLoggedIn) {
+    OrgPerm.showLogin();
+  } else {
+    OrgPerm.hideLogin();
+    OrgPerm.updateUserHeader();
+    var u = OrgPerm.state.currentUser;
+    if (u) {
+      document.getElementById('demoUserInfo').innerHTML =
+        '<strong>' + u.name + '</strong> · ' + (u.role || '') + ' · 数据范围：' + OrgPerm.getDataScope();
+    }
+  }
+</script>
+</body>
+</html>

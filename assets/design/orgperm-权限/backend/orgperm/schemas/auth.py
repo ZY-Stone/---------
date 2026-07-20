@@ -1,0 +1,11 @@
+from pydantic import BaseModel
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ChangePwdRequest(BaseModel):
+    old_password: str
+    new_password: str
