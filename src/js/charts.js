@@ -8,6 +8,8 @@ Chart.defaults.font.family = "-apple-system,'PingFang SC','Microsoft YaHei',sans
 Chart.defaults.font.size = 10.5;
 Chart.defaults.color = '#6b7280';
 Chart.defaults.plugins.legend.labels.boxWidth = 10;
+// 关闭全局动画，页面切换和首次加载即时渲染
+Chart.defaults.animation = false;
 
 // 图表实例全局存储（供筛选联动时动态更新）
 App.charts = {};
@@ -94,14 +96,19 @@ function makeHBar(labels, data, color, id, opts) {
 (function() {
   var canvas = document.getElementById('chart-ov-dept-width');
   if (canvas) {
-    App.charts.ovDeptWidth = new Chart(canvas, {
+    App.charts['ov_dept-width'] = new Chart(canvas, {
       type: 'bar',
       data: {
-        labels: ['政府行业组', '公安交警组', '教育文化组', '智能交通组'],
-        datasets: [{ data: [4.28, 3.76, 3.48, 3.24], backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'], borderRadius: 6, barPercentage: .5 }]
+        labels: ['政府行业组', '公安交警行业组', '工业企业一组', '智慧建筑组'],
+        datasets: [{ data: [4.28, 3.76, 3.48, 3.24], backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: .5 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        onClick: function(evt, elements) {
+          if (elements && elements.length > 0) {
+            App.drillToWidth();
+          }
+        },
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: function(ctx) { return '客均宽度: ' + ctx.raw; } } }
@@ -110,8 +117,32 @@ function makeHBar(labels, data, color, id, opts) {
           y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度', font: { size: 11 } } },
           x: { grid: { display: false }, ticks: { font: { size: 11 } } }
         }
-      }
+      },
+      plugins: [{
+        id: 'barValues',
+        afterDraw: function(chart) {
+          var ctx = chart.ctx;
+          chart.data.datasets.forEach(function(ds, i) {
+            var meta = chart.getDatasetMeta(i);
+            if (!meta || !meta.data) return;
+            meta.data.forEach(function(bar, j) {
+              if (!bar || typeof bar.x === 'undefined') return;
+              var val = ds.data[j];
+              if (val == null) return;
+              ctx.save();
+              ctx.fillStyle = '#1e293b';
+              ctx.font = 'bold 11px system-ui, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(val, bar.x, bar.y - 4);
+              ctx.restore();
+            });
+          });
+        }
+      }]
     });
+    // 兼容旧引用
+    App.charts.ovDeptWidth = App.charts['ov_dept-width'];
   }
 })();
 
@@ -119,43 +150,188 @@ function makeHBar(labels, data, color, id, opts) {
 (function() {
   var canvas = document.getElementById('chart-ov-dept-potential');
   if (canvas) {
-    App.charts.ovDeptPotential = new Chart(canvas, {
+    App.charts['ov_dept-potential'] = new Chart(canvas, {
       type: 'bar',
       data: {
-        labels: ['政府行业组', '公安交警组', '教育文化组', '智能交通组'],
-        datasets: [{ data: [3850, 2620, 1740, 1320], backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'], borderRadius: 6, barPercentage: .5 }]
+        labels: ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','服务器','行业软件','网络产品','专网摄像机','通用软件','新业务','出入口停车','音频产品'],
+        datasets: [{ data: [3210,2180,2450,1420,980,720,680,550,480,420,380,350,320,280,260,210], backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: .5 }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: function(ctx) { return '潜力产品销售额: ¥' + ctx.raw.toLocaleString() + '万'; } } }
+          tooltip: { callbacks: { label: function(ctx) { return '销售额: ' + ctx.raw.toLocaleString() + '万'; } } }
         },
         scales: {
           y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额 (万)', font: { size: 11 } } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } }
+        }
+      },
+      plugins: [{
+        id: 'barValues',
+        afterDraw: function(chart) {
+          var ctx = chart.ctx;
+          chart.data.datasets.forEach(function(ds, i) {
+            var meta = chart.getDatasetMeta(i);
+            if (!meta || !meta.data) return;
+            meta.data.forEach(function(bar, j) {
+              if (!bar || typeof bar.x === 'undefined') return;
+              var val = ds.data[j];
+              if (val == null) return;
+              ctx.save();
+              ctx.fillStyle = '#1e293b';
+              ctx.font = 'bold 10px system-ui, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'bottom';
+              ctx.fillText(val.toLocaleString(), bar.x, bar.y - 4);
+              ctx.restore();
+            });
+          });
+        }
+      }]
+    });
+    // 兼容旧引用
+    App.charts.ovDeptPotential = App.charts['ov_dept-potential'];
+  }
+})();
+
+// ===== 3. 产品宽度: 分布 (凯玲版: 双色高亮 + 点击下钻) =====
+(function() {
+  var canvas = document.getElementById('chart-w-dist');
+  if (canvas) {
+    var buckets = ['0', '1-3', '4-6', '7-10', '11-15', '16+'];
+    var counts = [42, 302, 66, 34, 18, 9];
+    App.charts.wDist = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: buckets,
+        datasets: [{
+          data: counts,
+          backgroundColor: function(ctx) {
+            var max = Math.max.apply(null, counts);
+            return ctx.parsed && ctx.parsed.y === max ? '#1a56db' : '#93c5fd';
+          },
+          borderRadius: 4,
+          barPercentage: .7,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        onClick: function(evt, elements) {
+          if (elements && elements.length > 0) {
+            var idx = elements[0].index;
+            var bucket = buckets[idx];
+            if (typeof App.showWidthDrill === 'function') {
+              App.showWidthDrill(bucket);
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(ctx) { return '客户数: ' + ctx.parsed.y; } } }
+        },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } } },
           x: { grid: { display: false }, ticks: { font: { size: 11 } } }
         }
-      }
+      },
+      plugins: [{
+        id: 'wDistValueLabels',
+        afterDatasetsDraw: function(chart) {
+          var ctx = chart.ctx;
+          ctx.save();
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillStyle = '#1e293b';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          var meta = chart.getDatasetMeta(0);
+          meta.data.forEach(function(bar, i) {
+            var v = chart.data.datasets[0].data[i];
+            ctx.fillText(v, bar.x, bar.y - 4);
+          });
+          ctx.restore();
+        }
+      }]
     });
   }
 })();
 
-// ===== 3. 产品宽度: 分布 =====
-App.charts.wDist = makeBar(
-  ['0', '1-3', '4-6', '7-10', '11-15', '16+'],
-  [42, 302, 66, 34, 18, 9],
-  '#3b82f6',
-  'chart-w-dist'
-);
-
-// ===== 4. 产品宽度: 各团队平均 =====
+// ===== 4. 产品宽度: 各团队平均 (凯玲版: 11 个完整团队名) =====
 App.charts.wTeam = makeBar(
-  ['政府组', '罗湖组', '高峰10', '沙头', '王鹏组', '彭城12', '招商17', '熊佳豪', '陈思源', '段金春'],
-  [10.5, 7, 6, 5.4, 5.2, 4.8, 4, 4, 3.9, 3.4],
+  ['政府组', '罗湖组', '陈天6', '高峰10', '沙头', '王鹏组', '彭城12', '招商17', '熊佳豪', '陈思源', '段金春'],
+  [10.5, 7, 6, 5.4, 5.2, 4.8, 4, 4, 3.9, 3.4, 1.5],
   '#1a56db',
   'chart-w-team',
-  { scales: { x: { ticks: { maxRotation: 45, font: { size: 9 } } } } }
+  { scales: { x: { ticks: { maxRotation: 45, font: { size: 10 } } } } }
 );
+
+// ===== 3b. 产品宽度: 按部门柱状图 (替换各团队平均宽度) =====
+(function() {
+  var canvas = document.getElementById('chart-w-width-bar');
+  if (!canvas) return;
+  App.charts.wWidthBar = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['客户销售一部','客户销售二部','大客户销售部','场景数字化销售部','行业二部','行业一部'],
+      datasets: [{ data: [3.52, 3.28, 3.14, 3.42, 4.28, 3.85], backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: .5 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '客均宽度: ' + ctx.raw; } } } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度' } },
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+      }
+    },
+    plugins: [{
+      id: 'wBarValues',
+      afterDraw: function(chart) {
+        var ctx = chart.ctx;
+        chart.data.datasets.forEach(function(ds, i) {
+          var meta = chart.getDatasetMeta(i);
+          if (!meta || !meta.data) return;
+          meta.data.forEach(function(bar, j) {
+            if (!bar || typeof bar.x === 'undefined') return;
+            var val = ds.data[j];
+            if (val == null) return;
+            ctx.save();
+            ctx.fillStyle = '#1e293b';
+            ctx.font = 'bold 11px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(val, bar.x, bar.y - 4);
+            ctx.restore();
+          });
+        });
+      }
+    }]
+  });
+})();
+
+(function() {
+  var canvas = document.getElementById('chart-w-team');
+  if (canvas && App.charts.wTeam) {
+    App.charts.wTeam.config.plugins = [{
+      id: 'wTeamValueLabels',
+      afterDatasetsDraw: function(chart) {
+        var ctx = chart.ctx;
+        ctx.save();
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = '#1e293b';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        var meta = chart.getDatasetMeta(0);
+        meta.data.forEach(function(bar, i) {
+          var v = chart.data.datasets[0].data[i];
+          ctx.fillText(v.toFixed(1), bar.x, bar.y - 4);
+        });
+        ctx.restore();
+      }
+    }];
+    App.charts.wTeam.update('none');
+  }
+})();
 
 // ===== 4.5 分组对比: 雷达图 (产品覆盖率对比) =====
 (function() {
@@ -204,16 +380,58 @@ App.charts.wTeam = makeBar(
   }
 })();
 
-// ===== 5. 产品宽度: 覆盖率 TOP 15 =====
-App.charts.wCov = makeHBar(
-  ['IPC', 'NVR', '门禁', '球机', 'LCD', '新业务', '通用', '网络', '存储', '专摄', '服务', '行业', '智能', '对讲', '报警'],
-  [53.1, 36.7, 27.8, 24.6, 17.6, 17.4, 16.3, 14.6, 11.5, 9.3, 8.9, 8.5, 7.9, 7.6, 7.4],
-  '#10b981',
-  'chart-w-cov'
-);
+// ===== 5. 产品宽度: 覆盖率 TOP 15 (凯玲版: 15产品 + 绿色 + 数字标签) =====
+(function() {
+  var canvas = document.getElementById('chart-w-cov');
+  if (canvas) {
+    var prods = ['IPC','NVR','门禁','球机','LCD与解码','新业务','通用软件','网络产品','存储','专网摄像机','服务','行业软件','智能计算','对讲','报警'];
+    var rates = [53.1, 36.7, 27.8, 24.6, 17.6, 17.4, 16.3, 14.6, 11.5, 9.3, 8.9, 8.5, 7.9, 7.6, 7.4];
+    App.charts.wCov = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: prods,
+        datasets: [{ data: rates, backgroundColor: '#22c55e', borderRadius: 4, barPercentage: .7 }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(ctx) { return '覆盖率: ' + ctx.parsed.x + '%'; } } }
+        },
+        scales: {
+          x: { beginAtZero: true, max: 100, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } } },
+          y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+        }
+      },
+      plugins: [{
+        id: 'dataLabel',
+        afterDatasetsDraw: function(chart) {
+          var ctx2 = chart.ctx;
+          ctx2.save();
+          chart.data.datasets[0].data.forEach(function(v, i) {
+            var meta = chart.getDatasetMeta(0);
+            var bar = meta.data[i];
+            if (bar) {
+              ctx2.fillStyle = '#16a34a';
+              ctx2.font = '600 11px -apple-system, sans-serif';
+              ctx2.textAlign = 'left';
+              ctx2.textBaseline = 'middle';
+              ctx2.fillText(v + '%', bar.x + 4, bar.y);
+            }
+          });
+          ctx2.restore();
+        }
+      }]
+    });
+  }
+})();
 
-// ===== 6. 产品宽度: 规上 vs 非规上（双轴混合图） =====
-App.charts.wReg = new Chart(document.getElementById('chart-w-reg'), {
+// ===== 6. 产品宽度: 规上 vs 非规上（双轴混合图）- 已从页面移除，保留安全初始化 =====
+(function() {
+  var canvas = document.getElementById('chart-w-reg');
+  if (canvas) {
+    App.charts.wReg = new Chart(canvas, {
   type: 'bar',
   data: {
     labels: ['基线', '当前'],
@@ -248,8 +466,35 @@ App.charts.wReg = new Chart(document.getElementById('chart-w-reg'), {
     }
   }
 });
+  }
+})();
 
 // ===== 6b. 产品宽度: 历史趋势（折线图） =====
+App.charts.wWidthTrend = new Chart(document.getElementById('chart-w-width-trend'), {
+  type: 'line',
+  data: {
+    labels: ['08','09','10','11','12','01','02','03','04','05','06','07'],
+    datasets: [
+      { label: '客户销售一部', data: [2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.45,3.52], borderColor: '#3b82f6', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#3b82f6' },
+      { label: '客户销售二部', data: [2.3,2.4,2.5,2.55,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.28], borderColor: '#10b981', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#10b981' },
+      { label: '大客户销售部', data: [2.2,2.3,2.35,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.05,3.14], borderColor: '#f59e0b', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#f59e0b' },
+      { label: '场景数字化销售部', data: [2.4,2.5,2.55,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.42], borderColor: '#ef4444', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#ef4444' },
+      { label: '行业二部', data: [3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.28], borderColor: '#7c3aed', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#7c3aed' },
+      { label: '行业一部', data: [2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.78,3.85], borderColor: '#0891b2', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#0891b2' },
+      { label: '平均宽度', data: [3.2,3.3,3.3,3.4,3.5,3.5,3.6,3.7,3.8,3.8,3.9,3.96], borderColor: '#94a3b8', borderDash:[6,4], tension:.3, fill:false, pointRadius:3, pointBackgroundColor:'#94a3b8' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+    scales: {
+      y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+
+// Keep old chart for compatibility
 new Chart(document.getElementById('chart-width-trend'), {
   type: 'line',
   data: {
@@ -303,8 +548,11 @@ new Chart(document.getElementById('chart-width-trend'), {
   }
 });
 
-// ===== 7. 潜力产品: 量价四象限（散点图） =====
-var quadCtx = document.getElementById('chart-quadrant').getContext('2d');
+// ===== 7. 潜力产品: 量价四象限（散点图）- 安全初始化 =====
+(function() {
+var quadCanvas = document.getElementById('chart-quadrant');
+if (!quadCanvas) return;
+var quadCtx = quadCanvas.getContext('2d');
 var pts = [
   { x: 42.1, y: 58.3, l: 'NVR' },
   { x: 100, y: 100, l: '智能计算' },
@@ -361,6 +609,7 @@ new Chart(quadCtx, {
     }
   }
 });
+})();
 
 // ===== 8. 潜力产品: 行业分布（饼图） =====
 new Chart(document.getElementById('chart-industry'), {
@@ -465,7 +714,7 @@ new Chart(document.getElementById('chart-trend'), {
 });
 
 // ===== 11. 总览: 产品宽度历史趋势 (近12月) =====
-new Chart(document.getElementById('chart-ov-width-trend'), {
+App.charts['ov_width-trend'] = new Chart(document.getElementById('chart-ov-width-trend'), {
   type: 'line',
   data: {
     labels: ['08', '09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07'],
@@ -500,35 +749,20 @@ new Chart(document.getElementById('chart-ov-width-trend'), {
 });
 
 // ===== 12. 总览: 潜力产品历史趋势 (近12月) =====
-new Chart(document.getElementById('chart-ov-potential-trend'), {
-  type: 'line',
+App.charts['ov_potential-trend'] = new Chart(document.getElementById('chart-ov-potential-trend'), {
+  type: 'bar',
   data: {
-    labels: ['08', '09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07'],
+    labels: ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','服务器','行业软件','网络产品','专网摄像机','通用软件','新业务','出入口停车','音频产品'],
     datasets: [
       {
-        label: 'NVR',
-        data: [1200, 1320, 1410, 1380, 1500, 1620, 1750, 1880, 2050, 2280, 2780, 3210],
-        borderColor: '#1a56db', tension: .3, fill: false, pointRadius: 3
+        label: '本期销售额',
+        data: [3210, 2180, 2450, 1420, 980, 720, 680, 550, 480, 420, 380, 350, 320, 280, 260, 210],
+        backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: .6
       },
       {
-        label: '智能计算',
-        data: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1200, 2180],
-        borderColor: '#7c3aed', tension: .3, fill: false, pointRadius: 3, borderDash: [5, 3]
-      },
-      {
-        label: 'IPC',
-        data: [1100, 1180, 1220, 1280, 1320, 1380, 1420, 1500, 1580, 1650, 1780, 1890],
-        borderColor: '#10b981', tension: .3, fill: false, pointRadius: 3
-      },
-      {
-        label: '门禁',
-        data: [1650, 1620, 1580, 1520, 1450, 1400, 1350, 1280, 1200, 1100, 1020, 980],
-        borderColor: '#ef4444', tension: .3, fill: false, pointRadius: 3
-      },
-      {
-        label: '平台软件',
-        data: [950, 980, 1010, 1050, 1100, 1150, 1180, 1220, 1280, 1320, 1380, 1420],
-        borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 3
+        label: '同期销售额',
+        data: [2280, 0, 2350, 1380, 1100, 850, 720, 580, 520, 430, 400, 380, 300, 180, 290, 240],
+        backgroundColor: '#cbd5e1', borderRadius: 4, barPercentage: .6
       }
     ]
   },
@@ -536,8 +770,8 @@ new Chart(document.getElementById('chart-ov-potential-trend'), {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
     scales: {
-      y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额(万)' } },
-      x: { grid: { display: false } }
+      y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额 (万)' } },
+      x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 0 } }
     }
   }
 });
@@ -611,7 +845,7 @@ new Chart(document.getElementById('chart-p-quadrant'), {
 new Chart(document.getElementById('chart-p-dept-rank'), {
   type: 'bar',
   data: {
-    labels: ['政府行业组', '公安交警组', '教育文化组', '智能交通组'],
+    labels: ['政府行业组', '公安交警行业组', '工业企业一组', '智慧建筑组'],
     datasets: [
       { label: '销售额 (万)', data: [3850, 2620, 1740, 1320], backgroundColor: ['#1a56db', '#10b981', '#f59e0b', '#ef4444'], borderRadius: 6, barPercentage: .6 }
     ]
@@ -632,7 +866,7 @@ new Chart(document.getElementById('chart-p-dept-rank'), {
 
 // ===== 17. 潜力产品: 空白产品率 & 待突破实体率 综合对比 (柱+线双轴) =====
 // 12 个产品的空白率(%) 和 待突破率(%)
-new Chart(document.getElementById('chart-p-gap-combined'), {
+App.charts.pGapCombined = new Chart(document.getElementById('chart-p-gap-combined'), {
   type: 'bar',
   data: {
     labels: ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','出入口停车','音频产品','人员通道','行业软件'],
@@ -654,3 +888,57 @@ new Chart(document.getElementById('chart-p-gap-combined'), {
     }
   }
 });
+
+// ===== 18. 潜力产品: 产品维度-量价四象限 (散点图) =====
+(function() {
+  var prodQuadCanvas = document.getElementById('chart-p-prod-quadrant');
+  if (!prodQuadCanvas) return;
+  new Chart(prodQuadCanvas, {
+  type: 'scatter',
+  data: {
+    datasets: [
+      { label: '量价齐升', data: [{x:42.1,y:58.3},{x:15.2,y:22.4},{x:12.3,y:8.4},{x:8.7,y:5.2},{x:18.5,y:15.2},{x:6.3,y:2.8},{x:25,y:32.5}], backgroundColor: '#10b981', pointRadius: 8, pointHoverRadius: 12 },
+      { label: '新增',     data: [{x:100,y:100}], backgroundColor: '#7c3aed', pointRadius: 10, pointStyle: 'star', pointHoverRadius: 14 },
+      { label: '量跌价增', data: [{x:-3.2,y:18.7}], backgroundColor: '#f59e0b', pointRadius: 8, pointHoverRadius: 12 },
+      { label: '量价齐跌', data: [{x:-18.6,y:-23.5},{x:-5.4,y:-11.2},{x:-2.5,y:-1.8}], backgroundColor: '#ef4444', pointRadius: 8, pointHoverRadius: 12 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } },
+      tooltip: { callbacks: { label: function(ctx) { return ctx.dataset.label + ' (' + ctx.parsed.x + '%, ' + ctx.parsed.y + '%)'; } } }
+    },
+    scales: {
+      x: { min: -30, max: 110, grid: { color: '#e5e7eb' }, title: { display: true, text: '数量同比%', font: { size: 11 } }, ticks: { font: { size: 9 } } },
+      y: { min: -30, max: 110, grid: { color: '#e5e7eb' }, title: { display: true, text: '金额同比%', font: { size: 11 } }, ticks: { font: { size: 9 } } }
+    }
+  }
+  });
+})();
+
+// ===== 客户分层: 四象限散点图 =====
+(function initCustSegment() {
+  var canvas = document.getElementById('chart-cust-segment');
+  if (!canvas) return;
+  App.charts.custSegment = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets: [
+      { label: '明星客户', data: [], backgroundColor: '#7c3aed', pointRadius: 9, pointHoverRadius: 12 },
+      { label: '维持客户', data: [], backgroundColor: '#f59e0b', pointRadius: 8, pointHoverRadius: 11 },
+      { label: '潜力客户', data: [], backgroundColor: '#10b981', pointRadius: 8, pointHoverRadius: 11 },
+      { label: '沉睡客户', data: [], backgroundColor: '#9ca3af', pointRadius: 7, pointHoverRadius: 10 }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, font: { size: 12 } } },
+        tooltip: { callbacks: { label: function(ctx) { return ctx.raw.custName + ': ' + ctx.raw.x.toFixed(0) + '万 / 宽度' + ctx.raw.y; } } }
+      },
+      scales: {
+        x: { title: { display: true, text: '销售额 (万元)', font: { size: 12, weight: 'bold' } }, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } } },
+        y: { title: { display: true, text: '产品宽度 (品类数)', font: { size: 12, weight: 'bold' } }, grid: { color: '#f3f4f6' }, ticks: { stepSize: 2, font: { size: 10 } } }
+      }
+    }
+  });
+})();

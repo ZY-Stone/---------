@@ -12,15 +12,35 @@
 </head>
 <body>
 
+<!-- ===== 登录遮罩 ===== -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo"><span class="login-logo-dot"></span>产品分析一体化平台</div>
+    <div class="login-sub">请输入账号密码登录</div>
+    <div class="login-field"><label>账号</label><input type="text" id="loginUser" placeholder="请输入用户名" autocomplete="off"></div>
+    <div class="login-field"><label>密码</label><input type="password" id="loginPwd" placeholder="请输入密码" onkeydown="if(event.key==='Enter')App.doLogin()"></div>
+    <div class="login-error" id="loginError" style="display:none"></div>
+    <button class="login-btn" onclick="App.doLogin()">登 录</button>
+    <div class="login-hint">Demo 演示 · 管理员初始账号 admin / admin123</div>
+  </div>
+</div>
+
 <!-- ========== 顶栏 ========== -->
 <div class="topbar">
-  <div class="logo">产品分析一体化平台
-  </div>
-  <div class="user-menu">
-    <span class="scope">数据范围:本部门</span>
-    <div class="avatar">王</div>
-    <span class="name">王志强</span>
-    <span style="opacity:.6;cursor:pointer">⏻</span>
+  <div class="logo">产品分析一体化平台</div>
+  <div class="user-menu" style="position:relative;cursor:pointer">
+    <span class="scope" id="topbar-scope">深圳业务中心 · 行业二部 · 政府行业组</span>
+    <div class="avatar" id="topbar-avatar">廖</div>
+    <span class="name" id="topbar-name">廖贝贝</span>
+    <span class="role-badge" id="topbar-role">主管</span>
+    <span style="opacity:.6;margin-left:4px;font-size:10px" onclick="App.toggleUserMenu()">▾</span>
+    <!-- 用户下拉菜单 -->
+    <div class="user-menu-dropdown" id="userDropdown" style="display:none">
+      <div class="um-item" onclick="App.showPermModal()">⚙️ 权限设置</div>
+      <div class="um-item" onclick="App.showPwdModal()">🔑 修改密码</div>
+      <div class="um-divider"></div>
+      <div class="um-item" onclick="App.doLogout()">⏻ 退出登录</div>
+    </div>
   </div>
 </div>
 
@@ -47,59 +67,68 @@
           <div class="page-subtitle">更新时间 2026-07-16 11:00</div>
         </div>
         <div class="flex" style="gap:8px">
-          <button class="btn-ghost" onclick="document.querySelectorAll('#page-overview .subtab')[0].click()">📄 导出PDF</button>
+          <button class="btn-ghost" onclick="App.exportOverviewPDF()">📄 导出PDF</button>
+          <button class="btn-ghost" onclick="App.exportOverviewExcel()">📥 导出Excel</button>
         </div>
       </div>
 
-      <!-- ===== 筛选条: 自定义时间 + 团队/组/个人 三维度 ===== -->
+      <!-- ===== 筛选条: 时间 + 团队/组/个人 三维度 ===== -->
       <div class="filter-bar">
-        <div class="filter-group"><label>开始日期</label><input type="date" value="2026-07-01"></div>
+        <div class="filter-group"><label>开始日期</label><input type="date" id="ov-date-start" value="2026-07-01" onchange="App.updateOverview()"></div>
         <span class="filter-sep">→</span>
-        <div class="filter-group"><label>结束日期</label><input type="date" value="2026-07-16"></div>
-        <div class="filter-group"><label>对比期</label><select><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-group"><label>结束日期</label><input type="date" id="ov-date-end" value="2026-07-16" onchange="App.updateOverview()"></div>
+        <div class="filter-group" style="display:flex;gap:4px">
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="App.setQuickDate('ov','week')">📅 单周</button>
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="App.setQuickDate('ov','biweek')">📅 双周</button>
+        </div>
         <div class="filter-sep">|</div>
-        <div class="filter-group"><label>👥 团队</label><select onchange="App.updateOverviewCascade()"><option value="all">全部团队</option><option>政府行业组</option><option>公安交警组</option><option>教育文化组</option><option>智能交通组</option></select></div>
+        <div class="filter-group"><label>对比期</label><select onchange="App.updateOverview()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-overview')"><option value="all">全部部门</option></select></div>
         <span class="filter-sep">→</span>
-        <div class="filter-group"><label>小组</label><select onchange="App.updateOverviewCascade()"><option value="all">全部小组</option><option>一组</option><option>二组</option></select></div>
+        <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-overview')"><option value="all">全部小组</option></select></div>
         <span class="filter-sep">→</span>
-        <div class="filter-group"><label>个人</label><select onchange="App.updateOverviewCascade()"><option value="all">全部成员</option><option>王志强</option><option>陈思源</option><option>李梦琪</option></select></div>
-        <button class="btn-ghost">🔄 重置</button>
+        <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-overview')"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost" onclick="App.resetFilters('page-overview')">🔄 重置</button>
         <div class="right">
-          <span class="level-tag" id="overview-level">当前粒度: 全部团队</span>
+          <span class="level-tag" id="overview-level">当前粒度: 全部部门</span>
         </div>
       </div>
 
-      <!-- ===== 宏观 KPI 大数字卡片 ===== -->
-      <div class="kpi-row" style="grid-template-columns:repeat(7,1fr)">
-        <div class="kpi-card"><div class="kpi-label">📈 总销售额</div><div class="kpi-value" id="ov-kpi-sales">¥ 2.84亿</div><div class="kpi-sub">同比 <span class="delta-up" id="ov-kpi-sales-yoy">+18.2%</span></div></div>
-        <div class="kpi-card k-red"><div class="kpi-label">🚀 潜力产品销售额</div><div class="kpi-value" id="ov-kpi-potential-amt-v">¥ 9,830万</div><div class="kpi-sub">占比 <span id="ov-kpi-potential">34.6%</span></div></div>
-        <div class="kpi-card k-green"><div class="kpi-label">👥 覆盖客户数</div><div class="kpi-value" id="ov-kpi-customers">1,247</div><div class="kpi-sub">环比 <span class="delta-up" id="ov-kpi-customers-mom">+62</span></div></div>
-        <div class="kpi-card k-purple"><div class="kpi-label">🧑 覆盖用户数</div><div class="kpi-value" id="ov-kpi-users">386</div><div class="kpi-sub">最终使用方</div></div>
-        <div class="kpi-card k-orange"><div class="kpi-label">📐 平均产品宽度</div><div class="kpi-value" id="ov-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="ov-kpi-avgwidth-yoy">+0.42</span></div></div>
-        <div class="kpi-card"><div class="kpi-label">📦 覆盖产品品类</div><div class="kpi-value">27 / 27</div><div class="kpi-sub">覆盖率 100%</div></div>
-        <div class="kpi-card"><div class="kpi-label">⚖ 规上客户率</div><div class="kpi-value" id="ov-kpi-scalerate">71.2%</div><div class="kpi-sub" id="ov-kpi-scale-sub">888 / 1,247</div></div>
-      </div>
-
-      <!-- ===== 部门维度对比：产品宽度 + 潜力产品 ===== -->
-      <div class="grid2" style="margin-top:16px">
-        <div class="card">
-          <div class="card-title"><span class="left">📐 产品宽度 — 按部门</span><span class="tag">客均宽度</span></div>
-          <div class="chart-wrap"><canvas id="chart-ov-dept-width"></canvas></div>
+      <!-- ===== 双列 KPI + 部门维度对比 ===== -->
+      <div class="grid2">
+        <div>
+          <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:0;gap:8px">
+            <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToWidth()" title="点击查看产品宽度详情"><div class="kpi-label">📐 产品宽度</div><div class="kpi-value" id="ov-kpi-width">3.96</div><div class="kpi-sub">平均宽度</div></div>
+            <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToUsers()" title="点击查看用户维度详情"><div class="kpi-label">🧑 用户产品宽度</div><div class="kpi-value" id="ov-kpi-user-width">5.20</div><div class="kpi-sub">规上用户数 <span id="ov-kpi-scale-users">285</span></div></div>
+            <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToWidthCustomer()" title="点击查看客户维度详情"><div class="kpi-label">👥 客户产品宽度</div><div class="kpi-value" id="ov-kpi-cust-width">3.96</div><div class="kpi-sub">规上客户数 <span id="ov-kpi-scale-customers">888</span></div></div>
+          </div>
+          <div class="card" style="margin-top:12px">
+            <div class="card-title"><span class="left">📐 产品宽度</span><span class="tag">按筛选</span></div>
+            <div class="chart-wrap"><canvas id="chart-ov-dept-width"></canvas></div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-title"><span class="left">🚀 潜力产品 — 按部门</span><span class="tag">销售额 (万)</span></div>
-          <div class="chart-wrap"><canvas id="chart-ov-dept-potential"></canvas></div>
+        <div>
+          <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);margin-bottom:0;gap:8px">
+            <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToPotential()" title="点击查看潜力产品详情"><div class="kpi-label">🚀 潜力产品销售额</div><div class="kpi-value" id="ov-kpi-potential-amt-v">¥ 9,830万</div><div class="kpi-sub"></div></div>
+            <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToUsers()" title="点击查看用户覆盖详情"><div class="kpi-label">🧑 覆盖用户数</div><div class="kpi-value" id="ov-kpi-users">386</div><div class="kpi-sub"></div></div>
+            <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToPotentialCustomer()" title="点击查看客户覆盖详情"><div class="kpi-label">👥 覆盖客户数</div><div class="kpi-value" id="ov-kpi-customers">1,247</div><div class="kpi-sub">环比 <span class="delta-up" id="ov-kpi-cust-mom">+62</span></div></div>
+          </div>
+          <div class="card" style="margin-top:12px">
+            <div class="card-title"><span class="left">🚀 潜力产品</span><span class="tag">按筛选</span></div>
+            <div class="chart-wrap"><canvas id="chart-ov-dept-potential"></canvas></div>
+          </div>
         </div>
       </div>
 
       <!-- ===== 双趋势图：产品宽度 + 潜力产品 ===== -->
       <div class="grid2">
         <div class="card">
-          <div class="card-title"><span class="left">📐 产品宽度历史趋势 (近12月)</span><span class="tag">月均宽度</span></div>
+          <div class="card-title"><span class="left">📐 产品宽度历史趋势 (近12月)</span><span class="tag">按维度</span></div>
           <div class="chart-wrap tall"><canvas id="chart-ov-width-trend"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title"><span class="left">🚀 潜力产品历史趋势 (近12月)</span><span class="tag">月销售额</span></div>
+          <div class="card-title"><span class="left">🚀 潜力产品历史趋势 (近12月)</span><span class="tag">按产品</span></div>
           <div class="chart-wrap tall"><canvas id="chart-ov-potential-trend"></canvas></div>
         </div>
       </div>
@@ -111,7 +140,7 @@
           <h4>一、宏观概览</h4><ul><li>总销售额 <strong>¥ 2.84亿</strong>, 同比 <strong style="color:#dc2626">+18.2%</strong>, 潜力产品贡献 ¥ 9,830万 (34.6%)</li><li>覆盖 1,247 客户 / 386 用户, 27品类全覆盖, 平均产品宽度 3.96</li></ul>
           <h4>二、趋势判断</h4><ul><li>产品宽度 12 个月稳步上升: 3.2 → 3.96, 规上客户平均宽度已达 6.0</li><li>潜力产品: NVR 持续增长, 智能计算从无到有爆发至 ¥ 2,180万</li></ul>
           <h4>三、关键风险</h4><ul><li>门禁连续 3 月量价齐跌 -23.5%, 智能交通 -11.2%, 合计风险敞口 ¥ 1,830万</li><li>智能计算覆盖率仅 5.1%, 但增长迅猛, 需加速推广防止竞品抢占</li></ul>
-          <h4>四、行动建议</h4><ul><li>P1: 门禁 + NVR 联动打包, TOP 10 客户专项突破</li><li>P2: 智能计算成功经验向公安交警组、教育文化组复制</li></ul>
+          <h4>四、行动建议</h4><ul><li>P1: 门禁 + NVR 联动打包, TOP 10 客户专项突破</li><li>P2: 智能计算成功经验向公安交警行业组、工业企业一组复制</li></ul>
         </div>
         <div class="ai-actions">
           <button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button><button class="ai-btn">📤 分享</button>
@@ -145,82 +174,45 @@
         </div>
       </div>
 
-      <!-- ===== 筛选: 三维度 + 时间 ===== -->
+      <!-- ===== 筛选: 时间 + 团队/组/个人 三维度 ===== -->
       <div class="filter-bar">
-        <div class="filter-group"><label>开始日期</label><input type="date" value="2026-07-01"></div>
+        <div class="filter-group"><label>开始日期</label><input type="date" id="w-date-start" value="2026-07-01" onchange="App.updateWidth()"></div>
         <span class="filter-sep">→</span>
-        <div class="filter-group"><label>结束日期</label><input type="date" value="2026-07-16"></div>
+        <div class="filter-group"><label>结束日期</label><input type="date" id="w-date-end" value="2026-07-16" onchange="App.updateWidth()"></div>
+        <div class="filter-group" style="display:flex;gap:4px">
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="App.setQuickDate('w','week')">📅 单周</button>
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="App.setQuickDate('w','biweek')">📅 双周</button>
+        </div>
         <div class="filter-sep">|</div>
-        <div class="filter-group"><label>👥 团队</label><select onchange="App.updateWidthCascade()"><option value="all">全部团队</option><option>政府行业组</option><option>公安交警组</option></select></div>
+        <div class="filter-group"><label>对比期</label><select onchange="App.updateWidth()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-width')"><option value="all">全部部门</option></select></div>
         <span class="filter-sep">→</span>
-        <div class="filter-group"><label>小组</label><select onchange="App.updateWidthCascade()"><option value="all">全部小组</option></select></div>
+        <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-width')"><option value="all">全部小组</option></select></div>
         <span class="filter-sep">→</span>
-        <div class="filter-group"><label>个人</label><select onchange="App.updateWidthCascade()"><option value="all">全部成员</option></select></div>
-        <button class="btn-ghost">重置</button>
-        <div class="right"><span class="level-tag" id="width-level">当前粒度: 全部团队</span></div>
+        <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-width')"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost" onclick="App.resetFilters('page-width')">🔄 重置</button>
+        <div class="right"><span class="level-tag" id="width-level">当前粒度: 全部部门</span></div>
       </div>
 
       <!-- ===== 1. 总览分析 ===== -->
       <div data-tab-content="w-overview">
         <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
-          <div class="kpi-card"><div class="kpi-label">客户数</div><div class="kpi-value" id="w-kpi-customers">1,247</div><div class="kpi-sub" id="w-kpi-scale">规上 888 · 非规上 359</div></div>
-          <div class="kpi-card k-green"><div class="kpi-label">平均产品宽度</div><div class="kpi-value" id="w-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-yoy">+0.42</span></div></div>
-          <div class="kpi-card k-orange"><div class="kpi-label">最大产品宽度</div><div class="kpi-value" id="w-kpi-maxwidth">10</div><div class="kpi-sub" id="w-kpi-maxcust">深圳市政府</div></div>
-          <div class="kpi-card k-purple"><div class="kpi-label">规上客户覆盖率</div><div class="kpi-value" id="w-kpi-coverage">71.2%</div><div class="kpi-sub" id="w-kpi-covdetail">888 / 1,247</div></div>
-        </div>
-
-        <div class="grid3">
-          <div class="card"><div class="card-title"><span class="left">产品宽度分布</span><span class="tag">点击查看明细</span></div><div class="chart-wrap short"><canvas id="chart-w-dist"></canvas></div></div>
-          <div class="card"><div class="card-title"><span class="left">各团队平均产品宽度</span><span class="tag">4个团队</span></div><div class="chart-wrap short"><canvas id="chart-w-team"></canvas></div></div>
-          <div class="card"><div class="card-title"><span class="left">产品覆盖率 TOP 15</span><span class="tag">产品维度</span></div><div class="chart-wrap short"><canvas id="chart-w-cov"></canvas></div></div>
+          <div class="kpi-card k-green"><div class="kpi-label">📐 产品宽度</div><div class="kpi-value" id="w-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-yoy">+0.42</span></div></div>
+          <div class="kpi-card k-purple"><div class="kpi-label">🏢 规上用户数</div><div class="kpi-value" id="w-kpi-scale-users">285</div><div class="kpi-sub">使用方</div></div>
+          <div class="kpi-card k-orange"><div class="kpi-label">👥 规上客户数</div><div class="kpi-value" id="w-kpi-scale-customers">888</div><div class="kpi-sub">环比 <span class="delta-up" id="w-kpi-cust-mom">+62</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">⚖ 规上客户覆盖率</div><div class="kpi-value" id="w-kpi-coverage">71.2%</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-cov-yoy">+3.5%</span></div></div>
         </div>
 
         <div class="grid2">
-          <div class="card"><div class="card-title"><span class="left">📊 规上 vs 非规上 对比</span><span class="tag">基线 2026Q1</span></div><div class="chart-wrap"><canvas id="chart-w-reg"></canvas></div></div>
-          <div class="card">
-            <div class="card-title"><span class="left">📏 缺失产品分析 (规上客户)</span><span class="tag">空白机会</span></div>
-            <div class="table-wrap" style="max-height:260px">
-              <table class="table">
-                <thead><tr><th>产品品类</th><th>已覆盖客户</th><th>缺失客户</th><th>覆盖率</th><th>机会</th></tr></thead>
-                <tbody id="w-table-missing">
-                  <tr><td>智能计算</td><td>45</td><td style="color:var(--danger);font-weight:600">843</td><td>5.1%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:5%"></div></div><span class="bar-num">5.1%</span></div></td></tr>
-                  <tr><td>专网摄像机</td><td>62</td><td style="color:var(--danger);font-weight:600">826</td><td>7.0%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:7%"></div></div><span class="bar-num">7.0%</span></div></td></tr>
-                  <tr><td>行业软件</td><td>78</td><td style="color:var(--warning);font-weight:600">810</td><td>8.8%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:9%"></div></div><span class="bar-num">8.8%</span></div></td></tr>
-                  <tr><td>服务</td><td>95</td><td style="color:var(--warning)">793</td><td>10.7%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:11%"></div></div><span class="bar-num">10.7%</span></div></td></tr>
-                  <tr><td>门禁</td><td>120</td><td>768</td><td>13.5%</td><td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:14%"></div></div><span class="bar-num">13.5%</span></div></td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <div class="card"><div class="card-title"><span class="left">产品宽度分布</span><span class="tag">点击查看明细</span></div><div class="chart-wrap short"><canvas id="chart-w-dist"></canvas></div></div>
+          <div class="card"><div class="card-title"><span class="left">📐 产品宽度</span><span class="tag">按筛选</span></div><div class="chart-wrap short"><canvas id="chart-w-width-bar"></canvas></div></div>
+        </div>
+        <div class="grid2" style="margin-top:16px">
+          <div class="card"><div class="card-title"><span class="left">产品覆盖率 TOP 15</span><span class="tag">产品维度</span></div><div class="chart-wrap tall"><canvas id="chart-w-cov"></canvas></div></div>
+          <div class="card"><div class="card-title"><span class="left">📈 产品宽度历史趋势 (近12月)</span><span class="tag">按筛选</span></div><div class="chart-wrap tall"><canvas id="chart-w-width-trend"></canvas></div></div>
         </div>
 
-        <!-- 低宽度筛选统计 -->
-        <div class="card" style="margin-top:16px;border-left:4px solid var(--warning)">
-          <div class="card-title"><span class="left">🔍 低宽度客户筛选统计</span><span class="right-meta" style="display:flex;align-items:center;gap:8px">
-            <span>宽度低于</span>
-            <input type="number" id="width-threshold" value="3" min="1" max="10" style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center" onchange="App.filterLowWidth()" oninput="App.filterLowWidth()">
-            <span>的客户</span>
-          </span></div>
-          <div class="grid2" style="margin-bottom:0">
-            <div>
-              <div class="kpi-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:10px">
-                <div class="kpi-card k-orange" style="padding:10px 14px"><div class="kpi-label">⚠ 低于阈值客户数</div><div class="kpi-value" id="w-low-count" style="font-size:20px">586</div><div class="kpi-sub">占比 <span id="w-low-rate">47.0%</span></div></div>
-                <div class="kpi-card k-red" style="padding:10px 14px"><div class="kpi-label">📉 低宽度客户平均宽度</div><div class="kpi-value" id="w-low-avg" style="font-size:20px">1.62</div><div class="kpi-sub">与均值差距 <span id="w-low-gap">-2.34</span></div></div>
-              </div>
-            </div>
-            <div>
-              <div style="font-size:11px;color:var(--text-sub);margin-bottom:6px;font-weight:600">💡 提升建议</div>
-              <ul style="font-size:11px;color:var(--text);padding-left:16px;line-height:1.8">
-                <li>人均覆盖仅 <strong style="color:var(--danger)">1.6 品类</strong>，优先推广 IPC / NVR 入门产品</li>
-                <li>建议按 <strong>行业 + 区域</strong> 分组制定突破计划</li>
-                <li>目标：3 个月内将低宽度客户 <strong style="color:var(--primary)">减少 30%</strong></li>
-              </ul>
-            </div>
-          </div>
-          <div style="margin-top:10px">
-            <span style="font-size:10px;color:var(--text-muted)">默认阈值 3（低于均值 3.96）· 点击阈值数字可修改</span>
-          </div>
-        </div>
 
         <!-- 问题与建议 -->
         <div class="card" style="margin-top:16px;border-left:4px solid var(--danger)">
@@ -254,9 +246,9 @@
               </tr>
               <tr>
                 <td><span class="rn rn0">4</span></td>
-                <td><strong>智能交通组宽度下滑 -5.4%</strong> — 团队维度落后明显</td>
+                <td><strong>智慧建筑组宽度下滑 -5.4%</strong> — 团队维度落后明显</td>
                 <td><span class="badge" style="background:#fef3c7;color:#92400e">🟡 警告</span></td>
-                <td>智能交通组 · 187 客户</td>
+                <td>智慧建筑组 · 187 客户</td>
                 <td>团队专项辅导，参考政府行业组经验，重点突破存储和门禁品类</td>
                 <td><span class="badge" style="background:#dbeafe;color:#2563eb">P2</span></td>
               </tr>
@@ -270,11 +262,6 @@
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">📈 产品宽度历史趋势 (近12月)</span><span class="tag">月均宽度</span></div>
-          <div class="chart-wrap tall"><canvas id="chart-width-trend"></canvas></div>
         </div>
 
         <div class="card" style="margin-top:16px">
@@ -312,54 +299,191 @@
               <tbody>
                 <tr><td><span class="rn rn1">1</span></td><td><strong>IPC</strong></td><td style="text-align:center">472</td><td style="text-align:center;font-weight:700;color:var(--success)">53.1%</td><td style="text-align:center"><span class="badge b-up">+12.3%</span></td><td>政府行业组</td></tr>
                 <tr><td><span class="rn rn2">2</span></td><td><strong>NVR</strong></td><td style="text-align:center">326</td><td style="text-align:center;font-weight:700;color:var(--success)">36.7%</td><td style="text-align:center"><span class="badge b-up">+18.5%</span></td><td>政府行业组</td></tr>
-                <tr><td><span class="rn rn3">3</span></td><td>门禁</td><td style="text-align:center">247</td><td style="text-align:center">27.8%</td><td style="text-align:center"><span class="badge b-down">-8.2%</span></td><td>公安交警组</td></tr>
-                <tr><td><span class="rn rn0">4</span></td><td>球机</td><td style="text-align:center">218</td><td style="text-align:center">24.6%</td><td style="text-align:center"><span class="badge b-up">+5.1%</span></td><td>公安交警组</td></tr>
-                <tr><td><span class="rn rn0">5</span></td><td>LCD与解码</td><td style="text-align:center">156</td><td style="text-align:center">17.6%</td><td style="text-align:center"><span class="badge b-flat">+0.8%</span></td><td>教育文化组</td></tr>
-                <tr><td><span class="rn rn0">6</span></td><td>新业务</td><td style="text-align:center">155</td><td style="text-align:center">17.4%</td><td style="text-align:center"><span class="badge b-new">新增</span></td><td>智能交通组</td></tr>
+                <tr><td><span class="rn rn3">3</span></td><td>门禁</td><td style="text-align:center">247</td><td style="text-align:center">27.8%</td><td style="text-align:center"><span class="badge b-down">-8.2%</span></td><td>公安交警行业组</td></tr>
+                <tr><td><span class="rn rn0">4</span></td><td>球机</td><td style="text-align:center">218</td><td style="text-align:center">24.6%</td><td style="text-align:center"><span class="badge b-up">+5.1%</span></td><td>公安交警行业组</td></tr>
+                <tr><td><span class="rn rn0">5</span></td><td>LCD与解码</td><td style="text-align:center">156</td><td style="text-align:center">17.6%</td><td style="text-align:center"><span class="badge b-flat">+0.8%</span></td><td>工业企业一组</td></tr>
+                <tr><td><span class="rn rn0">6</span></td><td>新业务</td><td style="text-align:center">155</td><td style="text-align:center">17.4%</td><td style="text-align:center"><span class="badge b-new">新增</span></td><td>智慧建筑组</td></tr>
                 <tr><td><span class="rn rn0">7</span></td><td>通用</td><td style="text-align:center">145</td><td style="text-align:center">16.3%</td><td style="text-align:center"><span class="badge b-up">+3.2%</span></td><td>政府行业组</td></tr>
-                <tr><td><span class="rn rn0">8</span></td><td>网络</td><td style="text-align:center">130</td><td style="text-align:center">14.6%</td><td style="text-align:center"><span class="badge b-warn">-2.1%</span></td><td>教育文化组</td></tr>
+                <tr><td><span class="rn rn0">8</span></td><td>网络</td><td style="text-align:center">130</td><td style="text-align:center">14.6%</td><td style="text-align:center"><span class="badge b-warn">-2.1%</span></td><td>工业企业一组</td></tr>
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">🏆 产品覆盖率排名 (规上用户)</span><span class="tag">23品类 · 386用户</span></div>
+          <div class="table-wrap" style="max-height:420px">
+            <table class="table">
+              <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖用户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th><th>主要用户群</th></tr></thead>
+              <tbody>
+                <tr><td><span class="rn rn1">1</span></td><td><strong>IPC</strong></td><td style="text-align:center">310</td><td style="text-align:center;font-weight:700;color:var(--success)">80.3%</td><td style="text-align:center"><span class="badge b-up">+15.6%</span></td><td>深圳市公安局、深圳市教育局</td></tr>
+                <tr><td><span class="rn rn2">2</span></td><td><strong>NVR</strong></td><td style="text-align:center">268</td><td style="text-align:center;font-weight:700;color:var(--success)">69.4%</td><td style="text-align:center"><span class="badge b-up">+22.1%</span></td><td>深圳市公安局、广东省交通厅</td></tr>
+                <tr><td><span class="rn rn3">3</span></td><td>球机</td><td style="text-align:center">210</td><td style="text-align:center">54.4%</td><td style="text-align:center"><span class="badge b-up">+8.3%</span></td><td>深圳市公安局</td></tr>
+                <tr><td><span class="rn rn0">4</span></td><td>门禁</td><td style="text-align:center">185</td><td style="text-align:center">47.9%</td><td style="text-align:center"><span class="badge b-warn">-3.5%</span></td><td>深圳市卫健委</td></tr>
+                <tr><td><span class="rn rn0">5</span></td><td>存储</td><td style="text-align:center">142</td><td style="text-align:center">36.8%</td><td style="text-align:center"><span class="badge b-up">+11.2%</span></td><td>深圳市教育局</td></tr>
+                <tr><td><span class="rn rn0">6</span></td><td>LCD与解码</td><td style="text-align:center">120</td><td style="text-align:center">31.1%</td><td style="text-align:center"><span class="badge b-up">+6.8%</span></td><td>深圳市文体局</td></tr>
+                <tr><td><span class="rn rn0">7</span></td><td>智能交通</td><td style="text-align:center">95</td><td style="text-align:center">24.6%</td><td style="text-align:center"><span class="badge b-up">+18.4%</span></td><td>广东省交通厅</td></tr>
+                <tr><td><span class="rn rn0">8</span></td><td>出入口停车</td><td style="text-align:center">72</td><td style="text-align:center">18.7%</td><td style="text-align:center"><span class="badge b-new">新增</span></td><td>深圳市政府</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">🔗 产品交叉销售关联矩阵 (Lift 提升度)</span><span class="tag">颜色越深=关联越强</span></div>
+          <div class="table-wrap" id="w-cross-sell-matrix" style="max-height:420px"></div>
+          <div class="legend-row" style="margin-top:8px;font-size:11px;gap:10px">
+            <span>Lift级别:</span>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fff"></span> &lt;1.5 弱关联
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fde68a"></span> 1.5-2.0
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#f59e0b"></span> 2.0-3.0
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#dc2626"></span> 3.0-4.0
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#7c3aed"></span> ≥4.0 极强
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📦 自动识别产品套包</span><span class="tag">高频协同购买组合</span></div>
+          <div id="w-cross-bundles" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--primary)">
+          <div class="card-title"><span class="left">💡 精准交叉销售推荐</span></div>
+          <div id="w-cross-recommend" style="font-size:12px;line-height:2;color:#475569"></div>
         </div>
       </div>
 
       <!-- ===== 3. 团队维度 ===== -->
       <div data-tab-content="w-team" style="display:none">
+        <!-- 数据明细 -->
         <div class="card">
-          <div class="card-title"><span class="left">👥 各团队产品宽度排名</span><span class="tag">按客均宽度降序</span></div>
-          <table class="table">
-            <thead><tr><th>排名</th><th>团队</th><th style="text-align:center">客户数</th><th style="text-align:center">客均宽度</th><th style="text-align:center">最大宽度</th><th style="text-align:center">覆盖率</th><th>同比变化</th></tr></thead>
-            <tbody>
-              <tr><td><span class="rn rn1">1</span></td><td><strong>政府行业组</strong></td><td style="text-align:center">437</td><td style="text-align:center;font-weight:700;color:var(--primary)">4.28</td><td style="text-align:center">10</td><td style="text-align:center">76.5%</td><td><span class="badge b-up">+8.2%</span></td></tr>
-              <tr><td><span class="rn rn2">2</span></td><td>公安交警组</td><td style="text-align:center">374</td><td style="text-align:center;font-weight:700;color:var(--primary)">3.76</td><td style="text-align:center">8</td><td style="text-align:center">70.2%</td><td><span class="badge b-up">+3.5%</span></td></tr>
-              <tr><td><span class="rn rn3">3</span></td><td>教育文化组</td><td style="text-align:center">249</td><td style="text-align:center">3.48</td><td style="text-align:center">7</td><td style="text-align:center">66.8%</td><td><span class="badge b-warn">-1.2%</span></td></tr>
-              <tr><td><span class="rn rn0">4</span></td><td>智能交通组</td><td style="text-align:center">187</td><td style="text-align:center">3.24</td><td style="text-align:center">6</td><td style="text-align:center">62.1%</td><td><span class="badge b-down">-5.4%</span></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="card">
-          <div class="card-title"><span class="left">🏅 销售人员规上客均宽度 TOP 10</span></div>
-          <div class="table-wrap" style="max-height:360px">
+          <div class="card-title">
+            <span class="left">📋 数据明细</span>
+            <div class="subtabs-inline" id="wTeamTabs">
+              <button class="subtab active" data-d="dept" onclick="App.WidthDetail.switchDim('dept')">部门</button>
+              <button class="subtab" data-d="group" onclick="App.WidthDetail.switchDim('group')">组</button>
+              <button class="subtab" data-d="person" onclick="App.WidthDetail.switchDim('person')">个人</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:520px">
             <table class="table">
-              <thead><tr><th>排名</th><th>姓名</th><th>团队</th><th style="text-align:center">规上客户数</th><th style="text-align:center">客均宽度</th><th style="text-align:center">最大宽度</th><th>主要缺失品类</th></tr></thead>
-              <tbody>
-                <tr><td><span class="rn rn1">1</span></td><td><strong>陈思源</strong></td><td>政府行业组</td><td style="text-align:center">18</td><td style="text-align:center;font-weight:700;color:var(--primary)">5.8</td><td style="text-align:center">10</td><td>专网摄像机、行业软件</td></tr>
-                <tr><td><span class="rn rn2">2</span></td><td>王志强</td><td>政府行业组</td><td style="text-align:center">15</td><td style="text-align:center;font-weight:700;color:var(--primary)">5.2</td><td style="text-align:center">9</td><td>智能计算、服务</td></tr>
-                <tr><td><span class="rn rn3">3</span></td><td>张伟</td><td>公安交警组</td><td style="text-align:center">12</td><td style="text-align:center;font-weight:700;color:var(--primary)">4.8</td><td style="text-align:center">8</td><td>门禁、行业软件</td></tr>
-                <tr><td><span class="rn rn0">4</span></td><td>李梦琪</td><td>政府行业组</td><td style="text-align:center">10</td><td style="text-align:center">4.3</td><td style="text-align:center">7</td><td>智能交通、存储</td></tr>
-                <tr><td><span class="rn rn0">5</span></td><td>陈伟杰</td><td>政府行业组</td><td style="text-align:center">9</td><td style="text-align:center">4.1</td><td style="text-align:center">6</td><td>智能计算、LCD</td></tr>
-                <tr><td><span class="rn rn0">6</span></td><td>罗兴华</td><td>教育文化组</td><td style="text-align:center">8</td><td style="text-align:center">3.9</td><td style="text-align:center">6</td><td>专网摄像机</td></tr>
-                <tr><td><span class="rn rn0">7</span></td><td>张继成</td><td>公安交警组</td><td style="text-align:center">8</td><td style="text-align:center">3.6</td><td style="text-align:center">5</td><td>服务、行业软件</td></tr>
-                <tr><td><span class="rn rn0">8</span></td><td>赵启超</td><td>智能交通组</td><td style="text-align:center">7</td><td style="text-align:center">3.4</td><td style="text-align:center">5</td><td>存储、门禁</td></tr>
-              </tbody>
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>名称</th>
+                  <th style="text-align:center">覆盖客户数</th>
+                  <th style="text-align:center">客均宽度</th>
+                  <th style="text-align:center">最大宽度</th>
+                  <th style="text-align:center">覆盖率</th>
+                  <th style="text-align:center">同比变化</th>
+                </tr>
+              </thead>
+              <tbody id="wTeamTable"></tbody>
             </table>
+          </div>
+        </div>
+
+        <!-- 团队小组 × 潜力产品 · 本期 vs 同期对照表（乔梦杰版） -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">🗂️ 团队小组 × 潜力产品 · 本期 vs 同期对照表</span>
+            <span class="tag">hover=同比%</span>
+          </div>
+          <div class="scroll-table">
+            <div class="table-wrap">
+              <table class="cross-table" id="w-team-cross-table">
+                <thead id="w-team-cross-thead"></thead>
+                <tbody id="w-team-cross-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 大部门 × 产品 差距热图（乔梦杰版） -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title" id="w-team-gap-heat-title">
+            <span class="left">🔥 大部门 × 产品 差距热图</span>
+            <span class="tag">颜色越深=覆盖越强</span>
+          </div>
+          <div class="scroll-table">
+            <table class="heatmap-table" id="w-team-gap-heatmap"></table>
+          </div>
+        </div>
+
+        <!-- 与团队均值的差距分析（乔梦杰版） -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">📏 与团队均值的差距分析</span>
+            <span class="tag">绿=超均值 红=低于均值</span>
+          </div>
+          <div class="scroll-table">
+            <table class="heatmap-table" id="w-team-gap-detail"></table>
           </div>
         </div>
       </div>
 
       <!-- ===== 4. 客户维度 ===== -->
       <div data-tab-content="w-customer" style="display:none">
+        <!-- 低宽度筛选统计 -->
+        <div class="card" style="border-left:4px solid var(--warning)">
+          <div class="card-title"><span class="left">🔍 低宽度客户筛选统计</span><span class="right-meta" style="display:flex;align-items:center;gap:8px">
+            <span>宽度低于</span>
+            <input type="number" id="width-threshold" value="3" min="1" max="10" style="width:52px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;text-align:center" onchange="App.filterLowWidth()" oninput="App.filterLowWidth()">
+            <span>的客户</span>
+          </span></div>
+          <div class="grid2" style="margin-bottom:0">
+            <div>
+              <div class="kpi-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:10px">
+                <div class="kpi-card k-orange" style="padding:10px 14px"><div class="kpi-label">⚠ 低于阈值客户数</div><div class="kpi-value" id="w-low-count" style="font-size:20px">586</div><div class="kpi-sub">占比 <span id="w-low-rate">47.0%</span></div></div>
+                <div class="kpi-card k-red" style="padding:10px 14px"><div class="kpi-label">📉 低宽度客户平均宽度</div><div class="kpi-value" id="w-low-avg" style="font-size:20px">1.62</div><div class="kpi-sub">与均值差距 <span id="w-low-gap">-2.34</span></div></div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11px;color:var(--text-sub);margin-bottom:6px;font-weight:600">💡 提升建议</div>
+              <ul style="font-size:11px;color:var(--text);padding-left:16px;line-height:1.8">
+                <li>人均覆盖仅 <strong style="color:var(--danger)">1.6 品类</strong>，优先推广 IPC / NVR 入门产品</li>
+                <li>建议按 <strong>行业 + 区域</strong> 分组制定突破计划</li>
+                <li>目标：3 个月内将低宽度客户 <strong style="color:var(--primary)">减少 30%</strong></li>
+              </ul>
+            </div>
+          </div>
+          <div style="margin-top:10px">
+            <span style="font-size:10px;color:var(--text-muted)">默认阈值 3（低于均值 3.96）· 点击阈值数字可修改</span>
+          </div>
+        </div>
+
+        <!-- ===== 客户分层分析 ===== -->
+        <div class="card">
+          <div class="card-title"><span class="left">🎯 客户分层分析 (销售额 × 产品宽度)</span><span class="tag">点击散点查看详情</span></div>
+          <div class="chart-wrap" style="height:380px"><canvas id="chart-cust-segment"></canvas></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px">
+          <div class="segment-card star">
+            <div class="seg-header"><span class="seg-icon">⭐</span><span class="seg-title">明星客户</span><span class="seg-badge" id="seg-star-count">5</span></div>
+            <div class="seg-detail">高销售额 · 高宽度</div>
+            <div class="seg-action">策略: 深挖高附加值品类，保持主供地位</div>
+            <div class="seg-custs" id="seg-star-list">深圳市政府、宝安公安局</div>
+          </div>
+          <div class="segment-card cash">
+            <div class="seg-header"><span class="seg-icon">💰</span><span class="seg-title">维持客户</span><span class="seg-badge" id="seg-cash-count">3</span></div>
+            <div class="seg-detail">高销售额 · 低宽度</div>
+            <div class="seg-action">策略: 交叉销售追回，导入未覆盖品类</div>
+            <div class="seg-custs" id="seg-cash-list">龙岗分局、沙头派出所</div>
+          </div>
+          <div class="segment-card potential">
+            <div class="seg-header"><span class="seg-icon">🌱</span><span class="seg-title">潜力客户</span><span class="seg-badge" id="seg-potential-count">5</span></div>
+            <div class="seg-detail">低销售额 · 高宽度</div>
+            <div class="seg-action">策略: 做量扩规模，提升单品采购量</div>
+            <div class="seg-custs" id="seg-potential-list">彭城12、高峰10</div>
+          </div>
+          <div class="segment-card sleep">
+            <div class="seg-header"><span class="seg-icon">💤</span><span class="seg-title">沉睡客户</span><span class="seg-badge" id="seg-sleep-count">7</span></div>
+            <div class="seg-detail">低销售额 · 低宽度</div>
+            <div class="seg-action">策略: 调研潜力，选择性激活或放弃</div>
+            <div class="seg-custs" id="seg-sleep-list">天眼监控、江河电子</div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-title"><span class="left">🔥 产品覆盖热力图 (TOP 10 客户 × 核心品类)</span></div>
           <div class="scroll-x">
@@ -390,6 +514,89 @@
             <table class="mini-table">
               <thead><tr><th>#</th><th>客户</th><th style="text-align:center">客均宽度</th><th style="text-align:center">规上</th><th style="text-align:center">品类数</th><th>销售人员</th></tr></thead>
               <tbody id="w-tbody-cust-bad"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 客户产品覆盖明细（团队分析） -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">📋 客户产品覆盖明细</span>
+            <span class="tag" id="w-cust-count">32 条记录</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">筛选团队</label>
+              <select id="wCustTeamFilter" onchange="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">规上</label>
+              <select id="wCustGsFilter" onchange="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部</option><option value="1">规上</option><option value="0">非规上</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索</label>
+              <input type="text" id="wCustSearch" placeholder="客户 / 账号..." oninput="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">排序</label>
+              <select id="wCustSort" onchange="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option><option value="team">按团队</option>
+              </select>
+            </div>
+          </div>
+          <div class="scroll-x">
+            <table class="table tight-table" style="min-width:1200px">
+              <thead>
+                <tr>
+                  <th style="min-width:130px">最终用户</th>
+                  <th>所属团队</th>
+                  <th>CRM账号</th>
+                  <th style="text-align:center">产品宽度</th>
+                  <th style="text-align:center">是否规上</th>
+                  <th style="text-align:center" title="IPC">IPC</th>
+                  <th style="text-align:center" title="NVR">NVR</th>
+                  <th style="text-align:center" title="门禁">门禁</th>
+                  <th style="text-align:center" title="球机">球机</th>
+                  <th style="text-align:center" title="LCD">LCD</th>
+                  <th style="text-align:center" title="新业务">新业务</th>
+                  <th style="text-align:center" title="通用软件">通用</th>
+                  <th style="text-align:center" title="网络产品">网络</th>
+                  <th style="text-align:center" title="存储">存储</th>
+                  <th style="text-align:center" title="智能交通">智交</th>
+                  <th style="text-align:center" title="移动终端">移端</th>
+                  <th style="text-align:center" title="出入口停车">停车</th>
+                  <th style="text-align:center" title="报警">报警</th>
+                  <th style="text-align:center" title="服务器">服务器</th>
+                  <th style="text-align:center" title="行业软件">行软</th>
+                </tr>
+              </thead>
+              <tbody id="wCustTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 售达方与客户关联分析 -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">🔗 售达方与客户关联分析</span>
+            <span class="tag" id="w-acct-link-count">售达方 × 客户</span>
+          </div>
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>CRM售达方</th>
+                  <th style="text-align:center">团队</th>
+                  <th style="text-align:center">服务用户数</th>
+                  <th style="text-align:center">总产品宽度</th>
+                  <th style="text-align:center">客均宽度</th>
+                  <th>关联用户</th>
+                </tr>
+              </thead>
+              <tbody id="wAcctLinkTable"></tbody>
             </table>
           </div>
         </div>
@@ -442,26 +649,175 @@
             </tbody>
           </table>
         </div>
+
+        <!-- 用户产品覆盖明细 -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">📋 用户产品覆盖明细</span>
+            <span class="tag" id="w-user-count">32 条记录</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">筛选团队</label>
+              <select id="wUserTeamFilter" onchange="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">规上</label>
+              <select id="wUserGsFilter" onchange="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部</option><option value="1">规上</option><option value="0">非规上</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索</label>
+              <input type="text" id="wUserSearch" placeholder="用户名 / 售达方..." oninput="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">排序</label>
+              <select id="wUserSort" onchange="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option><option value="team">按团队</option>
+              </select>
+            </div>
+          </div>
+          <div class="scroll-x">
+            <table class="table tight-table" style="min-width:1200px">
+              <thead>
+                <tr>
+                  <th style="min-width:130px">最终用户</th>
+                  <th>所属团队</th>
+                  <th>售达方</th>
+                  <th style="text-align:center">产品宽度</th>
+                  <th style="text-align:center">是否规上</th>
+                  <th style="text-align:center" title="IPC">IPC</th>
+                  <th style="text-align:center" title="NVR">NVR</th>
+                  <th style="text-align:center" title="门禁">门禁</th>
+                  <th style="text-align:center" title="球机">球机</th>
+                  <th style="text-align:center" title="LCD">LCD</th>
+                  <th style="text-align:center" title="新业务">新业务</th>
+                  <th style="text-align:center" title="通用软件">通用</th>
+                  <th style="text-align:center" title="网络产品">网络</th>
+                  <th style="text-align:center" title="存储">存储</th>
+                  <th style="text-align:center" title="智能交通">智交</th>
+                  <th style="text-align:center" title="移动终端">移端</th>
+                  <th style="text-align:center" title="出入口停车">停车</th>
+                  <th style="text-align:center" title="报警">报警</th>
+                  <th style="text-align:center" title="服务器">服务器</th>
+                  <th style="text-align:center" title="行业软件">行软</th>
+                </tr>
+              </thead>
+              <tbody id="wUserTable"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- ===== 6. 数据导入与管理 ===== -->
       <div data-tab-content="w-import" style="display:none">
-        <div class="info-banner">💡 数据导入支持 Excel / CSV 格式，导入后可新增或更新产品宽度数据。每次导入自动生成记录。</div>
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <button style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">📤 上传文件导入</button>
-          <button class="btn-ghost" onclick="App.exportExcel('page-width')">📥 导出当前数据</button>
-        </div>
+        <!-- 数据源管理 -->
+        <div class="info-banner">💡 数据导入支持 Excel / CSV 格式，导入后可新增或更新产品宽度数据。每次导入自动生成记录，支持多数据源切换查看。</div>
+
         <div class="card">
-          <div class="card-title"><span class="left">📋 导入记录</span><span class="tag">最近10条</span></div>
-          <table class="table">
-            <thead><tr><th>导入时间</th><th>文件名</th><th>数据类型</th><th style="text-align:center">导入行数</th><th style="text-align:center">更新客户</th><th style="text-align:center">新增客户</th><th>操作人</th><th>状态</th></tr></thead>
-            <tbody>
-              <tr><td>2026-07-16 10:32</td><td>产品宽度_7月周报.xlsx</td><td>客户产品覆盖</td><td style="text-align:center">1,247</td><td style="text-align:center;color:var(--primary)">1,180</td><td style="text-align:center;color:var(--success)">67</td><td>王志强</td><td><span class="status-pill status-active">成功</span></td></tr>
-              <tr><td>2026-07-09 14:15</td><td>深圳大区_Q2汇总.csv</td><td>客户产品覆盖</td><td style="text-align:center">1,180</td><td style="text-align:center;color:var(--primary)">1,120</td><td style="text-align:center;color:var(--success)">60</td><td>陈思源</td><td><span class="status-pill status-active">成功</span></td></tr>
-              <tr><td>2026-07-02 09:08</td><td>政府行业组_6月.xlsx</td><td>销售明细</td><td style="text-align:center">437</td><td style="text-align:center;color:var(--primary)">420</td><td style="text-align:center;color:var(--success)">17</td><td>李梦琪</td><td><span class="status-pill status-active">成功</span></td></tr>
-              <tr><td>2026-06-28 16:42</td><td>公安交警组_补录.xlsx</td><td>销售明细</td><td style="text-align:center">374</td><td style="text-align:center;color:var(--primary)">370</td><td style="text-align:center;color:var(--success)">4</td><td>张伟</td><td><span class="status-pill status-paused">部分成功</span></td></tr>
-            </tbody>
-          </table>
+          <div class="card-title">
+            <span class="left">📂 数据源管理</span>
+            <div style="display:flex;gap:8px">
+              <button style="padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer" onclick="document.getElementById('importFileInput').click()">📤 上传文件导入</button>
+              <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.handleFileImport(this)">
+              <button class="btn-ghost" onclick="App.exportExcel('page-width')">📥 导出当前数据</button>
+              <button class="btn-ghost" onclick="App.refreshImportData()">🔄 刷新</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:300px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>数据源名称</th>
+                  <th style="text-align:center">数据类型</th>
+                  <th style="text-align:center">记录数</th>
+                  <th style="text-align:center">更新时间</th>
+                  <th>操作人</th>
+                  <th style="text-align:center">状态</th>
+                  <th style="text-align:center">操作</th>
+                </tr>
+              </thead>
+              <tbody id="wImportSourceTable">
+                <tr>
+                  <td><span class="rn rn1">1</span></td>
+                  <td><strong>规上用户产品宽度_202607</strong></td>
+                  <td style="text-align:center"><span class="badge" style="background:#dbeafe;color:#1e40af">规上用户</span></td>
+                  <td style="text-align:center;font-weight:700">285</td>
+                  <td style="text-align:center">2026-07-16 10:32</td>
+                  <td>王志强</td>
+                  <td style="text-align:center"><span class="status-pill status-active">已启用</span></td>
+                  <td style="text-align:center">
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="App.switchDataSource('user')">查看</button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px">编辑</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rn rn2">2</span></td>
+                  <td><strong>客户规上产品宽度_202607</strong></td>
+                  <td style="text-align:center"><span class="badge" style="background:#dcfce7;color:#166534">规上客户</span></td>
+                  <td style="text-align:center;font-weight:700">888</td>
+                  <td style="text-align:center">2026-07-16 09:15</td>
+                  <td>陈思源</td>
+                  <td style="text-align:center"><span class="status-pill status-active">已启用</span></td>
+                  <td style="text-align:center">
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="App.switchDataSource('cust')">查看</button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px">编辑</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rn rn0">3</span></td>
+                  <td><strong>产品宽度_7月周报</strong></td>
+                  <td style="text-align:center"><span class="badge" style="background:#fef3c7;color:#92400e">客户产品覆盖</span></td>
+                  <td style="text-align:center">1,247</td>
+                  <td style="text-align:center">2026-07-09 14:15</td>
+                  <td>李梦琪</td>
+                  <td style="text-align:center"><span class="status-pill status-paused">已归档</span></td>
+                  <td style="text-align:center">
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="App.switchDataSource('raw')">查看</button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px">恢复</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 数据页面切换 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left" id="w-import-ds-title">📋 规上用户产品宽度</span>
+            <div class="subtabs-inline" id="wImportTabs">
+              <button class="subtab active" data-ds="user" onclick="App.switchDataSource('user')">🏢 规上用户产品宽度</button>
+              <button class="subtab" data-ds="cust" onclick="App.switchDataSource('cust')">👥 客户规上产品宽度</button>
+            </div>
+            <span class="tag" id="w-import-ds-count">285 条记录</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">筛选团队</label>
+              <select id="wImportTeamFilter" onchange="App.renderImportData()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部部门</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索</label>
+              <input type="text" id="wImportSearch" placeholder="搜索名称..." oninput="App.renderImportData()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">排序</label>
+              <select id="wImportSort" onchange="App.renderImportData()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option><option value="name">按名称</option>
+              </select>
+            </div>
+          </div>
+          <div class="scroll-x">
+            <table class="table tight-table" style="min-width:2400px" id="wImportDataTable">
+              <thead id="wImportDataThead"></thead>
+              <tbody id="wImportDataTbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -474,27 +830,40 @@
             <select id="compare-mode" onchange="App.renderCompare()">
               <option value="group">团队 vs 团队</option>
               <option value="mean">团队 vs 全部均值</option>
+              <option value="person">个人 vs 团队均值</option>
             </select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" id="compare-groupA-wrap">
             <label>对比组A</label>
             <select id="compare-groupA" onchange="App.renderCompare()">
               <option value="政府行业组">政府行业组</option>
-              <option value="公安交警组">公安交警组</option>
-              <option value="教育文化组">教育文化组</option>
-              <option value="智能交通组">智能交通组</option>
+              <option value="公安交警行业组">公安交警行业组</option>
+              <option value="工业企业一组">工业企业一组</option>
+              <option value="智慧建筑组">智慧建筑组</option>
             </select>
           </div>
           <div class="filter-group" id="compare-groupB-wrap">
             <label>对比组B</label>
             <select id="compare-groupB" onchange="App.renderCompare()">
-              <option value="公安交警组">公安交警组</option>
+              <option value="公安交警行业组">公安交警行业组</option>
               <option value="政府行业组">政府行业组</option>
-              <option value="教育文化组">教育文化组</option>
-              <option value="智能交通组">智能交通组</option>
+              <option value="工业企业一组">工业企业一组</option>
+              <option value="智慧建筑组">智慧建筑组</option>
             </select>
           </div>
-          <button class="btn-ghost" onclick="App.exportExcel('page-width')">📥 导出对比结果</button>
+          <div class="filter-group" id="compare-person-wrap" style="display:none">
+            <label>选择个人</label>
+            <select id="compare-person" onchange="App.renderCompare()">
+              <option value="">选择CRM账号</option>
+            </select>
+          </div>
+          <div class="filter-group" id="compare-meanB-wrap" style="display:none">
+            <label>对比基准</label>
+            <select id="compare-meanB" onchange="App.renderCompare()">
+              <option value="all">全部部门均值</option>
+            </select>
+          </div>
+          <button class="btn-ghost" onclick="App.exportCompareResult()">📥 导出对比结果</button>
           <div class="right"><span class="level-tag" id="compare-level">对比模式: 团队 vs 团队</span></div>
         </div>
 
@@ -546,7 +915,7 @@
         <div class="ai-box">
           <div class="ai-head"><span class="ai-tag">AI 建议·7行业模板</span><h3>宽度问题诊断 & 行动方案</h3><span class="ai-model">DeepSeek V3</span></div>
           <div class="ai-body">
-            <h4>一、问题诊断</h4><ul><li>王鹏组平均宽度 4.8,低于部门均值 -7.1%,主因门禁/网络未突破</li><li>47 个规上客户未覆盖 IPC,潜在金额 ¥ 2,150万</li><li>智能交通组宽度从 6.2 下滑至 5.4, 需重点关注</li></ul>
+            <h4>一、问题诊断</h4><ul><li>王鹏组平均宽度 4.8,低于部门均值 -7.1%,主因门禁/网络未突破</li><li>47 个规上客户未覆盖 IPC,潜在金额 ¥ 2,150万</li><li>智慧建筑组宽度从 6.2 下滑至 5.4, 需重点关注</li></ul>
             <h4>二、团队建议(政府行业组模板)</h4><ul><li><strong>核心</strong>: IPC/NVR/网络 → 重点推广</li><li><strong>拓展</strong>: 智能计算、平台软件 → 差异化竞争</li><li><strong>行动P1</strong>: 组织"IPC空白客户"专项</li></ul>
             <h4>三、个人建议(王志强)</h4><ul><li>宽度 5.2,处于<strong>领先</strong>位置· 锁定 3 个未覆盖 IPC 规上客户</li></ul>
             <h4>四、产品策略</h4><ul><li>智能计算: 覆盖率仅 5.1%, 优先在政府/教育行业推广</li><li>门禁: 下滑明显, 建议与 NVR 联动打包销售</li></ul>
@@ -582,26 +951,50 @@
         </div>
       </div>
 
-      <!-- 筛选 -->
+      <!-- ===== 筛选: 时间 + 团队/组/个人 三维度 ===== -->
       <div class="filter-bar">
-        <div class="filter-group"><label>时间</label><select><option>2026年7月</option><option>2026年Q2</option></select></div>
-        <div class="filter-group"><label>团队</label><select><option>全部团队</option></select></div>
-        <div class="filter-group"><label>分类</label><select><option>全部</option><option>量价齐升</option><option>量增价跌</option></select></div>
-        <div class="filter-group"><label>视角</label><select><option>售达方</option><option>最终用户</option></select></div>
-        <button class="btn-ghost">重置</button>
+        <div class="filter-group"><label>开始日期</label><input type="date" id="p-date-start" value="2026-07-01" onchange="App.updatePotential()"></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>结束日期</label><input type="date" id="p-date-end" value="2026-07-16" onchange="App.updatePotential()"></div>
+        <div class="filter-group" style="display:flex;gap:4px">
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="App.setQuickDate('p','week')">📅 单周</button>
+          <button class="btn-ghost" style="padding:4px 8px;font-size:11px" onclick="App.setQuickDate('p','biweek')">📅 双周</button>
+        </div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>对比期</label><select onchange="App.updatePotential()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-potential')"><option value="all">全部部门</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-potential')"><option value="all">全部小组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-potential')"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost" onclick="App.resetFilters('page-potential')">🔄 重置</button>
         <div class="right"><span style="font-size:11px;color:var(--text-sub)">基线: 2025年7月</span></div>
       </div>
 
       <!-- ===== 1. 总览分析 (整合自乔梦杰经营概览) ===== -->
       <div data-tab-content="p-overview">
-        <!-- ===== 5 项 KPI 卡片 (乔梦杰版) ===== -->
-        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
+        <!-- ===== KPI 卡片行 ===== -->
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
           <div class="kpi-card k-red"><div class="kpi-label">💰 总销售额</div><div class="kpi-value" id="p-kpi-sales">¥ 9,830万</div><div class="kpi-sub">万元 · 同期 <span id="p-kpi-sales-prev">7,650万</span></div></div>
           <div class="kpi-card k-green"><div class="kpi-label">🚀 潜力产品数</div><div class="kpi-value" id="p-kpi-prodcount">12</div><div class="kpi-sub">共 12 个潜力产品</div></div>
           <div class="kpi-card k-purple"><div class="kpi-label">👥 客户数</div><div class="kpi-value" id="p-kpi-custcount">386</div><div class="kpi-sub">个 · 同期 312 个</div></div>
           <div class="kpi-card k-orange"><div class="kpi-label">💵 客单价</div><div class="kpi-value" id="p-kpi-avgprice">25.5</div><div class="kpi-sub">万元 / 客户</div></div>
           <div class="kpi-card"><div class="kpi-label">🏢 二级部门数</div><div class="kpi-value" id="p-kpi-deptcount">4</div><div class="kpi-sub">个 · 政府/公安/教育/智能交通</div></div>
         </div>
+
+        <!-- 部门排名 + 历史趋势 同行 -->
+        <div class="grid2">
+        <div class="panel">
+            <div class="panel-hd"><span class="ph-title">潜力产品销售额 — 部门排名</span><span class="badge bg-blue" style="cursor:pointer" onclick="document.querySelector('[data-tab=\"p-team\"]').click()">查看团队 →</span></div>
+            <div class="panel-bd nopad"><div class="tbl-wrap"><table style="width:100%;table-layout:auto"><thead><tr><th style="width:36px">#</th><th>部门</th><th style="text-align:right">销售额(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖率</th></tr></thead><tbody id="pOvDeptRank"></tbody></table></div></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">📈 潜力产品历史趋势 (近12月)</span><span class="tag">月销售额</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-trend"></canvas></div>
+        </div>
+        </div>
+
 
         <!-- ===== 销售量构成 + 产品同比趋势 (乔梦杰版) ===== -->
         <div class="grid2" style="margin-top:16px">
@@ -627,39 +1020,6 @@
           </div>
         </div>
 
-        <!-- ===== 团队小组 × 潜力产品 + 本期 vs 同期 对照表 (乔梦杰版) ===== -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">🔢 团队小组 × 潜力产品 + 本期 vs 同期 对照表</span><span class="tag">hover=同比%</span></div>
-          <div class="table-wrap" style="max-height:380px">
-            <table class="tight-table" id="p-team-prod-table">
-              <thead>
-                <tr>
-                  <th style="text-align:left;min-width:140px">团队小组 \ 潜力产品</th>
-                  <th>NVR</th><th>智能计算</th><th>IPC</th><th>平台软件</th><th>门禁</th><th>智能交通</th><th>存储</th><th>LCD与解码</th><th>本期合计</th><th>同期合计</th><th>整体同比</th>
-                </tr>
-              </thead>
-              <tbody id="p-team-prod-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- ===== 原潜力产品 TOP 10 (保留) ===== -->
-        <div class="grid2" style="margin-top:16px">
-          <div class="card">
-            <div class="card-title"><span class="left">🏆 潜力产品 TOP 10 排名</span><span class="tag">销售额</span></div>
-            <div class="table-wrap" style="max-height:380px">
-              <table class="table">
-                <thead><tr><th>#</th><th>产品</th><th>销售额</th><th>同比</th><th>数量同比</th><th>分类</th></tr></thead>
-                <tbody id="p-table-top10"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title"><span class="left">📊 潜力产品四象限分布 (散点图)</span><span class="tag">点击产品查看明细</span></div>
-            <div class="chart-wrap tall"><canvas id="chart-quadrant"></canvas></div>
-          </div>
-        </div>
-
         <!-- 问题与建议 -->
         <div class="card" style="margin-top:16px;border-left:4px solid var(--danger)">
           <div class="card-title"><span class="left">⚠ 问题诊断与改进建议</span><span class="tag">基于当前数据自动生成</span></div>
@@ -676,9 +1036,9 @@
               </tr>
               <tr>
                 <td><span class="rn rn2">2</span></td>
-                <td><strong>智能交通 -11.2%，智能交通组拖累明显</strong> — 团队维度衰退</td>
+                <td><strong>智能交通 -11.2%，智慧建筑组拖累明显</strong> — 团队维度衰退</td>
                 <td><span class="badge" style="background:#fee2e2;color:#dc2626">🔴 严重</span></td>
-                <td>智能交通组 · 850万</td>
+                <td>智慧建筑组 · 850万</td>
                 <td>与技术中心联动挖掘新应用场景，目标新增 3 个客户，激活存量需求</td>
                 <td><span class="badge" style="background:#fef3c7;color:#92400e">P1</span></td>
               </tr>
@@ -703,16 +1063,11 @@
                 <td><strong>智能计算仅政府行业组覆盖</strong> — 其他3个团队为空白</td>
                 <td><span class="badge" style="background:#d1fae5;color:#065f46">🔵 关注</span></td>
                 <td>3 个团队</td>
-                <td>总结陈伟杰 +85% 成功经验，向公安交警组、教育文化组、智能交通组推广</td>
+                <td>总结陈伟杰 +85% 成功经验，向公安交警行业组、工业企业一组、智慧建筑组推广</td>
                 <td><span class="badge" style="background:#e5e7eb;color:#6b7280">P3</span></td>
               </tr>
             </tbody>
           </table>
-        </div>
-
-        <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">📈 潜力产品历史趋势 (近12月)</span><span class="tag">月销售额</span></div>
-          <div class="chart-wrap tall"><canvas id="chart-trend"></canvas></div>
         </div>
 
         <div class="ai-box" style="margin-top:14px">
@@ -732,17 +1087,22 @@
           <div class="card-title"><span class="left">🏆 潜力产品 TOP 10 排名</span><span class="tag">按销售额降序</span></div>
           <table class="table">
             <thead><tr><th>#</th><th>产品</th><th>销售额(万)</th><th>金额同比</th><th>数量同比</th><th>分类</th><th>主要贡献客户</th></tr></thead>
-            <tbody>
-              <tr><td><span class="rn rn1">1</span></td><td><strong>NVR</strong></td><td style="font-weight:700">3,210</td><td><span class="badge b-up">+58.3%</span></td><td><span class="delta-up">+42.1%</span></td><td><span class="badge b-up">量价齐升</span></td><td>深圳市政府、宝安公安局</td></tr>
-              <tr><td><span class="rn rn2">2</span></td><td><strong>智能计算</strong></td><td style="font-weight:700">2,180</td><td><span class="badge b-new">新增</span></td><td><span class="delta-up">+100%</span></td><td><span class="badge b-new">新增</span></td><td>深圳市政府、罗湖教育局</td></tr>
-              <tr><td><span class="rn rn3">3</span></td><td>IPC</td><td>1,890</td><td><span class="badge b-up">+22.4%</span></td><td><span class="delta-up">+15.2%</span></td><td><span class="badge b-up">量价齐升</span></td><td>深圳市政府、宝安公安局</td></tr>
-              <tr><td><span class="rn rn0">4</span></td><td>平台软件</td><td>1,420</td><td><span class="badge b-up">+18.7%</span></td><td><span class="delta-down">-3.2%</span></td><td><span class="badge b-warn">量跌价增</span></td><td>宝安公安局</td></tr>
-              <tr><td><span class="rn rn0">5</span></td><td>门禁</td><td>980</td><td><span class="badge b-down">-23.5%</span></td><td><span class="delta-down">-18.6%</span></td><td><span class="badge b-down">量价齐跌</span></td><td>宝安公安局、招商17</td></tr>
-              <tr><td><span class="rn rn0">6</span></td><td>智能交通</td><td>850</td><td><span class="badge b-down">-11.2%</span></td><td><span class="delta-down">-5.4%</span></td><td><span class="badge b-down">量价齐跌</span></td><td>宝安公安局</td></tr>
-              <tr><td><span class="rn rn0">7</span></td><td>存储</td><td>720</td><td><span class="badge b-up">+8.4%</span></td><td><span class="delta-up">+12.3%</span></td><td><span class="badge b-up">量价齐升</span></td><td>沙头、彭城12</td></tr>
-              <tr><td><span class="rn rn0">8</span></td><td>LCD与解码</td><td>610</td><td><span class="badge b-up">+5.2%</span></td><td><span class="delta-up">+8.7%</span></td><td><span class="badge b-up">量价齐升</span></td><td>彭城12</td></tr>
-            </tbody>
+            <tbody id="p-product-rank-body"></tbody>
           </table>
+        </div>
+
+        <!-- 销售人员潜力产品排名（乔梦杰版） -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">👥 销售人员潜力产品排名</span>
+            <span class="tag">潜力产品覆盖能力</span>
+          </div>
+          <div class="scroll-x">
+            <table class="table tight-table" id="p-seller-rank" style="min-width:900px">
+              <thead><tr><th>排名</th><th>销售员</th><th style="text-align:center">销售额(万)</th><th style="text-align:center">同期(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖/总产品</th><th>覆盖产品 · 未覆盖产品</th></tr></thead>
+              <tbody id="p-seller-rank-body"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -774,9 +1134,9 @@
             <thead><tr><th>排名</th><th>团队</th><th style="text-align:center">潜力产品销售额</th><th style="text-align:center">占总比</th><th style="text-align:center">量价齐升数</th><th style="text-align:center">量价齐跌数</th><th>同比</th><th>核心产品</th></tr></thead>
             <tbody>
               <tr><td><span class="rn rn1">1</span></td><td><strong>政府行业组</strong></td><td style="text-align:center;font-weight:700;color:var(--primary)">¥ 3,932万</td><td style="text-align:center">40.0%</td><td style="text-align:center;color:var(--success)">5</td><td style="text-align:center;color:var(--danger)">0</td><td><span class="badge b-up">+32.5%</span></td><td>NVR、智能计算、IPC</td></tr>
-              <tr><td><span class="rn rn2">2</span></td><td>公安交警组</td><td style="text-align:center">¥ 2,752万</td><td style="text-align:center">28.0%</td><td style="text-align:center;color:var(--success)">3</td><td style="text-align:center;color:var(--danger)">1</td><td><span class="badge b-up">+18.2%</span></td><td>NVR、IPC、智能交通</td></tr>
-              <tr><td><span class="rn rn3">3</span></td><td>教育文化组</td><td style="text-align:center">¥ 1,769万</td><td style="text-align:center">18.0%</td><td style="text-align:center;color:var(--success)">2</td><td style="text-align:center;color:var(--danger)">1</td><td><span class="badge b-warn">+5.8%</span></td><td>NVR、LCD、存储</td></tr>
-              <tr><td><span class="rn rn0">4</span></td><td>智能交通组</td><td style="text-align:center">¥ 1,376万</td><td style="text-align:center">14.0%</td><td style="text-align:center;color:var(--success)">1</td><td style="text-align:center;color:var(--danger)">2</td><td><span class="badge b-down">-8.5%</span></td><td>智能交通、专网摄像机</td></tr>
+              <tr><td><span class="rn rn2">2</span></td><td>公安交警行业组</td><td style="text-align:center">¥ 2,752万</td><td style="text-align:center">28.0%</td><td style="text-align:center;color:var(--success)">3</td><td style="text-align:center;color:var(--danger)">1</td><td><span class="badge b-up">+18.2%</span></td><td>NVR、IPC、智能交通</td></tr>
+              <tr><td><span class="rn rn3">3</span></td><td>工业企业一组</td><td style="text-align:center">¥ 1,769万</td><td style="text-align:center">18.0%</td><td style="text-align:center;color:var(--success)">2</td><td style="text-align:center;color:var(--danger)">1</td><td><span class="badge b-warn">+5.8%</span></td><td>NVR、LCD、存储</td></tr>
+              <tr><td><span class="rn rn0">4</span></td><td>智慧建筑组</td><td style="text-align:center">¥ 1,376万</td><td style="text-align:center">14.0%</td><td style="text-align:center;color:var(--success)">1</td><td style="text-align:center;color:var(--danger)">2</td><td><span class="badge b-down">-8.5%</span></td><td>智能交通、专网摄像机</td></tr>
             </tbody>
           </table>
         </div>
@@ -787,7 +1147,7 @@
             <tbody>
               <tr><td><span class="rn rn1">1</span></td><td>陈思源</td><td>政府行业组</td><td>¥ 1,850万</td><td><span class="badge b-up">+35%</span></td><td>18.8%</td><td>NVR、智能计算</td></tr>
               <tr><td><span class="rn rn2">2</span></td><td>王志强</td><td>政府行业组</td><td>¥ 1,420万</td><td><span class="badge b-up">+22%</span></td><td>14.4%</td><td>NVR、IPC</td></tr>
-              <tr><td><span class="rn rn3">3</span></td><td>张伟</td><td>公安交警组</td><td>¥ 980万</td><td><span class="badge b-up">+18%</span></td><td>10.0%</td><td>IPC、智能交通</td></tr>
+              <tr><td><span class="rn rn3">3</span></td><td>张伟</td><td>公安交警行业组</td><td>¥ 980万</td><td><span class="badge b-up">+18%</span></td><td>10.0%</td><td>IPC、智能交通</td></tr>
               <tr><td><span class="rn rn0">4</span></td><td>陈伟杰</td><td>政府行业组</td><td>¥ 850万</td><td><span class="badge b-up">+85%</span></td><td>8.6%</td><td>智能计算</td></tr>
               <tr><td><span class="rn rn0">5</span></td><td>李梦琪</td><td>政府行业组</td><td>¥ 720万</td><td><span class="badge b-up">+12%</span></td><td>7.3%</td><td>NVR、LCD</td></tr>
             </tbody>
@@ -814,6 +1174,23 @@
             </thead>
             <tbody id="p-sales-potential-rank-body"></tbody>
           </table>
+        </div>
+
+        <!-- 产品风险分布 & 团队概况 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">⚠️ 产品风险分布 & 团队概况</span></div>
+          <div class="card-bd" id="pTeamRiskPanel"></div>
+        </div>
+
+        <!-- 与团队均值的差距分析 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">📏 与团队均值的差距分析</span>
+            <span class="tag">绿=超均值 红=低于均值</span>
+          </div>
+          <div class="scroll-table">
+            <table class="heatmap-table" id="p-team-gap-detail"></table>
+          </div>
         </div>
       </div>
 
@@ -853,6 +1230,36 @@
             <div class="chart-wrap"><canvas id="chart-industry"></canvas></div>
           </div>
         </div>
+
+        <!-- 客户交易的用户分析 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">📊 客户交易的用户分析</span>
+            <span class="tag" id="p-cust-user-count">客户 × 用户</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索客户</label>
+              <input type="text" id="pCustUserSearch" placeholder="客户名称..." oninput="App.renderCustUserLink()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
+            </div>
+            <span style="font-size:11px;color:#94a3b8;margin-left:auto">展示每个售达方客户经常交易的用户及潜力产品明细</span>
+          </div>
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>售达方（客户）</th>
+                  <th style="text-align:center">交易用户数</th>
+                  <th style="text-align:center">潜力产品数</th>
+                  <th style="text-align:center">总销售额(万)</th>
+                  <th>交易用户 · 产品 · 金额</th>
+                </tr>
+              </thead>
+              <tbody id="pCustUserBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- ===== 5. 用户维度 ===== -->
@@ -882,6 +1289,36 @@
               <tr><td>南山区教育局</td><td style="text-align:center">2</td><td style="text-align:right">380</td><td>罗兴华</td></tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- 用户背后的客户关系 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">🔗 用户背后的客户关系</span>
+            <span class="tag" id="p-user-cust-count">用户 × 客户</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索用户</label>
+              <input type="text" id="pUserCustSearch" placeholder="用户名称..." oninput="App.renderUserCustLink()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
+            </div>
+            <span style="font-size:11px;color:#94a3b8;margin-left:auto">展示每个最终用户背后的售达方客户及潜力产品贡献</span>
+          </div>
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>最终用户</th>
+                  <th style="text-align:center">关联客户数</th>
+                  <th style="text-align:center">潜力产品数</th>
+                  <th style="text-align:center">总贡献额(万)</th>
+                  <th>关联客户 · 产品 · 金额</th>
+                </tr>
+              </thead>
+              <tbody id="pUserCustBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -944,22 +1381,105 @@
 
       <!-- ===== 7. 数据导入与管理 ===== -->
       <div data-tab-content="p-import" style="display:none">
-        <div class="info-banner">💡 数据导入支持 Excel / CSV 格式，导入后可新增或更新潜力产品数据。每次导入自动生成记录，支持按导入批次追溯。</div>
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <button style="padding:8px 16px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">📤 上传文件导入</button>
-          <button class="btn-ghost" onclick="App.exportExcel('page-potential')">📥 导出当前数据</button>
-        </div>
+        <div class="info-banner">💡 数据导入支持 Excel / CSV 格式，导入后可新增或更新潜力产品数据。每次导入自动生成记录，支持多数据源切换查看。</div>
+
+        <!-- 数据源管理 -->
         <div class="card">
-          <div class="card-title"><span class="left">📋 导入记录</span><span class="tag">最近10条</span></div>
-          <table class="table">
-            <thead><tr><th>导入时间</th><th>文件名</th><th>数据类型</th><th style="text-align:center">导入行数</th><th style="text-align:center">更新记录</th><th style="text-align:center">新增记录</th><th>操作人</th><th>状态</th></tr></thead>
-            <tbody>
-              <tr><td>2026-07-16 10:45</td><td>潜力产品_7月汇总.xlsx</td><td>产品销售明细</td><td style="text-align:center">856</td><td style="text-align:center;color:var(--primary)">820</td><td style="text-align:center;color:var(--success)">36</td><td>王志强</td><td><span class="status-pill status-active">成功</span></td></tr>
-              <tr><td>2026-07-09 15:20</td><td>潜力产品_Q2汇总.csv</td><td>产品销售明细</td><td style="text-align:center">820</td><td style="text-align:center;color:var(--primary)">795</td><td style="text-align:center;color:var(--success)">25</td><td>陈思源</td><td><span class="status-pill status-active">成功</span></td></tr>
-              <tr><td>2026-07-02 11:08</td><td>政府行业组_潜力产品.xlsx</td><td>团队销售明细</td><td style="text-align:center">328</td><td style="text-align:center;color:var(--primary)">310</td><td style="text-align:center;color:var(--success)">18</td><td>李梦琪</td><td><span class="status-pill status-active">成功</span></td></tr>
-              <tr><td>2026-06-28 17:15</td><td>公安交警组_6月补录.xlsx</td><td>团队销售明细</td><td style="text-align:center">245</td><td style="text-align:center;color:var(--primary)">242</td><td style="text-align:center;color:var(--success)">3</td><td>张伟</td><td><span class="status-pill status-paused">部分成功</span></td></tr>
-            </tbody>
-          </table>
+          <div class="card-title">
+            <span class="left">📂 数据源管理</span>
+            <div style="display:flex;gap:8px">
+              <button style="padding:6px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer" onclick="document.getElementById('pImportFileInput').click()">📤 上传文件导入</button>
+              <input type="file" id="pImportFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="App.handleFileImport(this)">
+              <button class="btn-ghost" onclick="App.exportExcel('page-potential')">📥 导出当前数据</button>
+              <button class="btn-ghost" onclick="App.ImportPotential.render()">🔄 刷新</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:300px">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width:36px">#</th>
+                  <th>数据源名称</th>
+                  <th style="text-align:center">数据类型</th>
+                  <th style="text-align:center">记录数</th>
+                  <th style="text-align:center">更新时间</th>
+                  <th>操作人</th>
+                  <th style="text-align:center">状态</th>
+                  <th style="text-align:center">操作</th>
+                </tr>
+              </thead>
+              <tbody id="pImportSourceTable">
+                <tr>
+                  <td><span class="rn rn1">1</span></td>
+                  <td><strong>潜力产品-客户_202607</strong></td>
+                  <td style="text-align:center"><span class="badge" style="background:#dbeafe;color:#1e40af">潜力产品-客户</span></td>
+                  <td style="text-align:center;font-weight:700">346</td>
+                  <td style="text-align:center">2026-07-16 10:45</td>
+                  <td>王志强</td>
+                  <td style="text-align:center"><span class="status-pill status-active">已启用</span></td>
+                  <td style="text-align:center">
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="App.ImportPotential.switchDS('cust')">查看</button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px">编辑</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><span class="rn rn2">2</span></td>
+                  <td><strong>潜力产品-用户_202607</strong></td>
+                  <td style="text-align:center"><span class="badge" style="background:#dcfce7;color:#166534">潜力产品-用户</span></td>
+                  <td style="text-align:center;font-weight:700">78</td>
+                  <td style="text-align:center">2026-07-16 09:30</td>
+                  <td>陈思源</td>
+                  <td style="text-align:center"><span class="status-pill status-active">已启用</span></td>
+                  <td style="text-align:center">
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px" onclick="App.ImportPotential.switchDS('user')">查看</button>
+                    <button class="btn-ghost" style="padding:3px 8px;font-size:11px">编辑</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 数据页面切换 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left" id="p-import-ds-title">📋 潜力产品-客户</span>
+            <div class="subtabs-inline" id="pImportTabs">
+              <button class="subtab active" data-pds="cust" onclick="App.ImportPotential.switchDS('cust')">👥 潜力产品-客户</button>
+              <button class="subtab" data-pds="user" onclick="App.ImportPotential.switchDS('user')">🏢 潜力产品-用户</button>
+            </div>
+            <span class="tag" id="p-import-ds-count">20 条记录</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">筛选部门</label>
+              <select id="pImportDeptFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部部门</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">潜力产品</label>
+              <select id="pImportProdFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部产品</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索</label>
+              <input type="text" id="pImportSearch" placeholder="搜索名称..." oninput="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">排序</label>
+              <select id="pImportSort" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="sales_desc">销售额降序</option><option value="sales_asc">销售额升序</option><option value="name">按名称</option>
+              </select>
+            </div>
+          </div>
+          <div class="scroll-x">
+            <table class="table tight-table" style="min-width:1800px" id="pImportDataTable">
+              <thead id="pImportDataThead"></thead>
+              <tbody id="pImportDataTbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -969,8 +1489,8 @@
           <div class="ai-head"><span class="ai-tag">AI 智能分析</span><h3>潜力产品诊断 & 策略建议</h3><span class="ai-model">DeepSeek V3</span></div>
           <div class="ai-body">
             <h4>一、现状概述</h4><ul><li>潜力产品 ¥ 9,830万, 同比 <strong style="color:#dc2626">+28.4%</strong>, 占部门 34.6%</li><li>量价齐升 5 个产品, 贡献 ¥ 5,200万</li></ul>
-            <h4>二、风险预警</h4><ul><li>门禁 -23.5%, 连续3月量价齐跌, 市场份额加速流失</li><li>智能交通 -11.2%, 智能交通组拖累明显</li><li>退步5人(黄燕滨等) 合计流失 ¥ 1,250万</li></ul>
-            <h4>三、策略建议</h4><ul><li><strong>P1 门禁振兴</strong>: 门禁+NVR联动打包, TOP 10客户专项突破, 目标回升 +15%</li><li><strong>P2 智能交通激活</strong>: 与技术中心联动挖掘新场景, 目标新增 3 个客户</li><li><strong>P3 智能计算复制</strong>: 总结陈伟杰 +85% 经验, 向公安交警组和教育文化组推广</li><li><strong>P4 人才关注</strong>: 对退步5人定向辅导, 重点跟踪黄燕滨客户流失</li></ul>
+            <h4>二、风险预警</h4><ul><li>门禁 -23.5%, 连续3月量价齐跌, 市场份额加速流失</li><li>智能交通 -11.2%, 智慧建筑组拖累明显</li><li>退步5人(黄燕滨等) 合计流失 ¥ 1,250万</li></ul>
+            <h4>三、策略建议</h4><ul><li><strong>P1 门禁振兴</strong>: 门禁+NVR联动打包, TOP 10客户专项突破, 目标回升 +15%</li><li><strong>P2 智能交通激活</strong>: 与技术中心联动挖掘新场景, 目标新增 3 个客户</li><li><strong>P3 智能计算复制</strong>: 总结陈伟杰 +85% 经验, 向公安交警行业组和工业企业一组推广</li><li><strong>P4 人才关注</strong>: 对退步5人定向辅导, 重点跟踪黄燕滨客户流失</li></ul>
           </div>
           <div class="ai-actions">
             <button class="ai-btn primary">🔄 重新生成</button><button class="ai-btn">📋 复制</button>
@@ -995,6 +1515,7 @@
           <button class="subtab" data-tab="a-params">⚙ 业务参数</button>
           <button class="subtab" data-tab="a-audit">📋 审计日志</button>
           <button class="subtab" data-tab="a-tenant">🏢 租户设置</button>
+          <button class="subtab" data-tab="a-backup">💾 数据备份与导出</button>
         </div>
         <div class="page-actions">
           <button style="padding:7px 14px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">+ 新建账号</button>
@@ -1017,7 +1538,7 @@
                 <tr><td><strong>王志强</strong></td><td>wangzq@hxlc.com</td><td><span class="badge" style="background:#f59e0b;color:#fff">部门负责人</span></td><td>销售一部</td><td>—</td><td>本部门</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
                 <tr><td>陈思源</td><td>chensy@hxlc.com</td><td><span class="badge" style="background:#8b5cf6;color:#fff">团队主管</span></td><td>销售一部</td><td>政府行业组</td><td>本团队</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
                 <tr><td>李梦琪</td><td>limq@hxlc.com</td><td><span class="badge" style="background:#2563eb;color:#fff">一线销售</span></td><td>销售一部</td><td>政府行业组</td><td>本人</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-flat">未配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
-                <tr><td>张伟</td><td>zhangw@hxlc.com</td><td><span class="badge" style="background:#2563eb;color:#fff">一线销售</span></td><td>销售一部</td><td>公安交警组</td><td>本人</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
+                <tr><td>张伟</td><td>zhangw@hxlc.com</td><td><span class="badge" style="background:#2563eb;color:#fff">一线销售</span></td><td>销售一部</td><td>公安交警行业组</td><td>本人</td><td><span class="status-pill status-active">活跃</span></td><td>今日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
                 <tr><td>刘洋</td><td>liuy@hxlc.com</td><td><span class="badge" style="background:#16a34a;color:#fff">分析师</span></td><td>运营中心</td><td>—</td><td>本租户(只读)</td><td><span class="status-pill status-active">活跃</span></td><td>昨日</td><td><span class="badge b-info">已配</span></td><td style="font-size:11px"><a style="color:var(--primary);cursor:pointer">编辑</a> <a style="color:var(--primary);cursor:pointer;margin:0 4px">密码</a> <a style="color:var(--danger);cursor:pointer">停用</a></td></tr>
               </tbody>
             </table>
@@ -1025,21 +1546,109 @@
         </div>
       </div>
 
-      <!-- ===== Tab: 占位内容 ===== -->
+      <!-- ===== Tab: 角色权限 ===== -->
       <div data-tab-content="a-roles" style="display:none">
-        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">角色权限管理将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持自定义角色、功能权限、数据范围配置</div></div>
+        <div class="card">
+          <div class="card-title"><span class="left">🔐 角色权限管理</span><span class="tag">共 6 个角色</span></div>
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead><tr><th>角色</th><th>名称</th><th style="text-align:center">数据总览</th><th style="text-align:center">产品宽度</th><th style="text-align:center">潜力产品</th><th style="text-align:center">账号管理</th><th style="text-align:center">用户管理</th><th style="text-align:center">角色权限</th><th style="text-align:center">产品字典</th><th style="text-align:center">业务参数</th><th style="text-align:center">审计日志</th><th style="text-align:center">数据备份</th><th style="text-align:center">数据导出</th><th>数据范围</th></tr></thead>
+              <tbody id="aRolesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      <!-- ===== Tab: 产品字典 ===== -->
       <div data-tab-content="a-products" style="display:none">
-        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">产品字典管理将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持 27 品类产品的增删改查维护</div></div>
+        <div class="filter-bar">
+          <div class="filter-group"><label>搜索</label><input type="text" id="aProdSearch" placeholder="产品名称/别名" oninput="App.renderProductDict()"></div>
+          <div class="filter-group"><label>分类</label><select id="aProdCatFilter" onchange="App.renderProductDict()"><option value="">全部</option><option value="前端">前端</option><option value="后端">后端</option><option value="显示">显示</option><option value="软件">软件</option><option value="网络">网络</option><option value="创新">创新</option></select></div>
+          <div class="filter-group"><label>潜力产品</label><select id="aProdPotFilter" onchange="App.renderProductDict()"><option value="">全部</option><option value="1">是（潜力产品）</option><option value="0">否（常规产品）</option></select></div>
+          <button class="btn-ghost" onclick="App.showProductForm()">＋ 新增产品</button>
+          <span class="right" style="font-size:12px;color:var(--text-muted)" id="aProdCount">29 个产品</span>
+        </div>
+        <div class="card">
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead><tr><th style="width:50px">#</th><th>产品名称</th><th>别名</th><th>分类</th><th style="text-align:center">排序</th><th style="text-align:center">潜力产品</th><th style="width:120px">操作</th></tr></thead>
+              <tbody id="aProdTableBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      <!-- ===== Tab: 业务参数 ===== -->
       <div data-tab-content="a-params" style="display:none">
-        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">业务参数配置将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持规上标准、潜力产品分类等参数设置</div></div>
+        <div class="card">
+          <div class="card-title"><span class="left">⚙ 业务参数配置</span><span class="tag">全局生效</span></div>
+          <div id="aParamsContainer" style="padding:8px 0"></div>
+          <div style="padding:16px;border-top:1px solid #e5e7eb;text-align:right">
+            <button style="padding:8px 24px;background:var(--primary);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500" onclick="App.saveBusinessParams()">💾 保存配置</button>
+          </div>
+        </div>
       </div>
+
+      <!-- ===== Tab: 审计日志 ===== -->
       <div data-tab-content="a-audit" style="display:none">
-        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">审计日志将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持操作日志查询、数据变更追溯</div></div>
+        <div class="filter-bar">
+          <div class="filter-group"><label>操作用户</label><input type="text" id="aAuditUser" placeholder="用户名" oninput="App.renderAuditLog()"></div>
+          <div class="filter-group"><label>操作类型</label><select id="aAuditAction" onchange="App.renderAuditLog()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="查看页面">查看页面</option><option value="数据导出">数据导出</option><option value="数据导入">数据导入</option><option value="新增用户">新增用户</option><option value="修改用户">修改用户</option><option value="修改密码">修改密码</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="系统配置">系统配置</option></select></div>
+          <div class="filter-group"><label>开始日期</label><input type="date" id="aAuditDateStart" value="2026-07-01" onchange="App.renderAuditLog()"></div>
+          <span class="filter-sep">→</span>
+          <div class="filter-group"><label>结束日期</label><input type="date" id="aAuditDateEnd" value="2026-07-21" onchange="App.renderAuditLog()"></div>
+          <button class="btn-ghost" onclick="App.exportAuditLog()">📥 导出日志</button>
+          <span class="right" style="font-size:12px;color:var(--text-muted)" id="aAuditCount">20 条记录</span>
+        </div>
+        <div class="card">
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead><tr><th style="width:140px">时间</th><th>操作用户</th><th>操作类型</th><th>操作对象</th><th>详情</th><th style="width:110px">IP地址</th></tr></thead>
+              <tbody id="aAuditTableBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      <!-- ===== Tab: 租户设置 ===== -->
       <div data-tab-content="a-tenant" style="display:none">
-        <div class="card" style="text-align:center;padding:60px 20px"><div style="font-size:48px;margin-bottom:16px">🚧</div><div style="font-size:16px;font-weight:600;color:var(--text-sub)">租户设置将在后续版本中开放</div><div style="font-size:12px;color:var(--text-muted);margin-top:8px">支持多租户隔离、企业信息配置</div></div>
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title"><span class="left">🏢 租户基本信息</span></div>
+            <div id="aTenantInfo" style="padding:16px"></div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">📊 组织架构概览</span><span class="tag">7 个部门</span></div>
+            <div class="table-wrap" style="max-height:380px">
+              <table class="table">
+                <thead><tr><th>部门名称</th><th>负责人</th><th style="text-align:center">下属小组</th><th style="text-align:center">人员数</th><th>职责说明</th></tr></thead>
+                <tbody id="aTenantOrgBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ===== Tab: 数据备份与导出 ===== -->
+      <div data-tab-content="a-backup" style="display:none">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title"><span class="left">📥 数据导出</span></div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('width'), '_blank')" style="justify-content:flex-start;padding:10px 14px">📊 导出产品宽度数据 (Excel)</button>
+              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('potential'), '_blank')" style="justify-content:flex-start;padding:10px 14px">🚀 导出潜力产品数据 (Excel)</button>
+              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('audit'), '_blank')" style="justify-content:flex-start;padding:10px 14px">📋 导出审计日志 (Excel)</button>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">提示: 需要有管理员权限；后端服务需在运行中</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">💾 数据备份</span></div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+              <button class="btn-ghost" onclick="App.createBackup()" style="justify-content:flex-start;padding:10px 14px;background:#f0fdf4">➕ 创建全量备份</button>
+              <button class="btn-ghost" onclick="App.loadBackupList()" style="justify-content:flex-start;padding:10px 14px">📋 查看备份列表</button>
+              <div id="backupListArea" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1049,7 +1658,13 @@
 <!-- 客户/用户悬浮详情 Tooltip -->
 <div id="custTooltip"></div>
 
+<!-- 通用模态框 -->
+<div class="modal-overlay" id="appModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;justify-content:center;align-items:flex-start;padding-top:60px">
+  <div class="modal-box" id="appModalBox" style="background:white;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-width:800px;width:90%;max-height:80vh;overflow:auto;padding:24px"></div>
+</div>
+
 <script src="js/data.js"></script>
+<script src="js/api.js"></script>
 <script src="js/app.js"></script>
 <script src="js/charts.js"></script>
 
