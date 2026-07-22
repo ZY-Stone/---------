@@ -108,42 +108,6 @@ App.applyRoleUI = function(role, displayName, dept, group) {
   }
 };
 
-// 检查 sessionStorage 自动登录
-(function() {
-  var saved = sessionStorage.getItem('pa_login');
-  if (saved) {
-    try {
-      var data = JSON.parse(saved);
-      // 有后端 token：优先用后端数据
-      if (data.token) {
-        App.API.restoreToken();
-        App.loggedInUser = {
-          id: data.id, username: data.username, name: data.name, role: data.role,
-          dept: data.dept || '-', group: data.group || '-'
-        };
-        var overlay = document.getElementById('loginOverlay');
-        if (overlay) overlay.classList.add('hidden');
-        App.applyRoleUI(data.role, data.name, data.dept, data.group);
-        App.initAll();
-        return;
-      }
-      // 无 token：用本地 Mock
-      var user = App.MOCK_USERS.find(function(u) { return u.username === data.username; });
-      if (user) {
-        App.loggedInUser = user;
-        var overlay2 = document.getElementById('loginOverlay');
-        if (overlay2) overlay2.classList.add('hidden');
-        App.applyRoleUI(user.role, user.name, user.dept, user.group);
-        App.initAll();
-        return;
-      }
-    } catch(e) {}
-  }
-  // 未登录: 显示登录页
-  var overlay = document.getElementById('loginOverlay');
-  if (overlay) overlay.classList.remove('hidden');
-})();
-
 // ===== SPA 页面路由 =====
 App.showPage = function(p) {
   document.querySelectorAll('.page').forEach(function(el) { el.classList.remove('active'); });
@@ -156,6 +120,16 @@ App.showPage = function(p) {
   if (nav) nav.classList.add('active');
 
   window.scrollTo(0, 0);
+
+  // 页面切换后，触发该页面所有图表的 resize（解决隐藏容器中 Chart.js 渲染尺寸为 0 的问题）
+  setTimeout(function() {
+    Object.keys(App.charts).forEach(function(key) {
+      var chart = App.charts[key];
+      if (chart && typeof chart.resize === 'function') {
+        try { chart.resize(); } catch(e) {}
+      }
+    });
+  }, 100);
 };
 
 // ===== 侧边栏导航绑定 =====
@@ -364,16 +338,26 @@ App.populatePersonDropdown = function(pageId) {
 };
 
 // ===== 筛选变更回调（级联刷新筛选下拉 + 数据） =====
+// 强制约束：换部门 → 小组+人员重置为all；换小组 → 人员重置为all
 App.onDeptChange = function(pageId) {
+  // 强制重置下层筛选
+  var grpSel = document.querySelector('#' + pageId + ' .filter-group-sel');
+  var personSel = document.querySelector('#' + pageId + ' .filter-person');
+  if (grpSel) grpSel.value = 'all';
+  if (personSel) personSel.value = 'all';
   App.populateGrpDropdown(pageId);
   App.populatePersonDropdown(pageId);
   App.refreshPageData(pageId);
 };
 App.onGrpChange = function(pageId) {
+  // 强制重置下层筛选
+  var personSel = document.querySelector('#' + pageId + ' .filter-person');
+  if (personSel) personSel.value = 'all';
   App.populatePersonDropdown(pageId);
   App.refreshPageData(pageId);
 };
 App.onPersonChange = function(pageId) {
+  // 换人员：上层部门、小组保持不变，不回退
   App.refreshPageData(pageId);
 };
 
@@ -534,48 +518,96 @@ App.updateOverview = function() {
   // 更新柱状图（按 部门/组 切换按钮粒度）
   App._refreshOvBarCharts();
 
-  // 趋势图数据跟随筛选维度
-  var cascade = App._getCascadeScale(state);
-
-  // 更新产品宽度趋势图
+  // 更新产品宽度趋势图 — 按筛选维度动态构建数据
   var wtChart = App.charts['ov_width-trend'];
   if (wtChart) {
-    var twSets = (cascade && cascade.trendWidthSets && cascade.trendWidthSets.length) ? cascade.trendWidthSets : [];
-    var twLabels = (cascade && cascade.trendLabels) ? cascade.trendLabels : ['08','09','10','11','12','01','02','03','04','05','06','07'];
-    // fallback: 如果 cascade 无数据，用部门数据
-    if (!twSets.length) {
-      twSets = App.DEPTS.map(function(d, i) {
-        var b = d.aw;
-        return { label: d.n, data: [b-1.0,b-0.9,b-0.8,b-0.7,b-0.6,b-0.5,b-0.4,b-0.3,b-0.2,b-0.1,b-0.05,b], color: ['#3b82f6','#10b981','#f59e0b','#ef4444','#7c3aed','#0891b2'][i]||'#64748b' };
+    try {
+      var months = ['08','09','10','11','12','01','02','03','04','05','06','07'];
+      var baseRef = [3.2, 3.3, 3.3, 3.4, 3.5, 3.5, 3.6, 3.7, 3.8, 3.8, 3.9, 3.96];
+      var colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#7c3aed','#0891b2'];
+      var entities, sf2 = 1;
+
+      if (person !== 'all') {
+        var pFound = App.PERSONS.find(function(x){return x.n===person;});
+        entities = [{ n: person, aw: (pFound && pFound.aw) ? pFound.aw : 3.0 }];
+        sf2 = 0.7;
+      } else if (group !== 'all') {
+        entities = App.PERSONS.filter(function(x){ return x.grp === group; });
+        if (!entities || !entities.length) entities = [{ n: group, aw: 3.0 }];
+        sf2 = 0.8;
+      } else if (team !== 'all') {
+        entities = App.GROUPS.filter(function(g){ return g.dept === team; });
+        if (!entities || !entities.length) entities = App.PERSONS.filter(function(p){ return p.dept === team; });
+        if (!entities || !entities.length) entities = [{ n: team, aw: 3.0 }];
+        sf2 = 0.9;
+      } else {
+        entities = App.DEPTS;
+      }
+
+      // 确保 entities 有效
+      if (!entities || !entities.length) {
+        entities = [{ n: '暂无数据', aw: 3.0 }];
+      }
+
+      // 清空旧数据集，逐个添加新数据集（避免引用替换可能引起的 Chart.js 更新问题）
+      wtChart.data.labels = months;
+      while (wtChart.data.datasets.length > 0) {
+        wtChart.data.datasets.pop();
+      }
+      entities.forEach(function(e, i) {
+        var b = (e && e.aw) ? e.aw : 3.0;
+        var trendData = [b-1.0,b-0.9,b-0.8,b-0.7,b-0.6,b-0.5,b-0.4,b-0.3,b-0.2,b-0.1,b-0.05,b].map(function(v){ return Math.max(0, v * sf2); });
+        var label = (e && (e.n || e.name)) ? (e.n || e.name) : ('系列' + (i+1));
+        wtChart.data.datasets.push({
+          label: label, data: trendData,
+          borderColor: colors[i % colors.length], backgroundColor: 'transparent',
+          tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: colors[i % colors.length]
+        });
       });
+      // 添加平均宽度参考线
+      wtChart.data.datasets.push({
+        label: '平均宽度', data: baseRef,
+        borderColor: '#94a3b8', backgroundColor: 'transparent',
+        borderDash: [6,4], tension: .3, fill: false, pointRadius: 3, pointBackgroundColor: '#94a3b8'
+      });
+      wtChart.update('none');
+    } catch(e) {
+      console.warn('更新产品宽度趋势图失败:', e);
     }
-    wtChart.data.labels = twLabels;
-    var dsList = twSets.map(function(ds) {
-      return { label: ds.label, data: ds.data, borderColor: ds.color || '#3b82f6', backgroundColor: 'transparent', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: ds.color || '#3b82f6' };
-    });
-    dsList.push({
-      label: '平均宽度',
-      data: [3.2, 3.3, 3.3, 3.4, 3.5, 3.5, 3.6, 3.7, 3.8, 3.8, 3.9, 3.96],
-      borderColor: '#94a3b8', backgroundColor: 'transparent', borderDash: [6, 4], tension: .3, fill: false, pointRadius: 3, pointBackgroundColor: '#94a3b8'
-    });
-    wtChart.data.datasets = dsList;
-    wtChart.update();
   }
 
-  // 更新潜力产品历史趋势图
+  // 更新潜力产品历史趋势图 — 按筛选维度动态构建数据
   var ptChart = App.charts['ov_potential-trend'];
   if (ptChart) {
-    var pScale = 1;
-    if (person !== 'all') pScale = 0.02;
-    else if (group !== 'all') pScale = 0.10;
-    else if (team !== 'all') pScale = 0.28;
-    var pl = ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','服务器','行业软件','网络产品','专网摄像机','通用软件','新业务','出入口停车','音频产品'];
-    var pd1 = [3210,2180,2450,1420,980,720,680,550,480,420,380,350,320,280,260,210];
-    var pd2 = [2280,0,2350,1380,1100,850,720,580,520,430,400,380,300,180,290,240];
-    ptChart.data.labels = pl;
-    ptChart.data.datasets[0].data = pd1.map(function(v){ return Math.round(v * pScale); });
-    ptChart.data.datasets[1].data = pd2.map(function(v){ return Math.round(v * pScale); });
-    ptChart.update();
+    try {
+      var pScale = 1;
+      if (person !== 'all') pScale = 0.02;
+      else if (group !== 'all') pScale = 0.10;
+      else if (team !== 'all') pScale = 0.28;
+      var prodNames = ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','服务器','行业软件','网络产品','专网摄像机','通用软件','新业务','出入口停车','音频产品'];
+      var prodCurr  = [3210,2180,2450,1420,980,720,680,550,480,420,380,350,320,280,260,210];
+      var prodPrev  = [2280,0,2350,1380,1100,850,720,580,520,430,400,380,300,180,290,240];
+
+      // 确保 datasets 数量足够
+      while (ptChart.data.datasets.length < 2) {
+        ptChart.data.datasets.push({ label: '', data: [] });
+      }
+
+      ptChart.data.labels = prodNames;
+      ptChart.data.datasets[0].label = '本期销售额';
+      ptChart.data.datasets[0].data = prodCurr.map(function(v){ return Math.max(1, Math.round(v * pScale)); });
+      ptChart.data.datasets[0].backgroundColor = '#3b82f6';
+      ptChart.data.datasets[1].label = '同期销售额';
+      ptChart.data.datasets[1].data = prodPrev.map(function(v){ return Math.max(0, Math.round(v * pScale)); });
+      ptChart.data.datasets[1].backgroundColor = '#cbd5e1';
+      // 移除多余的数据集
+      while (ptChart.data.datasets.length > 2) {
+        ptChart.data.datasets.pop();
+      }
+      ptChart.update('none');
+    } catch(e) {
+      console.warn('更新潜力产品趋势图失败:', e);
+    }
   }
 };
 
@@ -688,7 +720,7 @@ App.updateWidth = function() {
     App.charts.wCov.data.datasets[0].data = data.chartCov.data;
     App.charts.wCov.update();
   }
-  // 按筛选维度的产品宽度柱状图（跟随部门→组→个人）
+  // 按筛选维度的产品宽度柱状图（跟随部门→组→个人 + 部门/组切换）
   if (App.charts.wWidthBar) {
     var wl, wd;
     if (person !== 'all') {
@@ -703,13 +735,15 @@ App.updateWidth = function() {
       if (wg.length) { wl = wg.map(function(g) { return g.n; }); wd = wg.map(function(g) { return g.aw; }); }
       else { var wdp = App.PERSONS.filter(function(p) { return p.dept === team; }); wl = wdp.length ? wdp.map(function(p) { return p.n; }) : [team]; wd = wdp.length ? wdp.map(function(p) { return p.aw || 3.0; }) : [3.0]; }
     } else {
-      wl = App.DEPTS.map(function(d) { return d.n; }); wd = App.DEPTS.map(function(d) { return d.aw; });
+      // 全部部门 → 默认显示部门维度
+      wl = App.DEPTS.map(function(d) { return d.n; });
+      wd = App.DEPTS.map(function(d) { return d.aw; });
     }
     App.charts.wWidthBar.data.labels = wl;
     App.charts.wWidthBar.data.datasets[0].data = wd;
     App.charts.wWidthBar.update();
   }
-  // 产品宽度历史趋势 — 跟随筛选维度
+  // 产品宽度历史趋势 — 跟随筛选维度（严格三层级联）
   if (App.charts.wWidthTrend) {
     var twl, twSets;
     if (person !== 'all') {
@@ -740,6 +774,7 @@ App.updateWidth = function() {
         }) : [{ label: team, data: [2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.78,3.85], color: '#3b82f6' }];
       }
     } else {
+      // 全部部门 → 默认显示部门趋势
       twl = ['08','09','10','11','12','01','02','03','04','05','06','07'];
       twSets = App.DEPTS.map(function(d, i) {
         var b = d.aw;
@@ -754,10 +789,13 @@ App.updateWidth = function() {
     });
     App.charts.wWidthTrend.update();
   }
+  // 刷新差距分析
+  App.renderWidthGapAnalysis();
 };
 
 // ===== 潜力产品 - 筛选联动 =====
 App.updatePotential = function() {
+  try {
   var state = App.getFilterState('page-potential');
   var label = App.getFilterLabel(state);
   // 更新粒度标签
@@ -784,55 +822,57 @@ App.updatePotential = function() {
   else if (team !== 'all') sf = 0.28;
 
   var data = App.Data.getPotential(state.team);
-  if (!data) return;
+  if (!data) { console.warn('updatePotential: getPotential 返回空数据'); return; }
 
   var s = function(v) { return Math.round(v * sf); };
 
   // ===== 经营概述 (商机预测版) =====
-  App.renderPotentialOverview();
+  try { App.renderPotentialOverview(); } catch(e) { console.warn('renderPotentialOverview 失败:', e); }
 
   // ===== 经营概览 KPI (乔梦杰版 5 卡) =====
   var ov = data.overview;
   if (ov) {
-    App.setText('p-kpi-sales',        '¥ ' + s(ov.sales).toLocaleString() + '万');
-    App.setText('p-kpi-sales-prev',   s(ov.salesPrev).toLocaleString() + '万');
-    App.setText('p-kpi-prodcount',    ov.productCount);
-    App.setText('p-kpi-custcount',    s(ov.customerCount));
-    App.setText('p-kpi-avgprice',     ov.avgPrice.toFixed(1));
-    App.setText('p-kpi-deptcount',    Math.max(1, s(ov.deptCount)));
-    App.setText('p-kpi-sales-yoy',    '+' + ((ov.sales / ov.salesPrev - 1) * 100).toFixed(1) + '%');
-    App.setText('p-kpi-prod-yoy',     '+20%');
-    App.setText('p-kpi-cust-mom',     '+' + Math.max(1, s(ov.customerCount - ov.customerPrev)));
-    App.setText('p-kpi-avg-yoy',      '+' + ((ov.avgPrice / 24.5 - 1) * 100).toFixed(1) + '%');
+    try {
+      App.setText('p-kpi-sales',        '¥ ' + s(ov.sales).toLocaleString() + '万');
+      App.setText('p-kpi-sales-prev',   s(ov.salesPrev).toLocaleString() + '万');
+      App.setText('p-kpi-prodcount',    ov.productCount);
+      App.setText('p-kpi-custcount',    s(ov.customerCount));
+      App.setText('p-kpi-avgprice',     ov.avgPrice.toFixed(1));
+      App.setText('p-kpi-deptcount',    Math.max(1, s(ov.deptCount)));
+    } catch(e) { console.warn('updatePotential KPI 更新失败:', e); }
   }
 
   // ===== 团队×产品矩阵 =====
-  App.renderTeamProdMatrix('p-team-prod-body', data.teamProdMatrix);
+  try { App.renderTeamProdMatrix('p-team-prod-body', data.teamProdMatrix); } catch(e) { console.warn('renderTeamProdMatrix 失败:', e); }
 
   // ===== 大部门 × 潜力产品 差距热图 (乔梦杰版) =====
-  App.renderGapHeatmap('p-gap-heatmap-table', data.gapHeatmap);
+  try { App.renderGapHeatmap('p-gap-heatmap-table', data.gapHeatmap); } catch(e) { console.warn('renderGapHeatmap 失败:', e); }
 
   // ===== 销售人员潜力产品排名 (乔梦杰版) =====
-  App.renderSalesPotentialRank('p-sales-potential-rank-body', data.salesPotentialRank);
+  try { App.renderSalesPotentialRank('p-sales-potential-rank-body', data.salesPotentialRank); } catch(e) { console.warn('renderSalesPotentialRank 失败:', e); }
 
   // ===== 产品风险分布 & 团队概况 =====
-  App.renderTeamRiskPanel();
+  try { App.renderTeamRiskPanel(); } catch(e) { console.warn('renderTeamRiskPanel 失败:', e); }
   // ===== 与团队均值的差距分析 =====
-  App.renderPotentialGapDetail();
+  try { App.renderPotentialGapDetail(); } catch(e) { console.warn('renderPotentialGapDetail 失败:', e); }
 
   // ===== 团队维度 (凯玲版) - 函数内部检查元素存在, 不存在则不渲染
-  App.renderTeamDim();
+  try { App.renderTeamDim(); } catch(e) { console.warn('renderTeamDim 失败:', e); }
 
   // ===== 产品维度排名表 (12 产品) =====
-  App.renderProductRank('p-product-rank-body', data.quadrant);
+  try { App.renderProductRank('p-product-rank-body', data.quadrant); } catch(e) { console.warn('renderProductRank 失败:', e); }
   // ===== 销售人员潜力产品排名 =====
-  App.renderSellerPotentialRank();
+  try { App.renderSellerPotentialRank(); } catch(e) { console.warn('renderSellerPotentialRank 失败:', e); }
   // ===== 客户用户分析 + 用户客户关系 =====
-  App.renderCustUserLink();
-  App.renderUserCustLink();
+  try { App.renderCustUserLink(); } catch(e) { console.warn('renderCustUserLink 失败:', e); }
+  try { App.renderUserCustLink(); } catch(e) { console.warn('renderUserCustLink 失败:', e); }
 
   // 更新 TOP 10 表
-  App.renderPotentialTop10('p-table-top10', data.top10);
+  try { App.renderPotentialTop10('p-table-top10', data.top10); } catch(e) { console.warn('renderPotentialTop10 失败:', e); }
+
+  } catch(e) {
+    console.error('updatePotential 整体执行失败:', e);
+  }
 };
 
 // ===== 团队×潜力产品矩阵 (经营概览) =====
@@ -1347,6 +1387,61 @@ App.renderCrossRecommend = function(data) {
         '提升度 <span style="font-weight:700;color:#7c3aed">' + p.lift.toFixed(1) + 'x</span>' +
         '</div>';
     }).join('');
+};
+
+// ===== 产品宽度 - 差距分析（团队 vs 部门均值） =====
+App.renderWidthGapAnalysis = function() {
+  var tbody = document.getElementById('wGapTable');
+  var statsEl = document.getElementById('wGapStats');
+  if (!tbody || !statsEl) return;
+
+  var deptMap = {};
+  App.DEPTS.forEach(function(d) { deptMap[d.n] = d.aw; });
+
+  var rows = App.GROUPS.map(function(g) {
+    var deptAvg = deptMap[g.dept] || 3.5;
+    var gap = parseFloat((g.aw - deptAvg).toFixed(2));
+    var gapRate = parseFloat(((gap / deptAvg) * 100).toFixed(1));
+    var status, statusCls;
+    if (gapRate > 5)      { status = '🚀 超前'; statusCls = 'b-up'; }
+    else if (gapRate < -5) { status = '⚠ 落后'; statusCls = 'b-down'; }
+    else                   { status = '✓ 正常'; statusCls = 'b-flat'; }
+    return { name: g.n, dept: g.dept, aw: g.aw, deptAvg: deptAvg, gap: gap, gapRate: gapRate, status: status, statusCls: statusCls };
+  });
+
+  // 按差距率升序（落后在前）
+  rows.sort(function(a, b) { return a.gapRate - b.gapRate; });
+
+  // 统计卡片
+  var aheadCount = rows.filter(function(r) { return r.gapRate > 5; }).length;
+  var behindCount = rows.filter(function(r) { return r.gapRate < -5; }).length;
+  var normalCount = rows.length - aheadCount - behindCount;
+  var maxGap = Math.max.apply(null, rows.map(function(r) { return r.gap; }));
+  var minGap = Math.min.apply(null, rows.map(function(r) { return r.gap; }));
+
+  statsEl.innerHTML =
+    '<div class="kpi-card k-green" style="padding:10px 14px"><div class="kpi-label">🚀 超均值团队</div><div class="kpi-value" style="font-size:20px">' + aheadCount + '</div><div class="kpi-sub">个 · 差距率 > +5%</div></div>' +
+    '<div class="kpi-card" style="padding:10px 14px"><div class="kpi-label">✓ 正常团队</div><div class="kpi-value" style="font-size:20px">' + normalCount + '</div><div class="kpi-sub">个 · 差距率 ±5%</div></div>' +
+    '<div class="kpi-card k-red" style="padding:10px 14px"><div class="kpi-label">⚠ 落后团队</div><div class="kpi-value" style="font-size:20px">' + behindCount + '</div><div class="kpi-sub">个 · 差距率 < -5%</div></div>' +
+    '<div class="kpi-card k-orange" style="padding:10px 14px"><div class="kpi-label">📏 最大差距</div><div class="kpi-value" style="font-size:20px">' + (minGap < 0 ? minGap.toFixed(2) + ' ~ +' + maxGap.toFixed(2) : '+' + maxGap.toFixed(2)) + '</div><div class="kpi-sub">负=落后 · 正=超前</div></div>';
+
+  // 表格
+  tbody.innerHTML = rows.map(function(r, i) {
+    var rnCls = i < 3 ? 'rn rn' + (i + 1) : 'rn rn0';
+    var gapSign = r.gap >= 0 ? '+' : '';
+    var gapRateSign = r.gapRate >= 0 ? '+' : '';
+    var gapColor = r.gap >= 0 ? 'color:#16a34a' : 'color:#dc2626';
+    return '<tr>' +
+      '<td><span class="' + rnCls + '">' + (i + 1) + '</span></td>' +
+      '<td><strong>' + r.name + '</strong></td>' +
+      '<td style="text-align:center">' + r.dept + '</td>' +
+      '<td style="text-align:center;font-weight:700">' + r.aw.toFixed(2) + '</td>' +
+      '<td style="text-align:center;color:#6b7280">' + r.deptAvg.toFixed(2) + '</td>' +
+      '<td style="text-align:center;font-weight:700;' + gapColor + '">' + gapSign + r.gap.toFixed(2) + '</td>' +
+      '<td style="text-align:center;font-weight:600;' + gapColor + '">' + gapRateSign + r.gapRate.toFixed(1) + '%</td>' +
+      '<td><span class="badge ' + r.statusCls + '">' + r.status + '</span></td>' +
+      '</tr>';
+  }).join('');
 };
 
 // ===== 团队维度 (凯玲版) =====
@@ -2737,7 +2832,8 @@ App.renderPotentialOverview = function() {
       '<td style="text-align:center;font-weight:600;color:#1a56db">' + (62 + (i * 3) % 20).toFixed(1) + '%</td>' +
       '</tr>';
   });
-  document.getElementById('pOvDeptRank').innerHTML = drh;
+  var rankEl = document.getElementById('pOvDeptRank');
+  if (rankEl) rankEl.innerHTML = drh;
 
 };
 
@@ -3777,6 +3873,7 @@ App._refreshOvBarCharts = function() {
       widthData = deptPersons.length ? deptPersons.map(function(p) { return p.aw || 3.0; }) : [3.0];
     }
   } else {
+    // 全部部门 → 默认显示部门维度
     labels = App.DEPTS.map(function(d) { return d.n; });
     widthData = App.DEPTS.map(function(d) { return d.aw; });
   }
@@ -3787,6 +3884,14 @@ App._refreshOvBarCharts = function() {
     bw.data.datasets[0].data = widthData;
     bw.data.datasets[0].backgroundColor = '#3b82f6';
     bw.update();
+  }
+
+  // 同步更新产品宽度页面的 📐产品宽度 图表（复用同一套数据逻辑）
+  if (App.charts.wWidthBar) {
+    App.charts.wWidthBar.data.labels = labels;
+    App.charts.wWidthBar.data.datasets[0].data = widthData;
+    App.charts.wWidthBar.data.datasets[0].backgroundColor = '#3b82f6';
+    App.charts.wWidthBar.update();
   }
 
   var bp = App.charts['ov_dept-potential'] || App.charts.ovDeptPotential;
@@ -3832,3 +3937,39 @@ App.initAll = function() {
     App.addLog('系统启动', App.loggedInUser.name + ' 登录后初始化完成，数据源已加载');
   }
 };
+
+// ===== 自动登录检查（放在 initAll 定义之后，确保函数已定义） =====
+(function() {
+  var saved = sessionStorage.getItem('pa_login');
+  if (saved) {
+    try {
+      var data = JSON.parse(saved);
+      // 有后端 token：优先用后端数据
+      if (data.token) {
+        App.API.restoreToken();
+        App.loggedInUser = {
+          id: data.id, username: data.username, name: data.name, role: data.role,
+          dept: data.dept || '-', group: data.group || '-'
+        };
+        var overlay = document.getElementById('loginOverlay');
+        if (overlay) overlay.classList.add('hidden');
+        App.applyRoleUI(data.role, data.name, data.dept, data.group);
+        App.initAll();
+        return;
+      }
+      // 无 token：用本地 Mock
+      var user = App.MOCK_USERS.find(function(u) { return u.username === data.username; });
+      if (user) {
+        App.loggedInUser = user;
+        var overlay2 = document.getElementById('loginOverlay');
+        if (overlay2) overlay2.classList.add('hidden');
+        App.applyRoleUI(user.role, user.name, user.dept, user.group);
+        App.initAll();
+        return;
+      }
+    } catch(e) {}
+  }
+  // 未登录: 显示登录页
+  var overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.classList.remove('hidden');
+})();

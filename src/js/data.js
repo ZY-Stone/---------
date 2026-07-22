@@ -904,10 +904,10 @@ App.Data.getWidth = function(team) {
         ? [10.5, 7, 6, 5.4, 5.2, 4.8, 4, 4, 3.9, 3.4]
         : [s(8,f.width).toFixed(1), s(6,f.width).toFixed(1), s(5,f.width).toFixed(1)]
     },
-    // 覆盖率图表
+    // 覆盖率图表 (全部27品类)
     chartCov: {
-      labels: ['IPC','NVR','门禁','球机','LCD'],
-      data: [s(53.1, f.width).toFixed(0), s(36.7, f.width).toFixed(0), s(27.8, f.width).toFixed(0), s(24.6, f.width).toFixed(0), s(17.6, f.width).toFixed(0)]
+      labels: ['IPC','NVR','门禁','球机','LCD与解码','新业务','通用软件','网络产品','存储','专用摄像机','服务器','行业软件','智能计算','对讲','报警','出入口停车','人员通道','音频产品','PCP产品','LED与拼控','移动终端产品','智能交通','智慧屏与视频会议','综合布线与机柜','基础软件','网络安全','传感产品'],
+      data: [s(53.1,f.width).toFixed(0), s(36.7,f.width).toFixed(0), s(27.8,f.width).toFixed(0), s(24.6,f.width).toFixed(0), s(17.6,f.width).toFixed(0), s(17.4,f.width).toFixed(0), s(16.3,f.width).toFixed(0), s(14.6,f.width).toFixed(0), s(11.5,f.width).toFixed(0), s(9.3,f.width).toFixed(0), s(8.9,f.width).toFixed(0), s(8.5,f.width).toFixed(0), s(7.9,f.width).toFixed(0), s(7.6,f.width).toFixed(0), s(7.4,f.width).toFixed(0), s(7.4,f.width).toFixed(0), s(6.4,f.width).toFixed(0), s(5.9,f.width).toFixed(0), s(4.5,f.width).toFixed(0), s(4.5,f.width).toFixed(0), s(4.2,f.width).toFixed(0), s(4.0,f.width).toFixed(0), s(3.6,f.width).toFixed(0), s(3.6,f.width).toFixed(0), s(1.9,f.width).toFixed(0), s(1.7,f.width).toFixed(0), s(0.8,f.width).toFixed(0)]
     },
     // 规上 vs 非规上
     chartReg: {

@@ -384,8 +384,8 @@ App.charts.wTeam = makeBar(
 (function() {
   var canvas = document.getElementById('chart-w-cov');
   if (canvas) {
-    var prods = ['IPC','NVR','门禁','球机','LCD与解码','新业务','通用软件','网络产品','存储','专网摄像机','服务','行业软件','智能计算','对讲','报警'];
-    var rates = [53.1, 36.7, 27.8, 24.6, 17.6, 17.4, 16.3, 14.6, 11.5, 9.3, 8.9, 8.5, 7.9, 7.6, 7.4];
+    var prods = ['IPC','NVR','门禁','球机','LCD与解码','新业务','通用软件','网络产品','存储','专用摄像机','服务器','行业软件','智能计算','对讲','报警','出入口停车','人员通道','音频产品','PCP产品','LED与拼控','移动终端产品','智能交通','智慧屏与视频会议','综合布线与机柜','基础软件','网络安全','传感产品'];
+    var rates = [53.1, 36.7, 27.8, 24.6, 17.6, 17.4, 16.3, 14.6, 11.5, 9.3, 8.9, 8.5, 7.9, 7.6, 7.4, 7.4, 6.4, 5.9, 4.5, 4.5, 4.2, 4.0, 3.6, 3.6, 1.9, 1.7, 0.8];
     App.charts.wCov = new Chart(canvas, {
       type: 'bar',
       data: {
@@ -494,8 +494,11 @@ App.charts.wWidthTrend = new Chart(document.getElementById('chart-w-width-trend'
   }
 });
 
-// Keep old chart for compatibility
-new Chart(document.getElementById('chart-width-trend'), {
+// Keep old chart for compatibility (wrapped in null check — canvas may not exist)
+(function() {
+  var oldCanvas = document.getElementById('chart-width-trend');
+  if (!oldCanvas) return;
+  new Chart(oldCanvas, {
   type: 'line',
   data: {
     labels: ['08', '09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07'],
@@ -546,7 +549,8 @@ new Chart(document.getElementById('chart-width-trend'), {
       legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } }
     }
   }
-});
+  });
+})();
 
 // ===== 7. 潜力产品: 量价四象限（散点图）- 安全初始化 =====
 (function() {
@@ -714,67 +718,77 @@ new Chart(document.getElementById('chart-trend'), {
 });
 
 // ===== 11. 总览: 产品宽度历史趋势 (近12月) =====
-App.charts['ov_width-trend'] = new Chart(document.getElementById('chart-ov-width-trend'), {
-  type: 'line',
-  data: {
-    labels: ['08', '09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07'],
-    datasets: [
-      {
-        label: '平均产品宽度',
-        data: [3.2, 3.3, 3.3, 3.4, 3.5, 3.5, 3.6, 3.7, 3.8, 3.8, 3.9, 3.96],
-        borderColor: '#1a56db',
-        backgroundColor: 'rgba(26,86,219,.08)',
-        tension: .3, fill: true, pointRadius: 4, pointBackgroundColor: '#1a56db'
+(function() {
+  var canvas = document.getElementById('chart-ov-width-trend');
+  if (canvas) {
+    App.charts['ov_width-trend'] = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: ['08', '09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07'],
+        datasets: [
+          {
+            label: '平均产品宽度',
+            data: [3.2, 3.3, 3.3, 3.4, 3.5, 3.5, 3.6, 3.7, 3.8, 3.8, 3.9, 3.96],
+            borderColor: '#1a56db',
+            backgroundColor: 'rgba(26,86,219,.08)',
+            tension: .3, fill: true, pointRadius: 4, pointBackgroundColor: '#1a56db'
+          },
+          {
+            label: '规上客户平均宽度',
+            data: [5.1, 5.2, 5.2, 5.3, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 6.0],
+            borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: '#10b981'
+          },
+          {
+            label: '非规上客户平均宽度',
+            data: [1.2, 1.2, 1.3, 1.3, 1.4, 1.4, 1.4, 1.5, 1.5, 1.5, 1.6, 1.6],
+            borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: '#f59e0b'
+          }
+        ]
       },
-      {
-        label: '规上客户平均宽度',
-        data: [5.1, 5.2, 5.2, 5.3, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 6.0],
-        borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: '#10b981'
-      },
-      {
-        label: '非规上客户平均宽度',
-        data: [1.2, 1.2, 1.3, 1.3, 1.4, 1.4, 1.4, 1.5, 1.5, 1.5, 1.6, 1.6],
-        borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: '#f59e0b'
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+        scales: {
+          y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
+          x: { grid: { display: false } }
+        }
       }
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
-    scales: {
-      y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
-      x: { grid: { display: false } }
-    }
+    });
   }
-});
+})();
 
 // ===== 12. 总览: 潜力产品历史趋势 (近12月) =====
-App.charts['ov_potential-trend'] = new Chart(document.getElementById('chart-ov-potential-trend'), {
-  type: 'bar',
-  data: {
-    labels: ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','服务器','行业软件','网络产品','专网摄像机','通用软件','新业务','出入口停车','音频产品'],
-    datasets: [
-      {
-        label: '本期销售额',
-        data: [3210, 2180, 2450, 1420, 980, 720, 680, 550, 480, 420, 380, 350, 320, 280, 260, 210],
-        backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: .6
+(function() {
+  var canvas = document.getElementById('chart-ov-potential-trend');
+  if (canvas) {
+    App.charts['ov_potential-trend'] = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','服务器','行业软件','网络产品','专网摄像机','通用软件','新业务','出入口停车','音频产品'],
+        datasets: [
+          {
+            label: '本期销售额',
+            data: [3210, 2180, 2450, 1420, 980, 720, 680, 550, 480, 420, 380, 350, 320, 280, 260, 210],
+            backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: .6
+          },
+          {
+            label: '同期销售额',
+            data: [2280, 0, 2350, 1380, 1100, 850, 720, 580, 520, 430, 400, 380, 300, 180, 290, 240],
+            backgroundColor: '#cbd5e1', borderRadius: 4, barPercentage: .6
+          }
+        ]
       },
-      {
-        label: '同期销售额',
-        data: [2280, 0, 2350, 1380, 1100, 850, 720, 580, 520, 430, 400, 380, 300, 180, 290, 240],
-        backgroundColor: '#cbd5e1', borderRadius: 4, barPercentage: .6
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额 (万)' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 0 } }
+        }
       }
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
-    scales: {
-      y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额 (万)' } },
-      x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, minRotation: 0 } }
-    }
+    });
   }
-});
+})();
 
 // ===== 13. 潜力产品: 销售量构成 (按产品) — 水平柱图 =====
 new Chart(document.getElementById('chart-p-composition'), {
