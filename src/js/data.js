@@ -21,40 +21,42 @@ App.USER_ROLES = {
   gm:        { name: '总经理',  avatar: '总', badge: '总经理', color: '#1e40af', perms: '全局查看' },
   operation: { name: '运营',    avatar: '运', badge: '运营',   color: '#7c3aed', perms: '全局查看' },
   director:  { name: '总监',    avatar: '总', badge: '总监',   color: '#0891b2', perms: '部门管理' },
-  manager:   { name: '主管',    avatar: '主', badge: '主管',   color: '#ea580c', perms: '组级管理' }
+  manager:   { name: '主管',    avatar: '主', badge: '主管',   color: '#ea580c', perms: '组级管理' },
+  interface: { name: '接口人',  avatar: '接', badge: '接口人', color: '#64748b', perms: '数据对接' },
+  sales:     { name: '一线销售', avatar: '销', badge: '销售',  color: '#2563eb', perms: '本人数据' }
 };
 
 // ===== 组织架构: 部门列表 =====
-App.DEPT_LIST = ['客户销售一部', '客户销售二部', '大客户销售部', '场景数字化销售部', '行业二部', '行业一部'];
+App.DEPT_LIST = ['管理部', '深圳业务中心', '运营部', '客户销售一部', '客户销售二部', '大客户销售部', '场景数字化销售部', '行业一部', '行业二部'];
 
 // ===== 模拟用户数据库（来自Excel权限设置清单） =====
 App.MOCK_USERS = [
-  { id:101, username:'高巍', name:'高巍', role:'director', dept:'客户销售一部', group:'-', ld:'-' },
-  { id:102, username:'翁焕植', name:'翁焕植', role:'interface', dept:'客户销售一部', group:'-', ld:'高巍' },
-  { id:103, username:'简刚平', name:'简刚平', role:'interface', dept:'客户销售一部', group:'-', ld:'高巍' },
-  { id:105, username:'张栋柱', name:'张栋柱', role:'manager', dept:'客户销售一部', group:'客户销售一组', ld:'高巍' },
-  { id:111, username:'陈刚', name:'陈刚', role:'manager', dept:'客户销售一部', group:'客户销售二组', ld:'高巍' },
-  { id:121, username:'刘文宇', name:'刘文宇', role:'manager', dept:'客户销售一部', group:'客户销售四组', ld:'高巍' },
-  { id:130, username:'赵志强', name:'赵志强', role:'manager', dept:'客户销售一部', group:'客户销售五组', ld:'高巍' },
-  { id:131, username:'吴正豪', name:'吴正豪', role:'director', dept:'客户销售二部', group:'-', ld:'-' },
-  { id:132, username:'刘辉55', name:'刘辉55', role:'interface', dept:'客户销售二部', group:'-', ld:'吴正豪' },
-  { id:136, username:'朱迪', name:'朱迪', role:'manager', dept:'客户销售二部', group:'客户销售七组', ld:'吴正豪' },
-  { id:142, username:'邓畅', name:'邓畅', role:'manager', dept:'客户销售二部', group:'客户销售八组', ld:'吴正豪' },
-  { id:148, username:'李拥政', name:'李拥政', role:'manager', dept:'客户销售二部', group:'客户销售九组', ld:'吴正豪' },
-  { id:155, username:'韩杰', name:'韩杰', role:'director', dept:'大客户销售部', group:'-', ld:'-' },
-  { id:213, username:'谢彬18', name:'谢彬18', role:'interface', dept:'大客户销售部', group:'-', ld:'韩杰' },
-  { id:164, username:'明良斌', name:'明良斌', role:'director', dept:'场景数字化销售部', group:'-', ld:'-' },
-  { id:167, username:'房伟建', name:'房伟建', role:'director', dept:'行业二部', group:'-', ld:'-' },
-  { id:168, username:'詹凯玲', name:'詹凯玲', role:'interface', dept:'行业二部', group:'-', ld:'房伟建' },
-  { id:171, username:'王魁', name:'王魁', role:'manager', dept:'行业二部', group:'交通行业组', ld:'房伟建' },
-  { id:177, username:'刘冬', name:'刘冬', role:'manager', dept:'行业二部', group:'司法行业组', ld:'房伟建' },
-  { id:179, username:'廖北宸', name:'廖北宸', role:'manager', dept:'行业二部', group:'政府行业组', ld:'房伟建' },
-  { id:183, username:'王茜', name:'王茜', role:'manager', dept:'行业二部', group:'文教卫组', ld:'房伟建' },
-  { id:189, username:'卫玉昌', name:'卫玉昌', role:'director', dept:'行业一部', group:'-', ld:'-' },
-  { id:190, username:'姚金成', name:'姚金成', role:'interface', dept:'行业一部', group:'-', ld:'卫玉昌' },
-  { id:191, username:'潘仲楠', name:'潘仲楠', role:'manager', dept:'行业一部', group:'工业企业一组', ld:'卫玉昌' },
-  { id:201, username:'朱绪浩', name:'朱绪浩', role:'manager', dept:'行业一部', group:'智慧建筑组', ld:'卫玉昌' },
-  { id:206, username:'李耀东', name:'李耀东', role:'manager', dept:'行业一部', group:'智慧商贸组', ld:'卫玉昌' },
+  { id:101, username:'gaowei', name:'高巍', role:'director', dept:'客户销售一部', group:'-', ld:'-' },
+  { id:102, username:'wenghuanzhi', name:'翁焕植', role:'interface', dept:'客户销售一部', group:'-', ld:'高巍' },
+  { id:103, username:'jiangangping', name:'简刚平', role:'interface', dept:'客户销售一部', group:'-', ld:'高巍' },
+  { id:105, username:'zhangdongzhu', name:'张栋柱', role:'manager', dept:'客户销售一部', group:'客户销售一组', ld:'高巍' },
+  { id:111, username:'chengang', name:'陈刚', role:'manager', dept:'客户销售一部', group:'客户销售二组', ld:'高巍' },
+  { id:121, username:'liuwenyu', name:'刘文宇', role:'manager', dept:'客户销售一部', group:'客户销售四组', ld:'高巍' },
+  { id:130, username:'zhaozhiqiang', name:'赵志强', role:'manager', dept:'客户销售一部', group:'客户销售五组', ld:'高巍' },
+  { id:131, username:'wuzenghao', name:'吴正豪', role:'director', dept:'客户销售二部', group:'-', ld:'-' },
+  { id:132, username:'liuhui55', name:'刘辉55', role:'interface', dept:'客户销售二部', group:'-', ld:'吴正豪' },
+  { id:136, username:'zhudi', name:'朱迪', role:'manager', dept:'客户销售二部', group:'客户销售七组', ld:'吴正豪' },
+  { id:142, username:'dengchang', name:'邓畅', role:'manager', dept:'客户销售二部', group:'客户销售八组', ld:'吴正豪' },
+  { id:148, username:'liyongzheng', name:'李拥政', role:'manager', dept:'客户销售二部', group:'客户销售九组', ld:'吴正豪' },
+  { id:155, username:'hanjie', name:'韩杰', role:'director', dept:'大客户销售部', group:'-', ld:'-' },
+  { id:213, username:'xiebin18', name:'谢彬18', role:'interface', dept:'大客户销售部', group:'-', ld:'韩杰' },
+  { id:164, username:'mingliangbin', name:'明良斌', role:'director', dept:'场景数字化销售部', group:'-', ld:'-' },
+  { id:167, username:'fangweijian', name:'房伟建', role:'director', dept:'行业二部', group:'-', ld:'-' },
+  { id:168, username:'zhankailing', name:'詹凯玲', role:'interface', dept:'行业二部', group:'-', ld:'房伟建' },
+  { id:171, username:'wangkui', name:'王魁', role:'manager', dept:'行业二部', group:'交通行业组', ld:'房伟建' },
+  { id:177, username:'liudong', name:'刘冬', role:'manager', dept:'行业二部', group:'司法行业组', ld:'房伟建' },
+  { id:179, username:'liaobeichen', name:'廖北宸', role:'manager', dept:'行业二部', group:'政府行业组', ld:'房伟建' },
+  { id:183, username:'wangqian', name:'王茜', role:'manager', dept:'行业二部', group:'文教卫组', ld:'房伟建' },
+  { id:189, username:'weiyuchang', name:'卫玉昌', role:'director', dept:'行业一部', group:'-', ld:'-' },
+  { id:190, username:'yaojincheng', name:'姚金成', role:'interface', dept:'行业一部', group:'-', ld:'卫玉昌' },
+  { id:191, username:'panzhongnan', name:'潘仲楠', role:'manager', dept:'行业一部', group:'工业企业一组', ld:'卫玉昌' },
+  { id:201, username:'zhuxuhao', name:'朱绪浩', role:'manager', dept:'行业一部', group:'智慧建筑组', ld:'卫玉昌' },
+  { id:206, username:'liyaodong', name:'李耀东', role:'manager', dept:'行业一部', group:'智慧商贸组', ld:'卫玉昌' },
   { id:210, username:'admin', name:'管理员', role:'admin', dept:'管理部', group:'-', ld:'-' },
   { id:211, username:'jiangying', name:'江英', role:'operation', dept:'运营部', group:'-', ld:'-' },
   { id:212, username:'guchengcheng', name:'顾城成', role:'gm', dept:'深圳业务中心', group:'-', ld:'-' },
@@ -62,12 +64,15 @@ App.MOCK_USERS = [
 
 // ===== DEPTS =====
 App.DEPTS = [
+  { n: '管理部', ld: 'admin', cw: 5, aw: 0, mw: 0, cov: 100, yoy: '-' },
+  { n: '深圳业务中心', ld: '顾城成', cw: 890, aw: 0, mw: 0, cov: 100, yoy: '-' },
+  { n: '运营部', ld: '江英', cw: 3, aw: 0, mw: 0, cov: 100, yoy: '-' },
   { n: '客户销售一部', ld: '高巍', cw: 285, aw: 3.52, mw: 8, cov: 65.4, yoy: '+3.1%' },
   { n: '客户销售二部', ld: '吴正豪', cw: 256, aw: 3.28, mw: 7, cov: 60.3, yoy: '+1.8%' },
   { n: '大客户销售部', ld: '韩杰', cw: 187, aw: 3.14, mw: 6, cov: 58.7, yoy: '-0.5%' },
   { n: '场景数字化销售部', ld: '明良斌', cw: 168, aw: 3.42, mw: 7, cov: 62.5, yoy: '+4.2%' },
-  { n: '行业二部', ld: '房伟建', cw: 437, aw: 4.28, mw: 10, cov: 76.5, yoy: '+8.2%' },
   { n: '行业一部', ld: '卫玉昌', cw: 312, aw: 3.85, mw: 9, cov: 68.2, yoy: '+5.6%' },
+  { n: '行业二部', ld: '房伟建', cw: 437, aw: 4.28, mw: 10, cov: 76.5, yoy: '+8.2%' },
 ];
 
 // ===== GROUPS =====
@@ -314,6 +319,37 @@ var BASE_HEATMAP_PRODS = [
   { name: '基础软件',         rate: 1.9,  count: 9   },
   { name: '网络安全',         rate: 1.7,  count: 8   },
   { name: '传感产品',         rate: 0.8,  count: 4   }
+];
+
+// 产品覆盖率 — 用户覆盖率（27品类，规上用户维度）
+var BASE_HEATMAP_USER_PRODS = [
+  { name: 'IPC',              rate: 80.3 },
+  { name: 'NVR',              rate: 69.4 },
+  { name: '球机',             rate: 54.4 },
+  { name: '门禁',             rate: 47.9 },
+  { name: '存储',             rate: 36.8 },
+  { name: 'LCD与解码',        rate: 31.1 },
+  { name: '智能交通',         rate: 24.6 },
+  { name: '出入口停车',       rate: 18.7 },
+  { name: '通用软件',         rate: 35.2 },
+  { name: '网络产品',         rate: 28.5 },
+  { name: '新业务',           rate: 22.1 },
+  { name: '专用摄像机',       rate: 19.8 },
+  { name: '服务器',           rate: 17.3 },
+  { name: '行业软件',         rate: 15.6 },
+  { name: '智能计算',         rate: 14.2 },
+  { name: '对讲',             rate: 13.0 },
+  { name: '报警',             rate: 11.5 },
+  { name: '人员通道',         rate: 10.8 },
+  { name: '音频产品',         rate: 9.4  },
+  { name: 'PCP产品',          rate: 8.2  },
+  { name: 'LED与拼控',        rate: 7.8  },
+  { name: '移动终端产品',     rate: 7.1  },
+  { name: '智慧屏与视频会议', rate: 6.5  },
+  { name: '综合布线与机柜',   rate: 5.8  },
+  { name: '基础软件',         rate: 4.3  },
+  { name: '网络安全',         rate: 3.6  },
+  { name: '传感产品',         rate: 2.1  }
 ];
 
 // 产品宽度页 客户 TOP 列表（带产品明细，参考简刚平版）
@@ -610,25 +646,25 @@ var BASE_PROD_YOY_DATA = [
 
 // 经营概览: 量价四象限 (X=数量同比%, Y=金额同比%, 颜色=分类)
 var BASE_QUADRANT = [
-  { product: 'NVR',        qtyYoY:  42.1, amtYoY:  58.3, type: '量价齐升' },
-  { product: '智能计算',    qtyYoY: 100.0, amtYoY: 100.0, type: '新增' },
-  { product: 'IPC',        qtyYoY:  15.2, amtYoY:  22.4, type: '量价齐升' },
-  { product: '平台软件',    qtyYoY:  -3.2, amtYoY:  18.7, type: '量跌价增' },
-  { product: '门禁',        qtyYoY: -18.6, amtYoY: -23.5, type: '量价齐跌' },
-  { product: '智能交通',    qtyYoY:  -5.4, amtYoY: -11.2, type: '量价齐跌' },
-  { product: '存储',        qtyYoY:  12.3, amtYoY:   8.4, type: '量价齐升' },
-  { product: 'LCD与解码',   qtyYoY:   8.7, amtYoY:   5.2, type: '量价齐升' },
+  { product: '观澜编码产品（非大模型）', qtyYoY:  42.1, amtYoY:  58.3, type: '量价齐升' },
   { product: '出入口停车',   qtyYoY:  18.5, amtYoY:  15.2, type: '量价齐升' },
-  { product: '音频产品',    qtyYoY:   6.3, amtYoY:   2.8, type: '量价齐升' },
-  { product: '人员通道',    qtyYoY:  -2.5, amtYoY:  -1.8, type: '量价齐跌' },
-  { product: '行业软件',    qtyYoY:  25.0, amtYoY:  32.5, type: '量价齐升' }
+  { product: '前端大模型',    qtyYoY: 100.0, amtYoY: 100.0, type: '新增' },
+  { product: '网络产品',      qtyYoY:  -5.4, amtYoY: -11.2, type: '量价齐跌' },
+  { product: '后端大模型(文搜大模型）', qtyYoY: 100.0, amtYoY: 100.0, type: '新增' },
+  { product: '人员通道',      qtyYoY:  -2.5, amtYoY:  -1.8, type: '量价齐跌' },
+  { product: '会议平板与视频会议', qtyYoY: 15.2, amtYoY: 22.4, type: '量价齐升' },
+  { product: '国密产品',      qtyYoY:  12.3, amtYoY:   8.4, type: '量价齐升' },
+  { product: '执法记录仪',    qtyYoY:  -3.2, amtYoY:  18.7, type: '量跌价增' },
+  { product: '物联安全',      qtyYoY:   8.7, amtYoY:   5.2, type: '量价齐升' },
+  { product: '音频产品',      qtyYoY:   6.3, amtYoY:  -3.5, type: '量价齐跌' }
 ];
 
 // 经营概览: 大部门 × 产品 差距热图数据 (整合自乔梦杰版)
-// 12 个潜力产品 × 4 团队 销售额(万元)
+// 11 个潜力产品 × 4 团队 销售额(万元)
 var BASE_GAP_HEATMAP_PRODS = [
-  'NVR', '智能计算', 'IPC', '平台软件', '门禁', '智能交通',
-  '存储', 'LCD与解码', '出入口停车', '音频产品', '人员通道', '行业软件'
+  '观澜编码产品（非大模型）', '出入口停车', '前端大模型', '网络产品',
+  '后端大模型(文搜大模型）', '人员通道', '会议平板与视频会议', '国密产品',
+  '执法记录仪', '物联安全', '音频产品'
 ];
 var BASE_GAP_HEATMAP_TEAMS = [
   { team: '政府行业组',    data: [ 850, 480, 580, 420, 180,  90, 220, 150,  60,  45,  35,  80] },
@@ -1045,6 +1081,19 @@ App.WidthCustomer.RAW = [
   { team:'客户销售五组',account:'dengchang',  user:'沙头派出所',    width:2,  guishang:0, prods:{IPC:1,报警:1} }
 ];
 
+// 账号 → 中文姓名映射（用于个人维度展示）
+App.WidthCustomer.ACCOUNT_NAMES = {
+  'liaobeibei': '廖贝贝', 'wangzhiqiang': '王志强', 'chensiyuan': '陈思源',
+  'limengqi': '李梦琪', 'fangweijian': '房伟建', 'zhangwei': '张伟',
+  'zhangjicheng': '张继成', 'panzhongnan': '潘仲楠', 'luoxinghua': '罗兴华',
+  'huangyanbin': '黄燕滨', 'zhuxuhao': '朱绪浩', 'zhaoqichao': '赵启超',
+  'lijinfu': '李金富', 'zhangdongzhu': '张栋柱', 'chengangsz': '陈刚',
+  'liuwenyu': '刘文宇', 'zhudi7': '朱迪', 'dengchang': '邓畅'
+};
+App.WidthCustomer.getDisplayName = function(account) {
+  return App.WidthCustomer.ACCOUNT_NAMES[account] || account;
+};
+
 // 返回所有团队列表
 App.WidthCustomer.getTeams = function() {
   var set = {};
@@ -1054,7 +1103,7 @@ App.WidthCustomer.getTeams = function() {
 
 // ===== 团队维度 — 团队小组 × 潜力产品 · 本期 vs 同期对照表（乔梦杰版） =====
 App.WidthTeamMatrix = {};
-App.WidthTeamMatrix.PRODUCTS = ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码'];
+App.WidthTeamMatrix.PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
 
 // 颗粒化数据: 每条记录 = 一个团队小组 × 一个产品 的本期/同期销售额（万元）
 // ===== 团队维度 — 大部门 × 产品 差距热图数据 =====
@@ -1070,143 +1119,80 @@ App.WidthTeamGap.TEAMS = [
 
 // 团队维度 — 团队小组 × 潜力产品 · 本期 vs 同期对照表
 App.WidthTeamMatrix = {};
-App.WidthTeamMatrix.PRODUCTS = ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码'];
+App.WidthTeamMatrix.PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
 App.WidthTeamMatrix.RAW = [
-  // 政府行业组-陈思源组
-  { team:'政府行业组-陈思源组', product:'NVR',       amount: 850, amountPrev: 620 },
-  { team:'政府行业组-陈思源组', product:'智能计算',  amount: 480, amountPrev:   0 },
-  { team:'政府行业组-陈思源组', product:'IPC',       amount: 580, amountPrev: 450 },
-  { team:'政府行业组-陈思源组', product:'平台软件',  amount: 420, amountPrev: 350 },
-  { team:'政府行业组-陈思源组', product:'门禁',      amount: 180, amountPrev: 210 },
-  { team:'政府行业组-陈思源组', product:'智能交通',  amount:  90, amountPrev:  70 },
-  { team:'政府行业组-陈思源组', product:'存储',      amount: 220, amountPrev: 180 },
-  { team:'政府行业组-陈思源组', product:'LCD与解码', amount: 150, amountPrev: 120 },
-  // 政府行业组-王志强组
-  { team:'政府行业组-王志强组', product:'NVR',       amount: 720, amountPrev: 550 },
-  { team:'政府行业组-王志强组', product:'智能计算',  amount: 380, amountPrev:   0 },
-  { team:'政府行业组-王志强组', product:'IPC',       amount: 420, amountPrev: 380 },
-  { team:'政府行业组-王志强组', product:'平台软件',  amount: 320, amountPrev: 280 },
-  { team:'政府行业组-王志强组', product:'门禁',      amount: 130, amountPrev: 160 },
-  { team:'政府行业组-王志强组', product:'智能交通',  amount:  60, amountPrev:  50 },
-  { team:'政府行业组-王志强组', product:'存储',      amount: 180, amountPrev: 150 },
-  { team:'政府行业组-王志强组', product:'LCD与解码', amount: 110, amountPrev:  95 },
-  // 政府行业组-李梦琪组
-  { team:'政府行业组-李梦琪组', product:'NVR',       amount: 480, amountPrev: 380 },
-  { team:'政府行业组-李梦琪组', product:'智能计算',  amount: 220, amountPrev:   0 },
-  { team:'政府行业组-李梦琪组', product:'IPC',       amount: 280, amountPrev: 250 },
-  { team:'政府行业组-李梦琪组', product:'平台软件',  amount: 180, amountPrev: 160 },
-  { team:'政府行业组-李梦琪组', product:'门禁',      amount:  90, amountPrev: 120 },
-  { team:'政府行业组-李梦琪组', product:'智能交通',  amount:  40, amountPrev:  35 },
-  { team:'政府行业组-李梦琪组', product:'存储',      amount: 130, amountPrev: 110 },
-  { team:'政府行业组-李梦琪组', product:'LCD与解码', amount:  80, amountPrev:  70 },
-  // 政府行业组-廖贝贝组
-  { team:'政府行业组-廖贝贝组', product:'NVR',       amount: 380, amountPrev: 310 },
-  { team:'政府行业组-廖贝贝组', product:'智能计算',  amount: 180, amountPrev:   0 },
-  { team:'政府行业组-廖贝贝组', product:'IPC',       amount: 220, amountPrev: 200 },
-  { team:'政府行业组-廖贝贝组', product:'平台软件',  amount: 150, amountPrev: 135 },
-  { team:'政府行业组-廖贝贝组', product:'门禁',      amount:  70, amountPrev:  85 },
-  { team:'政府行业组-廖贝贝组', product:'智能交通',  amount:  30, amountPrev:  25 },
-  { team:'政府行业组-廖贝贝组', product:'存储',      amount: 100, amountPrev:  85 },
-  { team:'政府行业组-廖贝贝组', product:'LCD与解码', amount:  60, amountPrev:  55 },
-  // 公安交警行业组-张伟组
-  { team:'公安交警行业组-张伟组',   product:'NVR',       amount: 380, amountPrev: 340 },
-  { team:'公安交警行业组-张伟组',   product:'智能计算',  amount:  60, amountPrev:   0 },
-  { team:'公安交警行业组-张伟组',   product:'IPC',       amount: 250, amountPrev: 280 },
-  { team:'公安交警行业组-张伟组',   product:'平台软件',  amount: 130, amountPrev: 180 },
-  { team:'公安交警行业组-张伟组',   product:'门禁',      amount: 240, amountPrev: 220 },
-  { team:'公安交警行业组-张伟组',   product:'智能交通',  amount: 120, amountPrev:  90 },
-  { team:'公安交警行业组-张伟组',   product:'存储',      amount:  95, amountPrev:  80 },
-  { team:'公安交警行业组-张伟组',   product:'LCD与解码', amount:  60, amountPrev:  55 },
-  // 公安交警行业组-张继成组
-  { team:'公安交警行业组-张继成组', product:'NVR',       amount: 280, amountPrev: 250 },
-  { team:'公安交警行业组-张继成组', product:'智能计算',  amount:  40, amountPrev:   0 },
-  { team:'公安交警行业组-张继成组', product:'IPC',       amount: 180, amountPrev: 210 },
-  { team:'公安交警行业组-张继成组', product:'平台软件',  amount:  90, amountPrev: 130 },
-  { team:'公安交警行业组-张继成组', product:'门禁',      amount: 180, amountPrev: 155 },
-  { team:'公安交警行业组-张继成组', product:'智能交通',  amount:  80, amountPrev:  65 },
-  { team:'公安交警行业组-张继成组', product:'存储',      amount:  70, amountPrev:  60 },
-  { team:'公安交警行业组-张继成组', product:'LCD与解码', amount:  45, amountPrev:  40 },
-  // 工业企业一组-罗兴华组
-  { team:'工业企业一组-罗兴华组', product:'NVR',       amount: 220, amountPrev: 195 },
-  { team:'工业企业一组-罗兴华组', product:'智能计算',  amount:  30, amountPrev:   0 },
-  { team:'工业企业一组-罗兴华组', product:'IPC',       amount: 130, amountPrev: 180 },
-  { team:'工业企业一组-罗兴华组', product:'平台软件',  amount: 220, amountPrev: 180 },
-  { team:'工业企业一组-罗兴华组', product:'门禁',      amount:  50, amountPrev:  70 },
-  { team:'工业企业一组-罗兴华组', product:'智能交通',  amount:  25, amountPrev:  20 },
-  { team:'工业企业一组-罗兴华组', product:'存储',      amount:  55, amountPrev:  50 },
-  { team:'工业企业一组-罗兴华组', product:'LCD与解码', amount:  75, amountPrev:  60 },
-  // 工业企业一组-黄燕滨组
-  { team:'工业企业一组-黄燕滨组', product:'NVR',       amount: 180, amountPrev: 140 },
-  { team:'工业企业一组-黄燕滨组', product:'智能计算',  amount:  25, amountPrev:   0 },
-  { team:'工业企业一组-黄燕滨组', product:'IPC',       amount:  95, amountPrev: 120 },
-  { team:'工业企业一组-黄燕滨组', product:'平台软件',  amount: 180, amountPrev: 140 },
-  { team:'工业企业一组-黄燕滨组', product:'门禁',      amount:  40, amountPrev:  55 },
-  { team:'工业企业一组-黄燕滨组', product:'智能交通',  amount:  20, amountPrev:  15 },
-  { team:'工业企业一组-黄燕滨组', product:'存储',      amount:  40, amountPrev:  35 },
-  { team:'工业企业一组-黄燕滨组', product:'LCD与解码', amount:  50, amountPrev:  42 },
-  // 工业企业一组-潘仲楠组
-  { team:'工业企业一组-潘仲楠组', product:'NVR',       amount: 150, amountPrev: 125 },
-  { team:'工业企业一组-潘仲楠组', product:'智能计算',  amount:  20, amountPrev:   0 },
-  { team:'工业企业一组-潘仲楠组', product:'IPC',       amount:  80, amountPrev: 105 },
-  { team:'工业企业一组-潘仲楠组', product:'平台软件',  amount: 140, amountPrev: 120 },
-  { team:'工业企业一组-潘仲楠组', product:'门禁',      amount:  30, amountPrev:  45 },
-  { team:'工业企业一组-潘仲楠组', product:'智能交通',  amount:  15, amountPrev:  12 },
-  { team:'工业企业一组-潘仲楠组', product:'存储',      amount:  35, amountPrev:  30 },
-  { team:'工业企业一组-潘仲楠组', product:'LCD与解码', amount:  40, amountPrev:  35 },
-  // 智慧建筑组-赵启超组
-  { team:'智慧建筑组-赵启超组', product:'NVR',       amount: 130, amountPrev: 155 },
-  { team:'智慧建筑组-赵启超组', product:'智能计算',  amount:  15, amountPrev:  30 },
-  { team:'智慧建筑组-赵启超组', product:'IPC',       amount:  80, amountPrev:  95 },
-  { team:'智慧建筑组-赵启超组', product:'平台软件',  amount:  65, amountPrev:  70 },
-  { team:'智慧建筑组-赵启超组', product:'门禁',      amount:  35, amountPrev:  50 },
-  { team:'智慧建筑组-赵启超组', product:'智能交通',  amount: 380, amountPrev: 420 },
-  { team:'智慧建筑组-赵启超组', product:'存储',      amount:  50, amountPrev:  55 },
-  { team:'智慧建筑组-赵启超组', product:'LCD与解码', amount:  30, amountPrev:  35 },
-  // 智慧建筑组-李金富组
-  { team:'智慧建筑组-李金富组', product:'NVR',       amount:  95, amountPrev: 115 },
-  { team:'智慧建筑组-李金富组', product:'智能计算',  amount:   8, amountPrev:  15 },
-  { team:'智慧建筑组-李金富组', product:'IPC',       amount:  55, amountPrev:  65 },
-  { team:'智慧建筑组-李金富组', product:'平台软件',  amount:  45, amountPrev:  50 },
-  { team:'智慧建筑组-李金富组', product:'门禁',      amount:  25, amountPrev:  35 },
-  { team:'智慧建筑组-李金富组', product:'智能交通',  amount: 250, amountPrev: 280 },
-  { team:'智慧建筑组-李金富组', product:'存储',      amount:  30, amountPrev:  35 },
-  { team:'智慧建筑组-李金富组', product:'LCD与解码', amount:  20, amountPrev:  25 },
-  // 智慧建筑组-朱绪浩组
-  { team:'智慧建筑组-朱绪浩组', product:'NVR',       amount:  80, amountPrev:  95 },
-  { team:'智慧建筑组-朱绪浩组', product:'智能计算',  amount:   5, amountPrev:  10 },
-  { team:'智慧建筑组-朱绪浩组', product:'IPC',       amount:  45, amountPrev:  55 },
-  { team:'智慧建筑组-朱绪浩组', product:'平台软件',  amount:  35, amountPrev:  40 },
-  { team:'智慧建筑组-朱绪浩组', product:'门禁',      amount:  20, amountPrev:  25 },
-  { team:'智慧建筑组-朱绪浩组', product:'智能交通',  amount: 200, amountPrev: 215 },
-  { team:'智慧建筑组-朱绪浩组', product:'存储',      amount:  25, amountPrev:  30 },
-  { team:'智慧建筑组-朱绪浩组', product:'LCD与解码', amount:  15, amountPrev:  18 },
-  // 客户销售一部-张栋柱组
-  { team:'客户销售一部-张栋柱组', product:'NVR',     amount: 200, amountPrev: 175 },
-  { team:'客户销售一部-张栋柱组', product:'智能计算',amount:  15, amountPrev:   0 },
-  { team:'客户销售一部-张栋柱组', product:'IPC',     amount: 120, amountPrev: 130 },
-  { team:'客户销售一部-张栋柱组', product:'平台软件',amount:  80, amountPrev:  70 },
-  { team:'客户销售一部-张栋柱组', product:'门禁',    amount:  60, amountPrev:  65 },
-  { team:'客户销售一部-张栋柱组', product:'智能交通',amount:  25, amountPrev:  20 },
-  { team:'客户销售一部-张栋柱组', product:'存储',    amount:  90, amountPrev:  80 },
-  { team:'客户销售一部-张栋柱组', product:'LCD与解码',amount: 45, amountPrev:  40 },
-  // 客户销售一部-陈刚组
-  { team:'客户销售一部-陈刚组',   product:'NVR',     amount: 170, amountPrev: 150 },
-  { team:'客户销售一部-陈刚组',   product:'智能计算',amount:  10, amountPrev:   0 },
-  { team:'客户销售一部-陈刚组',   product:'IPC',     amount: 100, amountPrev: 115 },
-  { team:'客户销售一部-陈刚组',   product:'平台软件',amount:  65, amountPrev:  55 },
-  { team:'客户销售一部-陈刚组',   product:'门禁',    amount:  45, amountPrev:  50 },
-  { team:'客户销售一部-陈刚组',   product:'智能交通',amount:  20, amountPrev:  18 },
-  { team:'客户销售一部-陈刚组',   product:'存储',    amount:  75, amountPrev:  68 },
-  { team:'客户销售一部-陈刚组',   product:'LCD与解码',amount: 35, amountPrev:  32 },
-  // 客户销售二部-朱迪组
-  { team:'客户销售二部-朱迪组',   product:'NVR',     amount: 150, amountPrev: 135 },
-  { team:'客户销售二部-朱迪组',   product:'智能计算',amount:   8, amountPrev:   0 },
-  { team:'客户销售二部-朱迪组',   product:'IPC',     amount:  90, amountPrev: 100 },
-  { team:'客户销售二部-朱迪组',   product:'平台软件',amount:  55, amountPrev:  50 },
-  { team:'客户销售二部-朱迪组',   product:'门禁',    amount:  35, amountPrev:  40 },
-  { team:'客户销售二部-朱迪组',   product:'智能交通',amount:  15, amountPrev:  12 },
-  { team:'客户销售二部-朱迪组',   product:'存储',    amount:  60, amountPrev:  55 },
-  { team:'客户销售二部-朱迪组',   product:'LCD与解码',amount: 30, amountPrev:  28 }
+  // === 行业二部 - 政府行业组 ===
+  { team:'政府行业组-陈思源', product:'观澜编码产品（非大模型）', amount: 380, amountPrev: 290 },
+  { team:'政府行业组-陈思源', product:'出入口停车', amount: 120, amountPrev: 100 },
+  { team:'政府行业组-陈思源', product:'前端大模型', amount: 280, amountPrev: 0 },
+  { team:'政府行业组-陈思源', product:'网络产品', amount: 180, amountPrev: 200 },
+  { team:'政府行业组-陈思源', product:'后端大模型(文搜大模型）', amount: 340, amountPrev: 0 },
+  { team:'政府行业组-陈思源', product:'人员通道', amount: 65, amountPrev: 55 },
+  { team:'政府行业组-陈思源', product:'会议平板与视频会议', amount: 220, amountPrev: 180 },
+  { team:'政府行业组-陈思源', product:'国密产品', amount: 150, amountPrev: 120 },
+  { team:'政府行业组-陈思源', product:'执法记录仪', amount: 90, amountPrev: 70 },
+  { team:'政府行业组-陈思源', product:'物联安全', amount: 160, amountPrev: 130 },
+  { team:'政府行业组-陈思源', product:'音频产品', amount: 85, amountPrev: 95 },
+  // === 行业二部 - 公安交警行业组 ===
+  { team:'公安交警行业组-张伟', product:'观澜编码产品（非大模型）', amount: 280, amountPrev: 240 },
+  { team:'公安交警行业组-张伟', product:'出入口停车', amount: 80, amountPrev: 70 },
+  { team:'公安交警行业组-张伟', product:'前端大模型', amount: 60, amountPrev: 0 },
+  { team:'公安交警行业组-张伟', product:'网络产品', amount: 150, amountPrev: 160 },
+  { team:'公安交警行业组-张伟', product:'后端大模型(文搜大模型）', amount: 120, amountPrev: 0 },
+  { team:'公安交警行业组-张伟', product:'人员通道', amount: 90, amountPrev: 85 },
+  { team:'公安交警行业组-张伟', product:'会议平板与视频会议', amount: 180, amountPrev: 150 },
+  { team:'公安交警行业组-张伟', product:'国密产品', amount: 200, amountPrev: 170 },
+  { team:'公安交警行业组-张伟', product:'执法记录仪', amount: 240, amountPrev: 200 },
+  { team:'公安交警行业组-张伟', product:'物联安全', amount: 130, amountPrev: 110 },
+  { team:'公安交警行业组-张伟', product:'音频产品', amount: 60, amountPrev: 65 },
+  // === 行业一部 - 工业企业一组 ===
+  { team:'工业企业一组-潘仲楠', product:'观澜编码产品（非大模型）', amount: 250, amountPrev: 220 },
+  { team:'工业企业一组-潘仲楠', product:'出入口停车', amount: 60, amountPrev: 50 },
+  { team:'工业企业一组-潘仲楠', product:'前端大模型', amount: 180, amountPrev: 0 },
+  { team:'工业企业一组-潘仲楠', product:'网络产品', amount: 120, amountPrev: 110 },
+  { team:'工业企业一组-潘仲楠', product:'后端大模型(文搜大模型）', amount: 80, amountPrev: 0 },
+  { team:'工业企业一组-潘仲楠', product:'人员通道', amount: 45, amountPrev: 40 },
+  { team:'工业企业一组-潘仲楠', product:'会议平板与视频会议', amount: 140, amountPrev: 120 },
+  { team:'工业企业一组-潘仲楠', product:'国密产品', amount: 70, amountPrev: 60 },
+  { team:'工业企业一组-潘仲楠', product:'执法记录仪', amount: 55, amountPrev: 45 },
+  { team:'工业企业一组-潘仲楠', product:'物联安全', amount: 100, amountPrev: 85 },
+  { team:'工业企业一组-潘仲楠', product:'音频产品', amount: 80, amountPrev: 75 },
+  // === 行业一部 - 智慧建筑组 ===
+  { team:'智慧建筑组-赵启超', product:'观澜编码产品（非大模型）', amount: 180, amountPrev: 160 },
+  { team:'智慧建筑组-赵启超', product:'出入口停车', amount: 150, amountPrev: 130 },
+  { team:'智慧建筑组-赵启超', product:'前端大模型', amount: 100, amountPrev: 0 },
+  { team:'智慧建筑组-赵启超', product:'网络产品', amount: 90, amountPrev: 95 },
+  { team:'智慧建筑组-赵启超', product:'后端大模型(文搜大模型）', amount: 200, amountPrev: 0 },
+  { team:'智慧建筑组-赵启超', product:'人员通道', amount: 55, amountPrev: 50 },
+  { team:'智慧建筑组-赵启超', product:'会议平板与视频会议', amount: 110, amountPrev: 95 },
+  { team:'智慧建筑组-赵启超', product:'国密产品', amount: 80, amountPrev: 70 },
+  { team:'智慧建筑组-赵启超', product:'执法记录仪', amount: 40, amountPrev: 35 },
+  { team:'智慧建筑组-赵启超', product:'物联安全', amount: 180, amountPrev: 150 },
+  { team:'智慧建筑组-赵启超', product:'音频产品', amount: 50, amountPrev: 55 },
+  // === 客户销售一部 - 客户销售一组 ===
+  { team:'客户销售一组-张栋柱', product:'观澜编码产品（非大模型）', amount: 160, amountPrev: 140 },
+  { team:'客户销售一组-张栋柱', product:'出入口停车', amount: 70, amountPrev: 60 },
+  { team:'客户销售一组-张栋柱', product:'前端大模型', amount: 80, amountPrev: 0 },
+  { team:'客户销售一组-张栋柱', product:'网络产品', amount: 100, amountPrev: 105 },
+  { team:'客户销售一组-张栋柱', product:'后端大模型(文搜大模型）', amount: 60, amountPrev: 0 },
+  { team:'客户销售一组-张栋柱', product:'人员通道', amount: 40, amountPrev: 38 },
+  { team:'客户销售一组-张栋柱', product:'会议平板与视频会议', amount: 90, amountPrev: 80 },
+  { team:'客户销售一组-张栋柱', product:'国密产品', amount: 50, amountPrev: 45 },
+  { team:'客户销售一组-张栋柱', product:'执法记录仪', amount: 35, amountPrev: 30 },
+  { team:'客户销售一组-张栋柱', product:'物联安全', amount: 70, amountPrev: 60 },
+  { team:'客户销售一组-张栋柱', product:'音频产品', amount: 60, amountPrev: 58 },
+  // === 客户销售二部 - 客户销售六组 ===
+  { team:'客户销售六组-陈刚', product:'观澜编码产品（非大模型）', amount: 140, amountPrev: 125 },
+  { team:'客户销售六组-陈刚', product:'出入口停车', amount: 55, amountPrev: 48 },
+  { team:'客户销售六组-陈刚', product:'前端大模型', amount: 50, amountPrev: 0 },
+  { team:'客户销售六组-陈刚', product:'网络产品', amount: 85, amountPrev: 90 },
+  { team:'客户销售六组-陈刚', product:'后端大模型(文搜大模型）', amount: 40, amountPrev: 0 },
+  { team:'客户销售六组-陈刚', product:'人员通道', amount: 35, amountPrev: 32 },
+  { team:'客户销售六组-陈刚', product:'会议平板与视频会议', amount: 75, amountPrev: 68 },
+  { team:'客户销售六组-陈刚', product:'国密产品', amount: 45, amountPrev: 40 },
+  { team:'客户销售六组-陈刚', product:'执法记录仪', amount: 30, amountPrev: 25 },
+  { team:'客户销售六组-陈刚', product:'物联安全', amount: 55, amountPrev: 48 },
+  { team:'客户销售六组-陈刚', product:'音频产品', amount: 50, amountPrev: 52 }
 ];
 
 // ===== 数据导入与管理 — 数据源（按导入模版表头设计） =====
@@ -1285,7 +1271,7 @@ App.ImportPotential = {};
 App.ImportPotential.currentDS = 'cust'; // cust | user
 
 // 潜力产品列表（用于筛选下拉）
-App.ImportPotential.PRODUCTS = ['NVR','智能计算','IPC','平台软件','门禁','智能交通','存储','LCD与解码','出入口停车','音频产品','人员通道','行业软件','通用软件','网络产品','新业务','专网摄像机'];
+App.ImportPotential.PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
 
 // 数据源1: 潜力产品-客户 (20条模拟)
 App.ImportPotential.CustRAW = [
@@ -1333,45 +1319,50 @@ App.ImportPotential.UserRAW = [
 
 // ===== 角色权限数据 =====
 App.ROLE_PERMISSIONS = [
-  { role: 'admin',     name: '管理员',     modules: { overview:1, width:1, potential:1, admin:1, users:1, roles:1, products:1, params:1, audit:1, tenant:1, backup:1, export:1 }, desc: '全部功能 + 用户管理' },
-  { role: 'gm',        name: '总经理',     modules: { overview:1, width:1, potential:1, admin:1, users:1, roles:0, products:0, params:0, audit:1, tenant:0, backup:1, export:1 }, desc: '全局查看 + 导出备份' },
-  { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:1, tenant:0, backup:0, export:1 }, desc: '全局查看 + 导出' },
-  { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, tenant:0, backup:0, export:1 }, desc: '本部门数据查看' },
-  { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, tenant:0, backup:0, export:0 }, desc: '本组数据查看' },
-  { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, tenant:0, backup:0, export:0 }, desc: '本人数据查看' }
+  { role: 'admin',     name: '管理员',     modules: { overview:1, width:1, potential:1, users:1, roles:1, products:1, params:1, audit:1, backup:1, export:1, import:1 }, desc: '全部功能 + 用户管理' },
+  { role: 'gm',        name: '总经理',     modules: { overview:1, width:1, potential:1, users:1, roles:0, products:0, params:0, audit:1, backup:1, export:1, import:1 }, desc: '全局查看 + 导出备份' },
+  { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:1, backup:0, export:1, import:1 }, desc: '全局查看 + 导出' },
+  { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:1, import:1 }, desc: '本部门数据查看' },
+  { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:0, import:0 }, desc: '本组数据查看' },
+  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:0, import:0 }, desc: '数据对接查看' },
+  { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:0, import:0 }, desc: '本人数据查看' }
 ];
 
-// ===== 产品字典数据 =====
+// ===== 产品字典数据（涵盖产品宽度 + 潜力产品所有品类） =====
 App.PRODUCT_DICT = [
-  { id:1,  name:'IPC',              alias:'网络摄像机',      category:'前端',  is_potential:1, sort:1  },
-  { id:2,  name:'NVR',              alias:'网络录像机',      category:'后端',  is_potential:1, sort:2  },
-  { id:3,  name:'门禁',             alias:'门禁系统',        category:'前端',  is_potential:1, sort:3  },
-  { id:4,  name:'球机',             alias:'球型摄像机',      category:'前端',  is_potential:0, sort:4  },
-  { id:5,  name:'LCD与解码',        alias:'大屏显示',        category:'显示',  is_potential:1, sort:5  },
-  { id:6,  name:'新业务',           alias:'热成像/消防等',   category:'创新',  is_potential:0, sort:6  },
-  { id:7,  name:'通用软件',         alias:'通用平台软件',    category:'软件',  is_potential:0, sort:7  },
-  { id:8,  name:'网络产品',         alias:'交换机/路由器',   category:'网络',  is_potential:0, sort:8  },
-  { id:9,  name:'存储',             alias:'存储设备',        category:'后端',  is_potential:1, sort:9  },
-  { id:10, name:'专用摄像机',       alias:'专网摄像机',      category:'前端',  is_potential:0, sort:10 },
-  { id:11, name:'服务器',           alias:'服务器设备',      category:'后端',  is_potential:0, sort:11 },
-  { id:12, name:'行业软件',         alias:'行业应用软件',    category:'软件',  is_potential:1, sort:12 },
-  { id:13, name:'智能计算',         alias:'AI计算设备',      category:'后端',  is_potential:1, sort:13 },
-  { id:14, name:'对讲',             alias:'对讲设备',        category:'前端',  is_potential:0, sort:14 },
-  { id:15, name:'报警',             alias:'报警设备',        category:'前端',  is_potential:0, sort:15 },
-  { id:16, name:'出入口停车',       alias:'停车管理',        category:'前端',  is_potential:1, sort:16 },
-  { id:17, name:'人员通道',         alias:'通道管理',        category:'前端',  is_potential:0, sort:17 },
-  { id:18, name:'音频产品',         alias:'音频设备',        category:'前端',  is_potential:1, sort:18 },
-  { id:19, name:'PCP产品',          alias:'PC产品',          category:'后端',  is_potential:0, sort:19 },
-  { id:20, name:'LED与拼控',        alias:'LED显示屏',       category:'显示',  is_potential:0, sort:20 },
-  { id:21, name:'移动终端产品',     alias:'移动终端',        category:'前端',  is_potential:0, sort:21 },
-  { id:22, name:'智慧屏与视频会议', alias:'智慧屏',          category:'显示',  is_potential:0, sort:22 },
+  // === 潜力产品（11个） ===
+  { id:1,  name:'观澜编码产品（非大模型）', alias:'观澜编码',        category:'软件',  is_potential:1, sort:1  },
+  { id:2,  name:'出入口停车',             alias:'停车管理',        category:'前端',  is_potential:1, sort:2  },
+  { id:3,  name:'前端大模型',             alias:'前端AI模型',      category:'软件',  is_potential:1, sort:3  },
+  { id:4,  name:'网络产品',               alias:'交换机/路由器',   category:'网络',  is_potential:1, sort:4  },
+  { id:5,  name:'后端大模型(文搜大模型）',alias:'后端AI模型',      category:'软件',  is_potential:1, sort:5  },
+  { id:6,  name:'人员通道',               alias:'通道闸机',        category:'前端',  is_potential:1, sort:6  },
+  { id:7,  name:'会议平板与视频会议',     alias:'会议平板',        category:'显示',  is_potential:1, sort:7  },
+  { id:8,  name:'国密产品',               alias:'国密安全',        category:'网络',  is_potential:1, sort:8  },
+  { id:9,  name:'执法记录仪',             alias:'执法仪',          category:'前端',  is_potential:1, sort:9  },
+  { id:10, name:'物联安全',               alias:'物联网安全',      category:'网络',  is_potential:1, sort:10 },
+  { id:11, name:'音频产品',               alias:'音频设备',        category:'前端',  is_potential:1, sort:11 },
+  // === 产品宽度常规产品 ===
+  { id:12, name:'IPC',              alias:'网络摄像机',      category:'前端',  is_potential:0, sort:12 },
+  { id:13, name:'球机',             alias:'球型摄像机',      category:'前端',  is_potential:0, sort:13 },
+  { id:14, name:'专用摄像机',       alias:'专网摄像机',      category:'前端',  is_potential:0, sort:14 },
+  { id:15, name:'服务器',           alias:'服务器设备',      category:'后端',  is_potential:0, sort:15 },
+  { id:16, name:'存储',             alias:'存储设备',        category:'后端',  is_potential:0, sort:16 },
+  { id:17, name:'LCD与解码',        alias:'大屏显示',        category:'显示',  is_potential:0, sort:17 },
+  { id:18, name:'LED与拼控',        alias:'LED显示屏',       category:'显示',  is_potential:0, sort:18 },
+  { id:19, name:'移动终端产品',     alias:'移动终端',        category:'前端',  is_potential:0, sort:19 },
+  { id:20, name:'对讲',             alias:'对讲设备',        category:'前端',  is_potential:0, sort:20 },
+  { id:21, name:'报警',             alias:'报警设备',        category:'前端',  is_potential:0, sort:21 },
+  { id:22, name:'PCP产品',          alias:'PC产品',          category:'后端',  is_potential:0, sort:22 },
   { id:23, name:'综合布线与机柜',   alias:'综合布线',        category:'网络',  is_potential:0, sort:23 },
   { id:24, name:'基础软件',         alias:'基础平台软件',    category:'软件',  is_potential:0, sort:24 },
-  { id:25, name:'网络安全',         alias:'安全设备',        category:'网络',  is_potential:0, sort:25 },
-  { id:26, name:'传感产品',         alias:'传感器',          category:'前端',  is_potential:0, sort:26 },
-  { id:27, name:'智能交通',         alias:'交通管理',        category:'前端',  is_potential:1, sort:27 },
-  { id:28, name:'专网摄像机',       alias:'专用网络摄像机',  category:'前端',  is_potential:0, sort:28 },
-  { id:29, name:'平台软件',         alias:'平台管理软件',    category:'软件',  is_potential:1, sort:29 }
+  { id:25, name:'通用软件',         alias:'通用平台软件',    category:'软件',  is_potential:0, sort:25 },
+  { id:26, name:'行业软件',         alias:'行业应用软件',    category:'软件',  is_potential:0, sort:26 },
+  { id:27, name:'网络安全',         alias:'安全设备',        category:'网络',  is_potential:0, sort:27 },
+  { id:28, name:'传感产品',         alias:'传感器',          category:'前端',  is_potential:0, sort:28 },
+  { id:29, name:'智能交通',         alias:'交通管理',        category:'前端',  is_potential:0, sort:29 },
+  { id:30, name:'平台软件',         alias:'平台管理软件',    category:'软件',  is_potential:0, sort:30 },
+  { id:31, name:'新业务',           alias:'热成像/消防等',   category:'创新',  is_potential:0, sort:31 },
 ];
 
 // ===== 业务参数数据 =====

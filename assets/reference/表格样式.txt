@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EPC项目管理系统</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f3f4f6;--surface:#fff;--border:#e0e2e5;
+  --text:#222;--text2:#555;--text3:#888;
+  --primary:#c41230;--primary-light:#fdf0f2;
+  --blue:#1a6fb5;--blue-light:#eef5fb;
+  --green:#2d8c4a;--green-light:#eaf6ee;
+  --red:#c41230;--red-light:#fdf0f2;
+  --amber:#c4720d;--amber-light:#fdf4e8;
+  --radius:2px;--radius-lg:4px;
+  --font:"Microsoft YaHei","PingFang SC",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+  --mono:"SF Mono","Fira Code","Consolas",monospace;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh;-webkit-font-smoothing:antialiased}
+.app{max-width:100vw;margin:0 auto;padding:0 32px 24px}
+
+/* Header */
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header-left h1{font-size:24px;font-weight:600;letter-spacing:-0.3px}
+.header-left .info{font-size:14px;color:var(--text3);margin-top:4px}
+.header-right{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;font-size:14px;font-family:var(--font);font-weight:400;border:1px solid #d5d7da;border-radius:var(--radius);background:var(--surface);color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none}
+.btn:hover{background:#f8f8f8;border-color:#bbb}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:#a80f28;border-color:#a80f28}
+.btn-export{background:var(--green-light);color:var(--green);border-color:#c3e6cf}
+.btn-export:hover{background:#d4f0dd}
+.btn-danger{background:var(--red-light);color:var(--red);border-color:#f5c6c3}
+.btn-danger:hover{background:#f9d7d4}
+/* AI分析进度 */
+.ai-loading{display:flex;align-items:center;gap:8px;padding:20px;color:var(--text2);font-size:13px}.ai-loading .dot-pulse{display:flex;gap:4px;align-items:center}.ai-loading .dot-pulse span{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#667eea,#764ba2);animation:dotBounce 1.4s infinite ease-in-out}.ai-loading .dot-pulse span:nth-child(2){animation-delay:0.2s}.ai-loading .dot-pulse span:nth-child(3){animation-delay:0.4s}@keyframes dotBounce{0%,80%,100%{transform:scale(0.4);opacity:0.4}40%{transform:scale(1);opacity:1}}
+.ai-tab{display:inline-flex;padding:8px 16px;font-size:13px;border-radius:8px;text-decoration:none;color:var(--text2);border:1px solid var(--border);background:var(--surface);cursor:pointer;transition:all 0.2s}.ai-tab.active{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border-color:transparent}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 22px}
+.stat-card .label{font-size:14px;color:var(--text3);margin-bottom:4px}
+.stat-card .value{font-size:28px;font-weight:600;letter-spacing:-0.3px}
+.stat-card .value small{font-size:15px;font-weight:400}
+
+/* Toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.toolbar .search-box{flex:1;min-width:200px;max-width:320px;padding:9px 14px;font-size:14px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);outline:none;color:var(--text)}
+.toolbar .search-box:focus{border-color:var(--primary)}
+.toolbar select{padding:9px 14px;font-size:14px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text)}
+.toolbar .count{margin-left:auto;font-size:14px;color:var(--text3)}
+
+/* Table */
+.table-wrap{background:var(--surface);border:1px solid #dde0e4;border-radius:var(--radius-lg);overflow:hidden}
+.table-scroll{overflow-x:hidden;max-height:70vh;overflow-y:auto}
+.hscroll-bar{overflow-x:auto;overflow-y:hidden;height:14px;background:#f5f6f8;border-top:1px solid #e8eaef}
+.hscroll-inner{height:1px}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:2000px}
+thead{position:sticky;top:0;z-index:2}
+th{padding:10px 10px;text-align:center;font-weight:500;font-size:12px;color:var(--text3);white-space:nowrap;background:#fafbfc;border:1px solid #dde0e4;cursor:default;position:relative;user-select:none;overflow:visible;text-overflow:ellipsis}
+th .resize-handle{position:absolute;right:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3}
+th .resize-handle:hover{background:rgba(0,0,0,0.1)}
+th.resizing{background:#eef1ff}
+.resize-line{position:absolute;top:0;width:2px;background:var(--blue);z-index:10;pointer-events:none;display:none}
+/* Column Filter */
+.col-filter-icon{font-size:10px;color:#bbb;cursor:pointer;margin-left:3px;padding:2px;vertical-align:middle;border-radius:2px;transition:all .15s}
+.col-filter-icon:hover{color:var(--primary);background:#fdf0f2}
+.col-filter-icon.active{color:var(--primary);font-weight:bold}
+.col-filter-dropdown{display:none;position:absolute;top:100%;left:0;min-width:140px;max-height:240px;overflow-y:auto;background:#fff;border:1px solid #d5d7da;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:50;padding:4px 0}
+.col-filter-dropdown.show{display:block}
+.col-filter-dropdown label{display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;cursor:pointer;color:#555;white-space:nowrap}
+.col-filter-dropdown label:hover{background:#f8f8f8}
+.col-filter-dropdown label input{margin:0}
+.col-filter-dropdown .filter-actions{display:flex;gap:4px;padding:6px 10px;border-top:1px solid #f0f0f0}
+.col-filter-dropdown .filter-actions button{flex:1;padding:5px 10px;font-size:12px;border:1px solid #d5d7da;border-radius:2px;background:#fff;color:#555;cursor:pointer;font-family:var(--font)}
+.col-filter-dropdown .filter-actions button:hover{background:#f0f0f0}
+.col-filter-dropdown .filter-actions .ok{background:#c41230;color:#fff;border-color:#c41230}
+.col-filter-dropdown .filter-actions .ok:hover{background:#a80f28;color:#fff}
+td{padding:8px 10px;border:1px solid #dde0e4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tbody tr:hover{background:#fafbfc}
+tbody tr:hover td{border-color:#bcc0c8}
+td.name{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+td.editable{cursor:pointer}
+td.editable:hover{background:#e8f2fb;outline:1px dashed var(--primary)}
+td.editable input{width:100%;min-width:60px;padding:4px 6px;font-size:13px;font-family:var(--font);border:1px solid var(--primary);border-radius:3px;outline:none;background:#fff}
+td.editable.editing{padding:2px}
+td.amount{text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
+
+/* Pagination */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid var(--border);font-size:14px;color:var(--text3)}
+.pagination .pages{display:flex;gap:4px}
+.pagination button{width:32px;height:32px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-size:13px;cursor:pointer}
+.pagination button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);width:90%;max-width:700px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.12)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid var(--border);position:relative}
+.modal-header h2{font-size:17px;font-weight:600}
+.modal-close{position:absolute;top:10px;right:14px;width:30px;height:30px;border:none;background:none;font-size:20px;cursor:pointer;color:var(--text3);border-radius:4px;line-height:30px;text-align:center}
+.modal-close:hover{background:#f0f0f0}
+.modal-body{padding:22px}
+.form-section{margin-bottom:18px}
+.form-section h3{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #f0f0f0}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.form-grid.col-3{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:3px}
+.form-group label{font-size:13px;color:var(--text2);font-weight:500}
+.form-group label .req{color:var(--red)}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;font-size:14px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--radius);outline:none}
+.form-group input:focus,.form-group select:focus{border-color:var(--primary)}
+.form-footer{display:flex;gap:8px;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--border)}
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius-lg);padding:36px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:14px}
+.upload-zone:hover{border-color:var(--accent);background:#fafafa}
+.upload-zone .icon{font-size:28px;margin-bottom:6px}
+.upload-result{display:none;border:1px solid var(--border);border-radius:var(--radius-lg);margin-top:12px}
+.upload-result.show{display:block}
+.upload-result .summary{padding:10px 14px;font-size:13px;background:#fafafa;border-bottom:1px solid var(--border);display:flex;gap:14px}
+.toast{position:fixed;top:16px;right:16px;padding:10px 16px;background:var(--accent);color:#fff;border-radius:var(--radius);font-size:12px;font-weight:500;z-index:200;opacity:0;transform:translateY(-8px);transition:all .25s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{background:var(--red)}
+.empty-state{display:none;text-align:center;padding:50px;color:var(--text3)}
+.empty-state.show{display:block}
+.spinner{display:none;text-align:center;padding:40px}
+.spinner.show{display:block}
+.config-select{display:none;background:#f8f9fb;border-radius:8px;padding:14px;margin-top:10px;border:1px solid var(--border)}
+.config-select.show{display:block}
+.config-select label{display:block;font-size:11px;font-weight:500;color:var(--text2);margin-bottom:4px}
+.config-select select,.config-select input{width:100%;padding:7px 10px;font-size:12px;font-family:var(--font);border:1px solid var(--border);border-radius:6px;outline:none;background:var(--surface);margin-bottom:10px}
+.config-select select:focus,.config-select input:focus{border-color:var(--blue)}
+.config-preview{font-size:11px;color:var(--text3);margin-top:4px;line-height:1.6}
+.config-preview b{color:var(--text)}
+@media(max-width:768px){.stats{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <!-- Top Navigation Bar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;height:56px;padding:0;margin-bottom:20px;border-bottom:1px solid #e0e2e5;background:#fff;margin-left:-32px;margin-right:-32px;padding-left:32px;padding-right:32px">
+    <div style="display:flex;align-items:center;gap:36px;height:100%">
+      <span style="font-size:20px;font-weight:400;color:#333;letter-spacing:2px"><b style="color:#c41230;font-weight:700">EPC</b> 项目管理系统</span>
+      <div style="display:flex;align-items:center;height:100%;gap:0">
+        <a href="/dashboard" style="display:flex;align-items:center;height:100%;padding:0 20px;font-size:15px;color:#666;text-decoration:none;border-bottom:2px solid transparent;transition:all .2s">数据看板</a>
+        <a href="/" style="display:flex;align-items:center;height:100%;padding:0 20px;font-size:15px;color:#c41230;text-decoration:none;border-bottom:2px solid #c41230">项目管理</a>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;font-size:14px;color:#888">
+      <span>管理员<span style="display:inline-block;margin-left:8px;padding:1px 8px;border-radius:10px;font-size:11px;background:#f0f2f5;color:#8f93a0">管理员</span></span>
+      
+      <a href="javascript:void(0)" onclick="showUserModal()" style="color:#666;text-decoration:none;font-size:14px">用户管理</a>
+      <a href="javascript:void(0)" onclick="showBackupModal()" style="color:#666;text-decoration:none;font-size:14px">备份</a>
+      
+      
+      <a href="javascript:void(0)" onclick="showPwdModal()" style="color:#666;text-decoration:none;font-size:14px">修改密码</a>
+      
+      <a href="/logout" style="color:#666;text-decoration:none;font-size:14px">退出</a>
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;flex-wrap:wrap" id="headerBtns">
+    
+    <button class="btn" onclick="showUploadModal('master')" title="导入总表 Excel" style="border-left:3px solid #1a6fb5;color:#1a6fb5">📊 导入总表</button>
+    
+    
+    <button class="btn" onclick="showUploadModal('crm')" title="导入 CRM 导出数据" style="border-left:3px solid #2d8c4a;color:#2d8c4a">📋 导入CRM</button>
+    <button class="btn" onclick="showUploadModal('config')" title="导入标准配置清单" style="border-left:3px solid #c4720d;color:#c4720d">📦 导入配置清单</button>
+    <button class="btn" onclick="showNewProjectModal()" style="border-left:3px solid #c41230;color:#c41230">＋ 新建项目</button>
+    
+    <button class="btn" onclick="showAIModal()" style="border-left:3px solid #6942c9;color:#6942c9">🤖 AI分析</button>
+    
+    <button class="btn" onclick="exportExcel()" style="border-left:3px solid #0d7d8c;color:#0d7d8c">📥 导出Excel</button>
+    
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div style="position:relative;display:inline-flex;align-items:center">
+      <input class="search-box" placeholder="搜索项目名称、用户单位..." oninput="loadProjects();toggleClearBtn()" id="searchInput" autocomplete="off" style="padding-right:32px">
+      <button id="clearSearch" onclick="document.getElementById('searchInput').value='';loadProjects();this.style.display='none'" title="清空搜索" style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:none;font-size:16px;cursor:pointer;color:#999;border-radius:3px;line-height:1">✕</button>
+    </div>
+    <span class="count">共 <b id="rowCount">0</b> 条</span>
+  </div>
+
+  <!-- Active Filter Tags -->
+  <div id="filterTags" style="display:none;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;font-size:13px">
+    <span style="color:#888">筛选：</span>
+    <span id="filterTagList" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"></span>
+    <button class="btn" style="padding:3px 12px;font-size:12px;color:#c41230;border-color:#f5c6c3" onclick="clearAllFilters()">清除全部</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <div class="spinner" id="spinner">加载中...</div>
+    <div class="empty-state" id="emptyState">📂 暂无数据</div>
+    <div class="table-scroll" id="tableScroll" style="display:none">
+      <table id="mainTable"><thead id="tableHead"></thead><tbody id="tableBody"></tbody></table>
+    </div>
+    <!-- 底部固定水平滚动条 -->
+    <div class="hscroll-bar" id="hScrollBar" style="display:none">
+      <div class="hscroll-inner" id="hScrollInner"></div>
+    </div>
+    <div class="pagination" id="pagination" style="display:none">
+      <span id="pageInfo"></span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--text3)">每页</span>
+        <select id="pageSizeSelect" onchange="changePageSize()" style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px">
+          <option value="10">10</option><option value="30" selected>30</option><option value="50">50</option><option value="100">100</option>
+        </select>
+        <span style="font-size:12px;color:var(--text3)">条</span>
+        <div class="pages" id="pageButtons"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal-overlay" id="uploadModal"><div class="modal">
+  <div class="modal-header"><h2 id="uploadTitle">上传文件</h2><button class="modal-close" onclick="hideModal('uploadModal')">✕</button></div>
+  <div class="modal-body">
+    <div id="uploadDesc" style="font-size:12px;color:var(--text2);margin-bottom:12px"></div>
+    <div class="upload-zone" id="uploadZone"><div class="icon">📁</div><div style="font-size:13px">拖拽或点击选择文件</div><div style="font-size:11px;color:var(--text3)">支持 .xlsx .xls</div>
+      <input type="file" id="uploadFile" accept=".xlsx,.xls" style="display:none">
+    </div>
+    <div id="configSelectPanel" class="config-select">
+      <label>项目名称</label>
+      <input type="text" id="configProjectName" placeholder="自动从文件名提取">
+      <label>板块分类列</label>
+      <select id="configCategoryCol"></select>
+      <label>数量列</label>
+      <select id="configQtyCol"></select>
+      <label>单价列</label>
+      <select id="configPriceCol"></select>
+      <div class="config-preview" id="configPreview"></div>
+    </div>
+    <div class="upload-result" id="importResult"><div class="summary" id="importSummary"></div></div>
+    <div class="form-footer" style="margin-top:14px">
+      <button class="btn" onclick="hideModal('uploadModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmUpload()">确认导入</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- New Project Modal -->
+<div class="modal-overlay" id="newProjectModal"><div class="modal">
+  <div class="modal-header"><h2>录入项目</h2><button class="modal-close" onclick="hideModal('newProjectModal')">✕</button></div>
+  <div class="modal-body">
+    <form id="newProjectForm" onsubmit="submitNewProject(event)">
+      <div class="form-section"><h3>基本信息</h3>
+        <div class="form-grid">
+          <div class="form-group" style="grid-column:1/-1"><label><span class="req">*</span> 项目名称</label><input type="text" name="项目名称" required></div>
+          <div class="form-group"><label>用户单位</label><input type="text" name="用户单位"></div>
+          <div class="form-group"><label>行业</label><select name="行业"><option value="">请选择</option><option>基础教育</option><option>高等教育</option></select></div>
+          <div class="form-group"><label>区域</label><select name="区域"><option value="">请选择</option><option>龙华区</option><option>宝安区</option><option>南山区</option><option>其他</option></select></div>
+          <div class="form-group"><label>项目类别</label><select name="项目类别"><option value="">请选择</option><option>新建</option><option>改扩建</option></select></div>
+          <div class="form-group"><label>属性</label><select name="属性"><option value="">请选择</option><option>投标中</option><option>已中标</option><option>施工中</option><option>已竣工</option></select></div>
+          <div class="form-group"><label>商机编号</label><input type="text" name="商机编号" placeholder="自动或手动填写"></div>
+          <div class="form-group"><label>跟进人</label><input type="text" name="跟进人" value="管理员" ></div>
+          <div class="form-group"><label>预计落单时间</label><input type="text" name="预计落单时间" placeholder="2027年Q1"></div>
+          <div class="form-group"><label>更新日期</label><input type="date" name="更新日期"></div>
+          <div class="form-group"><label>预计HK金额（万元）</label><input type="number" name="预计HK金额（万元）" step="0.01" value="0"></div>
+        </div>
+      </div>
+      <div class="form-section"><h3>7大产品线 — 预测金额（万元）</h3>
+        <div class="form-grid col-3">
+          <div class="form-group"><label>LED</label><input type="number" name="LED" step="0.01" value="0"></div>
+          <div class="form-group"><label>监控</label><input type="number" name="监控" step="0.01" value="0"></div>
+          <div class="form-group"><label>门禁</label><input type="number" name="门禁" step="0.01" value="0"></div>
+          <div class="form-group"><label>停车场</label><input type="number" name="停车场" step="0.01" value="0"></div>
+          <div class="form-group"><label>综合布线</label><input type="number" name="综合布线" step="0.01" value="0"></div>
+          <div class="form-group"><label>网络及安全产品</label><input type="number" name="网络及安全产品" step="0.01" value="0"></div>
+          <div class="form-group"><label>非品牌库</label><input type="number" name="非品牌库（报警、电子班牌、信息发布、升降柱等）" step="0.01" value="0"></div>
+        </div>
+      </div>
+      <div class="form-section"><h3>跟进信息</h3>
+        <div class="form-grid">
+          <div class="form-group"><label>是否赢单</label><label style="font-weight:400;display:flex;align-items:center;gap:4px;padding-top:6px"><input type="checkbox" name="是否赢单" value="是"> 是</label></div>
+          <div class="form-group"><label>是否完成品牌报审</label><label style="font-weight:400;display:flex;align-items:center;gap:4px;padding-top:6px"><input type="checkbox" name="是否完成品牌报审" value="是"> 是</label></div>
+          <div class="form-group"><label>总包</label><input type="text" name="总包"></div>
+          <div class="form-group"><label>中标弱电分包商</label><input type="text" name="中标弱电分包商"></div>
+          <div class="form-group"><label>竞争态势</label><input type="text" name="竞争态势"></div>
+          <div class="form-group"><label>备注</label><input type="text" name="备注"></div>
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="button" class="btn" onclick="hideModal('newProjectModal')">取消</button>
+        <button type="submit" class="btn btn-primary">确认录入</button>
+      </div>
+    </form>
+  </div>
+</div></div>
+
+
+<!-- AI分析 Modal -->
+<div class="modal-overlay" id="aiModal"><div class="modal" style="max-width:800px">
+  <div class="modal-header"><h2>🤖 AI 智能分析</h2><button class="modal-close" onclick="hideModal('aiModal')">✕</button></div>
+  <div class="modal-body">
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <a href="javascript:void(0)" onclick="switchAITab('analyze')" class="ai-tab active" id="tabAnalyze">🔍 智能分析</a>
+      <a href="javascript:void(0)" onclick="switchAITab('config')" class="ai-tab" id="tabConfig">⚙️ API配置</a>
+    </div>
+    <div id="aiTabAnalyze">
+      <!-- AI 开场白 -->
+      <div id="aiWelcome" style="padding:16px;background:linear-gradient(135deg,#f8f9ff,#f0f4ff);border:1px solid #d8dfff;border-radius:8px;margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600;color:#4f46e5;margin-bottom:8px">👋 你好！我是 EPC 项目管理智能助手</div>
+        <div style="font-size:13px;color:#555;line-height:1.8">
+          我会读取项目数据库中的<b>全部项目数据</b>，结合你的问题给出分析。<br>
+          你可以直接提问，例如：
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px" id="aiQuickBtns">
+          <span onclick="aiQuick('全面分析项目数据，输出问题发现和跟进建议')" style="cursor:pointer;padding:4px 12px;background:#eef2ff;color:#4f46e5;border-radius:14px;font-size:12px;border:1px solid #d8dfff;transition:all .15s" onmouseenter="this.style.background='#d8dfff'" onmouseleave="this.style.background='#eef2ff'">📊 全面分析</span>
+          <span onclick="aiQuick('各产品线预测和实际出货对比，哪些产品线差异最大')" style="cursor:pointer;padding:4px 12px;background:#eef2ff;color:#4f46e5;border-radius:14px;font-size:12px;border:1px solid #d8dfff;transition:all .15s" onmouseenter="this.style.background='#d8dfff'" onmouseleave="this.style.background='#eef2ff'">📦 产品线分析</span>
+          <span onclick="aiQuick('分析各跟进人的项目数量和金额，找出工作量不均衡的人')" style="cursor:pointer;padding:4px 12px;background:#eef2ff;color:#4f46e5;border-radius:14px;font-size:12px;border:1px solid #d8dfff;transition:all .15s" onmouseenter="this.style.background='#d8dfff'" onmouseleave="this.style.background='#eef2ff'">👤 人员分析</span>
+          <span onclick="aiQuick('哪些项目超过30天没有更新跟踪记录，需要重点关注')" style="cursor:pointer;padding:4px 12px;background:#eef2ff;color:#4f46e5;border-radius:14px;font-size:12px;border:1px solid #d8dfff;transition:all .15s" onmouseenter="this.style.background='#d8dfff'" onmouseleave="this.style.background='#eef2ff'">⚠️ 异常预警</span>
+          <span onclick="aiQuick('分析各行业项目分布和赢单率，建议重点拓展哪些行业')" style="cursor:pointer;padding:4px 12px;background:#eef2ff;color:#4f46e5;border-radius:14px;font-size:12px;border:1px solid #d8dfff;transition:all .15s" onmouseenter="this.style.background='#d8dfff'" onmouseleave="this.style.background='#eef2ff'">🏭 行业策略</span>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px">
+        <label>输入分析问题（系统自动附带全部项目数据）</label>
+        <textarea id="aiPrompt" rows="4" style="width:100%;padding:10px;font-size:13px;font-family:var(--font);border:1px solid var(--border);border-radius:var(--radius);outline:none;resize:vertical" placeholder="输入你的问题，例如：LED产品线为什么出货这么少？"></textarea>
+      </div>
+      <div class="form-footer">
+        <button class="btn" onclick="hideModal('aiModal')">取消</button>
+        <button class="btn btn-primary" onclick="doAIAnalyze()" id="aiAnalyzeBtn">🚀 开始分析</button>
+      </div>
+      <div id="aiResult" style="display:none;margin-top:14px;padding:14px;background:#f8f9fb;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;line-height:1.8;max-height:400px;overflow-y:auto;white-space:pre-wrap"></div>
+    </div>
+    <div id="aiTabConfig" style="display:none">
+      <div class="form-group" style="margin-bottom:8px">
+        <label>智能体 API 地址</label>
+        <input type="text" id="aiEndpoint" placeholder="https://maas.hikvision.com.cn/v1/agent/chat">
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>App ID</label>
+        <input type="text" id="aiAppId" placeholder="73eab89bf9ae4cd0843cbc61155a6ef2">
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>API Key</label>
+        <input type="password" id="aiApiKey" placeholder="sk-...">
+      </div>
+      <div class="form-group" style="margin-bottom:8px">
+        <label>员工号（user字段，如 HZ2065）</label>
+        <input type="text" id="aiUser" placeholder="HZ2065">
+      </div>
+      <div class="form-footer">
+        <button class="btn" onclick="hideModal('aiModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveAIConfig()">💾 保存配置</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- User Management Modal -->
+<div class="modal-overlay" id="userModal"><div class="modal" style="max-width:700px">
+  <div class="modal-header"><h2>👤 用户管理</h2><button class="modal-close" onclick="hideModal('userModal')">✕</button></div>
+  <div class="modal-body">
+    <div style="margin-bottom:4px;font-size:12px;color:var(--text3);font-weight:500">新增用户</div>
+    <div style="margin-bottom:14px;display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text3)">用户名</label>
+        <input type="text" id="newUsername" placeholder="登录账号" style="width:90px;padding:5px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text3)">密码</label>
+        <input type="text" id="newPassword" placeholder="初始密码" style="width:90px;padding:5px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text3)">姓名</label>
+        <input type="text" id="newDisplayName" placeholder="显示名称" style="width:80px;padding:5px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text3)">角色</label>
+        <select id="newRole" style="padding:5px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"><option value="user">用户</option><option value="leader">主管</option><option value="admin">管理员</option></select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;color:var(--text3)">上级主管</label>
+        <select id="newManager" style="width:90px;padding:5px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px"><option value="">无上级</option></select>
+      </div>
+      <button class="btn btn-primary" onclick="addUser()" style="padding:5px 14px;font-size:12px;white-space:nowrap">新增</button>
+    </div>
+    <div style="margin-bottom:4px;font-size:12px;color:var(--text3);font-weight:500">用户列表</div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:550px" id="userTable">
+      <thead><tr style="background:#fafafa"><th style="padding:6px 8px;text-align:left;border-bottom:2px solid var(--border)">用户名</th><th style="padding:6px 8px;text-align:left;border-bottom:2px solid var(--border)">姓名</th><th style="padding:6px 8px;text-align:left;border-bottom:2px solid var(--border)">角色</th><th style="padding:6px 8px;text-align:left;border-bottom:2px solid var(--border)">上级主管</th><th style="padding:6px 8px;text-align:center;border-bottom:2px solid var(--border);width:120px">操作</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+</div></div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="pwdModal"><div class="modal" style="max-width:380px">
+  <div class="modal-header"><h2>🔒 修改密码</h2><button class="modal-close" onclick="hideModal('pwdModal')">✕</button></div>
+  <div class="modal-body">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <input type="password" id="oldPassword" placeholder="原密码" style="padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;font-family:var(--font);outline:none">
+      <input type="password" id="newPassword1" placeholder="新密码" style="padding:10px 12px;font-size:14px;border:1px solid var(--border);border-radius:4px;font-family:var(--font);outline:none">
+      <button class="btn btn-primary" onclick="changePassword()" style="padding:10px 0;font-size:14px;width:100%">确认修改</button>
+    </div>
+  </div>
+</div></div>
+
+<!-- Backup Modal -->
+<div class="modal-overlay" id="backupModal"><div class="modal" style="max-width:750px">
+  <div class="modal-header"><h2>💾 数据库备份与恢复</h2><button class="modal-close" onclick="hideModal('backupModal')">✕</button></div>
+  <div class="modal-body">
+    <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:13px;color:var(--text2)">备份类型：</span>
+      <select id="backupType" style="padding:7px 10px;font-size:13px;border:1px solid var(--border);border-radius:4px">
+        <option value="full">📦 完整备份（全部数据）</option>
+        <option value="projects">📋 项目总表备份（仅项目数据）</option>
+      </select>
+      <button class="btn btn-primary" onclick="doBackup()">🔄 创建备份</button>
+    </div>
+    <div id="backupResult" style="font-size:12px;color:var(--green);margin-bottom:8px;display:none"></div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;font-size:12px;border-collapse:collapse;min-width:580px" id="backupTable">
+      <thead><tr style="background:#fafafa"><th style="padding:5px 8px;text-align:left;border-bottom:2px solid var(--border)">文件名</th><th style="padding:5px 8px;text-align:center;border-bottom:2px solid var(--border);width:44px">类型</th><th style="padding:5px 8px;text-align:right;border-bottom:2px solid var(--border);width:60px">大小</th><th style="padding:5px 8px;text-align:left;border-bottom:2px solid var(--border);width:120px">时间</th><th style="padding:5px 8px;text-align:center;border-bottom:2px solid var(--border);width:155px">操作</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+</div></div>
+
+<!-- Tracking Timeline Modal -->
+<div class="modal-overlay" id="trackingModal"><div class="modal" style="max-width:660px">
+  <div class="modal-header"><h2 id="trackingTitle">📋 跟踪时间轴</h2><button class="modal-close" onclick="hideModal('trackingModal')">✕</button></div>
+  <div class="modal-body" style="display:flex;flex-direction:column;max-height:70vh">
+    <!-- Add form -->
+    <div style="padding:14px 16px;background:#f8f9fb;border-bottom:1px solid #eef0f4;flex-shrink:0">
+      <div style="display:flex;gap:10px;align-items:stretch">
+        <textarea id="trackInput" rows="2" placeholder="输入跟踪进展..." style="flex:1;min-width:200px;padding:9px 12px;font-size:13px;border:1px solid #d5d7da;border-radius:4px;resize:vertical;font-family:var(--font);outline:none;box-sizing:border-box" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#d5d7da'"></textarea>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;width:180px">
+          <input type="date" id="trackTime" style="width:100%;padding:9px 12px;font-size:13px;border:1px solid #d5d7da;border-radius:4px;font-family:var(--font);outline:none;box-sizing:border-box" onfocus="this.style.borderColor='#6366f1'" onblur="this.style.borderColor='#d5d7da'">
+          <button onclick="addTracking()" style="padding:9px 0;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:13px;cursor:pointer;font-family:var(--font);font-weight:500;white-space:nowrap;width:100%">＋ 添加记录</button>
+        </div>
+      </div>
+    </div>
+    <!-- Timeline -->
+    <div id="trackingTimeline" style="position:relative;padding:16px 16px 16px 32px;overflow-y:auto;flex:1;max-height:50vh">
+    </div>
+    <div id="trackingEmpty" style="text-align:center;padding:32px 20px;color:#b0b6c0;font-size:13px;display:none">暂无跟踪记录，在上方添加第一条</div>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const role = 'admin';
+const currentUser = 'admin';
+const displayName = '管理员';
+let currentUploadType = null, currentPage = 1, pageSize = 30;
+// 列筛选
+const filterableCols = ['行业','区域','属性','项目类别','是否赢单','是否完成品牌报审','跟进人','总包','渠道负责人','中标弱电分包商'];
+let colFilters = {};  // {colName: [selectedValue1, selectedValue2]}
+let allRowsCache = [];  // 缓存全量数据用于列筛选
+
+function canEdit(row){
+  if(role === 'admin') return true;
+  if(role === 'leader') return true;  // 主管可编辑全部项目
+  return row['跟进人'] === currentUser || row['跟进人'] === displayName;  // 用户按姓名关联
+}
+
+function canImport(){ return true; }
+function canExport(){ return role === 'admin'; }
+function canDelete(){ return role === 'admin'; }
+function canViewAll(){ return role === 'admin' || role === 'leader'; }
+
+async function loadProjects(page=1){
+  currentPage=page;
+  const search=document.getElementById('searchInput').value;
+  document.getElementById('spinner').classList.add('show');
+  document.getElementById('tableScroll').style.display='none';
+  document.getElementById('emptyState').classList.remove('show');
+  try{
+    const p=new URLSearchParams({search,limit:pageSize,offset:(page-1)*pageSize});
+    const res=await fetch('/api/projects?'+p);
+    if(res.status===401){window.location.href='/login';return}
+    const data=await res.json();
+    // 缓存全量行数据用于列筛选
+    // 首次拉取全量数据供列筛选下拉选项
+if(allRowsCache.length===0){fetch('/api/projects?limit=10000').then(function(r){return r.json();}).then(function(d){allRowsCache=d.rows;}).catch(function(){});}
+// 应用列筛选
+var filteredRows = applyAllFilters(allRowsCache.length>0?allRowsCache:data.rows);
+    data.rows = filteredRows;
+    data.total = filteredRows.length;
+
+    document.getElementById('spinner').classList.remove('show');
+    if(data.total===0){document.getElementById('emptyState').classList.add('show');document.getElementById('rowCount').textContent='0';return}
+    document.getElementById('tableScroll').style.display='block';
+    document.getElementById('hScrollBar').style.display='block';
+    document.getElementById('pagination').style.display='flex';
+    document.getElementById('rowCount').textContent=data.total;
+
+    const hiddenCols=['id','created_at','updated_at','更新日期','跟踪情况-1010更新','跟踪情况-1118更新'];
+    var cols=data.columns.filter(function(c){return !hiddenCols.includes(c)});
+    // 预测列和实际出货列成对排列
+    var predictPairs = [
+      ['LED','LED实际出货金额'],
+      ['监控','监控实际出货金额'],
+      ['门禁','门禁实际出货金额'],
+      ['停车场','停车场实际出货金额'],
+      ['综合布线','综合布线实际出货金额'],
+      ['网络及安全产品','网络及安全产品出库金额'],
+      ['非品牌库（报警、电子班牌、信息发布、升降柱等）','非品牌库（报警、电子班牌、信息发布、升降柱等）实际出库']
+    ];
+    // 提取产品线列并配对
+    var productCols=[];
+    predictPairs.forEach(function(pair){
+      if(cols.indexOf(pair[0])>=0) productCols.push(pair[0]);
+      if(cols.indexOf(pair[1])>=0) productCols.push(pair[1]);
+    });
+    // 非产品线列保持原序
+    var otherCols=cols.filter(function(c){
+      var isProduct=false;
+      predictPairs.forEach(function(p){if(p[0]===c||p[1]===c) isProduct=true;});
+      return !isProduct;
+    });
+    // 跟踪列为最后，其余在前
+    var tailFields=['跟踪情况','更新日期','竞争态势','问题、需要支撑（价格、账期、全链路资源等）','备注'];
+    var frontCols=[], tailCols=[];
+    otherCols.forEach(function(c){
+      if(tailFields.indexOf(c)>=0) tailCols.push(c);
+      else frontCols.push(c);
+    });
+    // 合成：基本信息 + 产品线配对列 + 跟踪列
+    var orderedCols=frontCols.concat(productCols).concat(tailCols);
+    const thead=document.getElementById('tableHead');
+    var thHtml = '<tr>' + orderedCols.map(function(c){
+      var isFilterable = filterableCols.indexOf(c) >= 0;
+      var filterIcon = isFilterable ? '<span class="col-filter-icon" onclick="event.stopPropagation();toggleColFilter(this,\''+c+'\')" title="筛选">▾</span>' : '';
+      return '<th>'+c+filterIcon+'</th>';
+    }).join('');
+    if(canDelete()) thHtml += '<th>操作</th>';
+    thHtml += '</tr>';
+    thead.innerHTML = thHtml;
+    // 添加列宽拖动调整
+    initColResize();
+    // 产品列默认统一宽度（14列：7大产品线预测+实际）
+    if(!localStorage.getItem('epc_col_widths')){
+      initProductColWidths();
+    }
+
+    const tbody=document.getElementById('tableBody');
+    tbody.innerHTML = '';
+    data.rows.forEach(function(row){
+      var tr = document.createElement('tr');
+      orderedCols.forEach(function(col){
+        var td = document.createElement('td');
+        var v = row[col];
+        if(v === null || v === undefined) v = '—';
+        var isNum = /金额|HK|万元|LED|监控|门禁|停车场|综合布线|网络|品牌库|出库/.test(col);
+        var leftCols = ['项目名称','用户单位','跟踪情况','更新日期','问题、需要支撑（价格、账期、全链路资源等）','备注'];
+        var isLeft = leftCols.indexOf(col) >= 0;
+
+        if(col === '项目名称'){
+          td.className = 'name';
+          td.title = String(v);
+          td.textContent = v;
+        } else if(col === '跟踪情况'){
+          var span = document.createElement('span');
+          span.textContent = (v && v.length > 30 ? v.substring(0,30)+'...' : (v||'—'));
+          td.appendChild(span);
+          var icon = document.createElement('span');
+          icon.textContent = ' 📋';
+          icon.style.cssText = 'cursor:pointer;opacity:.5;font-size:14px';
+          icon.title = '查看跟踪时间轴';
+          icon.onclick = function(){ showTracking(row['项目名称']); };
+          td.appendChild(icon);
+        } else if(col === '是否赢单' || col === '是否完成品牌报审'){
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = (v === '是');
+          cb.disabled = !canEdit(row);
+          if(canEdit(row)){
+            cb.onchange = function(){
+              var newVal = cb.checked ? '是' : '否';
+              fetch('/api/projects/' + encodeURIComponent(row['项目名称']) + '/cell', {
+                method:'PUT',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({column:col, value:newVal})
+              }).then(function(r){
+                if(r.status===401) window.location.href='/login';
+              });
+            };
+          }
+          td.appendChild(cb);
+          td.style.textAlign = 'center';
+        } else {
+          if(isNum && typeof v === 'number') v = v.toFixed(2);
+          if(canEdit(row)){
+            td.className = 'editable';
+            td.dataset.col = col;
+            td.dataset.name = row['项目名称'];
+            td.ondblclick = function(){ startEdit(this); };
+          }
+          td.textContent = v;
+          td.style.textAlign = isLeft ? 'left' : 'center';
+        }
+        tr.appendChild(td);
+      });
+
+      if(canDelete()){
+        var tdAct = document.createElement('td');
+        tdAct.innerHTML = '<button class="btn btn-danger" style="padding:2px 8px;font-size:10px">删除</button>';
+        tdAct.querySelector('button').onclick = function(){
+          deleteProj(row['项目名称']);
+        };
+        tr.appendChild(tdAct);
+      }
+      tbody.appendChild(tr);
+    });
+
+    renderPagination(data.total,page);
+    updateFilterTags();
+    // 恢复用户调整的列宽（延迟确保DOM布局完成）
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        restoreColWidths();
+        initHScroll();
+      });
+    });
+  }catch(e){document.getElementById('spinner').classList.remove('show')}
+}
+
+function changePageSize(){
+  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+  currentPage = 1;
+  loadProjects(1);
+}
+
+function renderPagination(total,page){
+  const tp=Math.ceil(total/pageSize);
+  document.getElementById('pageInfo').textContent=`${(page-1)*pageSize+1}–${Math.min(page*pageSize,total)} / ${total} 条`;
+  let b='';if(page>1)b+=`<button onclick="loadProjects(${page-1})">←</button>`;
+  for(let i=1;i<=tp&&i<=8;i++)b+=`<button class="${i===page?'active':''}" onclick="loadProjects(${i})">${i}</button>`;
+  if(page<tp)b+=`<button onclick="loadProjects(${page+1})">→</button>`;
+  document.getElementById('pageButtons').innerHTML=b;
+}
+
+
+// ============================================================
+// 列筛选
+// ============================================================
+function toggleColFilter(icon, colName){
+  // 关闭其他下拉
+  document.querySelectorAll('.col-filter-dropdown').forEach(function(d){d.remove();});
+  document.querySelectorAll('.col-filter-icon').forEach(function(i){i.classList.remove('active');});
+
+  icon.classList.add('active');
+
+  // 如果缓存为空，先拉取全量数据
+  if(allRowsCache.length===0){
+    icon.textContent='⏳';
+    fetch('/api/projects?limit=10000').then(function(r){return r.json();}).then(function(d){
+      allRowsCache=d.rows;
+      icon.textContent='▾';
+      showFilterDropdown(icon,colName);
+    }).catch(function(){icon.textContent='▾';icon.classList.remove('active');});
+    return;
+  }
+  showFilterDropdown(icon,colName);
+}
+
+function showFilterDropdown(icon,colName){
+  var values = [];
+  var seen = {};
+  allRowsCache.forEach(function(row){
+    var v = row[colName];
+    if(v && !seen[v]){seen[v]=true;values.push(v);}
+  });
+  values.sort();
+
+  var selected = colFilters[colName] || [];
+
+  var dd = document.createElement('div');
+  dd.className = 'col-filter-dropdown show';
+  dd.innerHTML = values.map(function(v){
+    var checked = selected.indexOf(v)>=0 ? 'checked' : '';
+    return '<label><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'" '+checked+' onchange="colFilterCheck(this,\''+colName+'\')">'+v+'</label>';
+  }).join('') +
+  '<div class="filter-actions"><button onclick="clearColFilter(\''+colName+'\')">清除</button><button class="ok" onclick="applyColFilter(\''+colName+'\')">确定</button></div>';
+
+  // 使用 fixed 定位避免被滚动容器截断
+  var rect = icon.getBoundingClientRect();
+  dd.style.position = 'fixed';
+  dd.style.top = (rect.bottom + 2) + 'px';
+  dd.style.left = Math.min(rect.left, window.innerWidth - 160) + 'px';
+  dd.style.zIndex = '200';
+  document.body.appendChild(dd);
+
+  // 点击外部关闭
+  setTimeout(function(){
+    document.addEventListener('click', function closeDD(e){
+      if(!dd.contains(e.target) && e.target !== icon){
+        dd.remove();
+        icon.classList.remove('active');
+        document.removeEventListener('click', closeDD);
+      }
+    });
+  },100);
+}
+
+function colFilterCheck(cb, colName){
+  if(!colFilters[colName]) colFilters[colName]=[];
+  if(cb.checked){
+    if(colFilters[colName].indexOf(cb.value)<0) colFilters[colName].push(cb.value);
+  } else {
+    colFilters[colName]=colFilters[colName].filter(function(v){return v!==cb.value;});
+  }
+}
+
+function applyColFilter(colName){
+  document.querySelectorAll('.col-filter-dropdown').forEach(function(d){d.remove();});
+  document.querySelectorAll('.col-filter-icon').forEach(function(i){i.classList.remove('active');});
+  updateFilterTags();
+  loadProjects(1);
+}
+
+function clearColFilter(colName){
+  delete colFilters[colName];
+  document.querySelectorAll('.col-filter-dropdown').forEach(function(d){d.remove();});
+  document.querySelectorAll('.col-filter-icon').forEach(function(i){i.classList.remove('active');});
+  updateFilterTags();
+  loadProjects(1);
+}
+
+function clearAllFilters(){
+  colFilters = {};
+  document.querySelectorAll('.col-filter-icon').forEach(function(i){i.classList.remove('active');});
+  updateFilterTags();
+  loadProjects(1);
+}
+
+function updateFilterTags(){
+  var container = document.getElementById('filterTags');
+  var list = document.getElementById('filterTagList');
+  var active = Object.keys(colFilters).filter(function(k){return colFilters[k] && colFilters[k].length>0;});
+  if(active.length===0){container.style.display='none';return}
+  container.style.display='flex';
+  list.innerHTML = active.map(function(col){
+    var vals = colFilters[col].join('、');
+    return '<span style="background:#fdf0f2;color:#c41230;padding:2px 10px;border-radius:2px;font-size:12px;display:inline-flex;align-items:center;gap:6px;border:1px solid #f5c6c3">'+col+'：'+vals+'<span style="cursor:pointer;font-weight:bold" onclick="clearColFilter(\''+col+'\')">×</span></span>';
+  }).join('');
+}
+
+function applyAllFilters(rows){
+  var activeFilters = Object.keys(colFilters).filter(function(k){return colFilters[k] && colFilters[k].length>0;});
+  if(activeFilters.length===0) return rows;
+  return rows.filter(function(row){
+    return activeFilters.every(function(col){
+      var vals = colFilters[col];
+      return vals.indexOf(row[col]) >= 0;
+    });
+  });
+}
+
+function formatDateValueForInput(value){
+  if(!value) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  var m = value.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m = value.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
+  if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return '';
+}
+
+// Inline edit
+function startEdit(td){
+  if(td.classList.contains('editing'))return;
+  const col=td.dataset.col,name=td.dataset.name;
+  const orig=td.textContent==='—'?'':td.textContent;
+  td.classList.add('editing');
+  const inp=document.createElement('input');
+  inp.type = col === '更新日期' ? 'date' : 'text';
+  if(col === '更新日期'){
+    inp.value = formatDateValueForInput(orig);
+    inp.style.width = '130px';
+  } else {
+    inp.value = orig;
+    inp.style.width = (Math.max(orig.length*12,60))+'px';
+  }
+  td.textContent='';td.appendChild(inp);inp.focus();
+  if(col !== '更新日期') inp.select();
+  const save=async()=>{
+    const v=inp.value;
+    td.classList.remove('editing');td.textContent=v||'—';
+    try{
+      const r=await fetch(`/api/projects/${encodeURIComponent(name)}/cell`,{
+        method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({column:col,value:v}),
+      });
+      if(r.status===401)window.location.href='/login';
+      if(r.status===403){showToast('无权限编辑此单元格','error')}
+    }catch(e){}
+    td.removeEventListener('blur',save,true);
+    td.removeEventListener('keydown',onKey,true);
+  };
+  const onKey=e=>{if(e.key==='Enter')save();if(e.key==='Escape'){td.textContent=orig;td.classList.remove('editing');td.removeEventListener('blur',save,true);td.removeEventListener('keydown',onKey,true)}};
+  td.addEventListener('blur',save,true);
+  td.addEventListener('keydown',onKey,true);
+}
+
+async function deleteProj(name){
+  if(!confirm(`确认删除项目「${name}」？此操作不可撤销。`))return;
+  try{
+    var url='/api/projects/'+encodeURIComponent(name);
+    console.log('[删除] 请求:', url);
+    const r=await fetch(url,{method:'DELETE'});
+    console.log('[删除] 状态:', r.status);
+    if(r.ok){showToast('✓ 已删除');allRowsCache=[];loadProjects()}
+    else{
+      let msg='删除失败';
+      try{const d=await r.json();console.log('[删除] 响应:', d);msg=d.error||msg}catch(e){}
+      if(r.status===401)window.location.href='/login';
+      else showToast(msg,'error');
+    }
+  }catch(e){console.error('[删除] 异常:', e);showToast('网络错误，请重试','error')}
+}
+
+// Export
+function exportExcel(){window.location.href='/api/export'}
+
+// Upload
+function showUploadModal(type){
+  currentUploadType=type;
+  const ts={master:'导入总表 (类型一)',crm:'导入CRM数据 (类型二)',config:'导入配置清单 (类型三)'};
+  const ds={master:'上传总表 Excel 文件（.xlsx/.xls），系统将导入所有项目行。已有项目按名称匹配更新，新项目自动新增。',crm:'上传 CRM 导出文件，19个产品细类自动映射到7大产品线实际出货列。',config:'上传配置清单 Excel。选择数量列和单价列后，按7大产品线汇总金额自动填入预测列。'};
+  document.getElementById('uploadTitle').textContent=ts[type]||'';
+  document.getElementById('uploadDesc').textContent=ds[type]||'';
+  document.getElementById('importResult').classList.remove('show');
+  document.getElementById('uploadFile').value='';
+  document.getElementById('uploadModal').classList.add('show');
+  document.getElementById('configSelectPanel').classList.remove('show');
+  configStructure=null;
+  document.getElementById('uploadZone').onclick=()=>document.getElementById('uploadFile').click();
+  document.getElementById('uploadZone').ondragover=e=>{e.preventDefault();e.target.style.borderColor='var(--accent)'};
+  document.getElementById('uploadZone').ondragleave=e=>{e.target.style.borderColor=''};
+  document.getElementById('uploadZone').ondrop=e=>{e.preventDefault();e.target.style.borderColor='';const f=e.dataTransfer.files[0];if(f)handleFile(f)};
+  document.getElementById('uploadFile').onchange=function(){if(this.files[0])handleFile(this.files[0])};
+}
+
+var configStructure=null;
+
+async function handleFile(f){
+  document.getElementById('uploadFile')._file=f;
+  document.getElementById('uploadZone').querySelector('div:nth-child(2)').textContent='已选择: '+f.name;
+  if(currentUploadType==='config'){
+    var fd=new FormData();fd.append('file',f);
+    var r=await fetch('/api/upload/config/structure',{method:'POST',body:fd});var d=await r.json();
+    if(d.error){showToast(d.error,'error');return}
+    configStructure=d.structure;
+    document.getElementById('configProjectName').value=configStructure.project_name||'';
+    var cols=configStructure.columns;
+    var catSel=document.getElementById('configCategoryCol');
+    var qtySel=document.getElementById('configQtyCol');
+    var priceSel=document.getElementById('configPriceCol');
+    catSel.innerHTML=cols.map(function(c,i){return '<option value="'+i+'">列'+i+': '+c+'</option>'}).join('');
+    qtySel.innerHTML=cols.map(function(c,i){return '<option value="'+i+'">列'+i+': '+c+'</option>'}).join('');
+    priceSel.innerHTML=cols.map(function(c,i){return '<option value="'+i+'">列'+i+': '+c+'</option>'}).join('');
+    if(configStructure.category_col!=null)catSel.value=configStructure.category_col;
+    if(configStructure.qty_candidates.length>0)qtySel.value=configStructure.qty_candidates[0].index;
+    if(configStructure.price_candidates.length>0)priceSel.value=configStructure.price_candidates[0].index;
+    document.getElementById('configPreview').innerHTML='检测到 <b>'+configStructure.categories.length+'</b> 个板块分类：<br>'+configStructure.categories.map(function(c){return '· '+c}).join('<br>');
+    document.getElementById('configSelectPanel').classList.add('show');
+  }
+}
+
+async function confirmUpload(){
+  var fi=document.getElementById('uploadFile');
+  var f=fi._file||fi.files[0];
+  if(!f){showToast('请先选择文件','error');return}
+  var fd=new FormData();fd.append('file',f);
+  var u;
+  if(currentUploadType==='master')u='/api/upload/master';
+  else if(currentUploadType==='crm')u='/api/upload/crm';
+  else{
+    u='/api/upload/config';
+    var pn=document.getElementById('configProjectName').value.trim();
+    if(!pn){showToast('请输入目标项目名称','error');return}
+    fd.append('project_name',pn);
+    fd.append('category_col',document.getElementById('configCategoryCol').value);
+    fd.append('qty_col',document.getElementById('configQtyCol').value);
+    fd.append('price_col',document.getElementById('configPriceCol').value);
+  }
+  var r=await fetch(u,{method:'POST',body:fd});var d=await r.json();
+  if(d.error){showToast(d.error,'error');return}
+  var s=document.getElementById('importSummary');
+  if(currentUploadType==='config'){
+    var h='<span style="color:var(--green)">&#x2705; 配置清单已'+(d.action==='updated'?'更新':'新增')+'</span><br><br>';
+    if(d.summary){for(var k in d.summary){h+='<b>'+k+'</b>: '+Number(d.summary[k]).toFixed(2)+' 万元<br>'}}
+    s.innerHTML=h;
+  }else{
+    s.innerHTML='<span style="color:var(--green)">&#x2713; 更新 <b>'+d.updated+'</b></span> <span style="color:var(--blue)">+ 新增 <b>'+d.new+'</b></span> '+(d.new_columns&&d.new_columns.length?'<span style="color:var(--amber)">&#x1f4cc;新字段: '+d.new_columns.join(', ')+'</span>':'');
+  }
+  document.getElementById('importResult').classList.add('show');
+  showToast('导入完成');loadProjects();
+}
+// New project
+function showNewProjectModal(){document.getElementById('newProjectModal').classList.add('show')}
+async function submitNewProject(e){e.preventDefault();const f=document.getElementById('newProjectForm');const fd=new FormData(f);const data={};fd.forEach((v,k)=>{if(v)data[k]=v});
+// 未勾选的 checkbox 默认为"否"
+if(!data['是否赢单']) data['是否赢单']='否';
+if(!data['是否完成品牌报审']) data['是否完成品牌报审']='否';
+const r=await fetch('/api/projects',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const d=await r.json();if(d.error){showToast(d.error,'error');return}hideModal('newProjectModal');f.reset();showToast(`✓ 项目已${d.action==='updated'?'更新':'录入'}`);loadProjects()}
+
+function hideModal(id){document.getElementById(id).classList.remove('show')}
+function showToast(m,t){const el=document.getElementById('toast');el.textContent=m;el.className='toast show '+(t||'');setTimeout(()=>el.classList.remove('show'),3000)}
+
+// 底部固定水平滚动条
+function initHScroll(){
+  var table=document.getElementById('mainTable');
+  var scroll=document.getElementById('tableScroll');
+  var bar=document.getElementById('hScrollBar');
+  var inner=document.getElementById('hScrollInner');
+  if(!table||!scroll||!bar||!inner)return;
+  // 设置滚动条内部宽度与表格一致
+  inner.style.width=table.offsetWidth+'px';
+  // 同步：滚动条 → 表格
+  bar.onscroll=function(){
+    scroll.scrollLeft=bar.scrollLeft;
+  };
+  // 同步：表格 → 滚动条（触控板/触摸）
+  scroll.onscroll=function(){
+    bar.scrollLeft=scroll.scrollLeft;
+  };
+}
+
+// 列宽拖动调整
+var colResizeInfo=null;
+function initColResize(){
+  var theadRow=document.querySelector('thead tr');
+  if(!theadRow)return;
+  var ths=theadRow.querySelectorAll('th');
+  ths.forEach(function(th,i){
+    // 最后一列（操作列）不加手柄
+    if(th.querySelector('.resize-handle'))return;
+    var handle=document.createElement('div');
+    handle.className='resize-handle';
+    handle.addEventListener('mousedown',function(e){
+      e.preventDefault();e.stopPropagation();
+      colResizeInfo={colIdx:i,startX:e.clientX,startW:th.offsetWidth,th:th};
+      th.classList.add('resizing');
+      document.body.style.cursor='col-resize';
+      document.body.style.userSelect='none';
+    });
+    th.appendChild(handle);
+  });
+}
+document.addEventListener('mousemove',function(e){
+  if(!colResizeInfo)return;
+  var dx=e.clientX-colResizeInfo.startX;
+  var newW=Math.max(40,colResizeInfo.startW+dx);
+  colResizeInfo.th.style.width=newW+'px';
+  colResizeInfo.th.style.minWidth=newW+'px';
+  colResizeInfo.th.style.maxWidth=newW+'px';
+  // 同步更新该列所有td
+  var rows=document.querySelectorAll('tbody tr');
+  rows.forEach(function(tr){
+    var tds=tr.querySelectorAll('td');
+    if(tds[colResizeInfo.colIdx]){
+      tds[colResizeInfo.colIdx].style.width=newW+'px';
+      tds[colResizeInfo.colIdx].style.minWidth=newW+'px';
+      tds[colResizeInfo.colIdx].style.maxWidth=newW+'px';
+    }
+  });
+});
+document.addEventListener('mouseup',function(){
+  if(!colResizeInfo)return;
+  colResizeInfo.th.classList.remove('resizing');
+  document.body.style.cursor='';
+  document.body.style.userSelect='';
+  // 保存所有列宽到 localStorage
+  saveColWidths();
+  colResizeInfo=null;
+});
+
+// 14个产品列默认统一宽度
+function initProductColWidths(){
+  var productCols = [
+    'LED','监控','门禁','停车场','综合布线','网络及安全产品',
+    '非品牌库（报警、电子班牌、信息发布、升降柱等）',
+    'LED实际出货金额','监控实际出货金额','门禁实际出货金额','停车场实际出货金额',
+    '综合布线实际出货金额','网络及安全产品出库金额',
+    '非品牌库（报警、电子班牌、信息发布、升降柱等）实际出库'
+  ];
+  var ths = document.querySelectorAll('thead th');
+  var defaultW = '95px';
+  ths.forEach(function(th){
+    var txt = th.textContent.trim();
+    // 去掉筛选箭头符号
+    txt = txt.replace(/[▾▲▼]/g, '').trim();
+    if(productCols.indexOf(txt) >= 0){
+      th.style.width = defaultW;
+      th.style.minWidth = defaultW;
+    }
+  });
+  // 同步td宽度
+  var rows = document.querySelectorAll('tbody tr');
+  rows.forEach(function(tr){
+    var tds = tr.querySelectorAll('td');
+    tds.forEach(function(td, j){
+      var thTxt = (ths[j]&&ths[j].textContent||'').replace(/[▾▲▼]/g,'').trim();
+      if(productCols.indexOf(thTxt) >= 0){
+        td.style.width = defaultW;
+        td.style.minWidth = defaultW;
+      }
+    });
+  });
+}
+
+// 列宽持久化
+function saveColWidths(){
+  var ths=document.querySelectorAll('thead th');
+  var widths=[];
+  ths.forEach(function(th){ widths.push(th.offsetWidth); });
+  localStorage.setItem('epc_col_widths',JSON.stringify(widths));
+}
+function restoreColWidths(){
+  var saved=localStorage.getItem('epc_col_widths');
+  if(!saved)return;
+  try{
+    var widths=JSON.parse(saved);
+    var ths=document.querySelectorAll('thead th');
+    ths.forEach(function(th,i){
+      if(widths[i]&&widths[i]>40){
+        th.style.width=widths[i]+'px';
+        th.style.minWidth=widths[i]+'px';
+        th.style.maxWidth=widths[i]+'px';
+      }
+    });
+    // 同步更新当前可见的td
+    var rows=document.querySelectorAll('tbody tr');
+    rows.forEach(function(tr){
+      var tds=tr.querySelectorAll('td');
+      tds.forEach(function(td,j){
+        if(widths[j]&&widths[j]>40){
+          td.style.width=widths[j]+'px';
+          td.style.minWidth=widths[j]+'px';
+          td.style.maxWidth=widths[j]+'px';
+        }
+      });
+    });
+  }catch(e){}
+}
+
+// AI分析
+async function showAIModal(){
+  document.getElementById('aiModal').classList.add('show');
+  document.getElementById('aiPrompt').value='';
+  document.getElementById('aiResult').style.display='none';
+  document.getElementById('aiWelcome').style.display='block';
+  var r=await fetch('/api/ai/config');var d=await r.json();
+  if(!d.endpoint||!d.app_id||!d.api_key){switchAITab('config')}else{switchAITab('analyze')}
+  document.getElementById('aiEndpoint').value=d.endpoint||'';
+  document.getElementById('aiAppId').value=d.app_id||'';
+  document.getElementById('aiApiKey').value=d.api_key||'';
+  document.getElementById('aiUser').value=d.user||'';
+}
+function aiQuick(q){
+  document.getElementById('aiPrompt').value=q;
+  doAIAnalyze();
+}
+function switchAITab(tab){
+  document.getElementById('aiTabAnalyze').style.display=tab==='analyze'?'block':'none';
+  document.getElementById('aiTabConfig').style.display=tab==='config'?'block':'none';
+  document.getElementById('tabAnalyze').classList.toggle('active',tab==='analyze');
+  document.getElementById('tabConfig').classList.toggle('active',tab==='config');
+}
+async function saveAIConfig(){
+  var data={endpoint:document.getElementById('aiEndpoint').value.trim(),app_id:document.getElementById('aiAppId').value.trim(),api_key:document.getElementById('aiApiKey').value.trim(),user:document.getElementById('aiUser').value.trim()};
+  var r=await fetch('/api/ai/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});var d=await r.json();
+  if(r.status===403){showToast('仅管理员可修改API配置','error');return}
+  if(d.error){showToast(d.error,'error');return}
+  showToast('API配置已保存');switchAITab('analyze');
+}
+async function doAIAnalyze(){
+  var question=document.getElementById('aiPrompt').value.trim();
+  if(!question){showToast('请输入分析问题','error');return}
+  var btn=document.getElementById('aiAnalyzeBtn');btn.disabled=true;btn.textContent='分析中...';
+  var resultDiv=document.getElementById('aiResult');
+  document.getElementById('aiWelcome').style.display='none';
+  resultDiv.style.display='block';resultDiv.innerHTML='<div class=ai-loading><span>AI正在读取数据库全量数据并分析 </span><div class=dot-pulse><span></span><span></span><span></span></div></div>';
+  try{
+    // 只发送问题，后端自动读取数据库构建全量上下文
+    var controller=new AbortController();var timeoutId=setTimeout(function(){controller.abort()},180000);
+    var r=await fetch('/api/ai/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:question}),signal:controller.signal});
+    clearTimeout(timeoutId);
+    var d=await r.json();
+    if(d.error){resultDiv.innerHTML='<div style=color:#e53935>❌ '+d.error+'</div>'}
+    else if(!d.content||d.content.trim()===''){resultDiv.innerHTML='<div style=color:#e53935>❌ AI返回了空内容，请检查API配置或稍后重试</div>'}
+    else{resultDiv.innerHTML='<div style=white-space:pre-wrap;font-size:14px;line-height:1.8>'+d.content.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>'}
+  }catch(e){
+    if(e.name==='AbortError'){resultDiv.innerHTML='<div style=color:#e53935>⏰ 分析超时（90秒），数据量较大或AI服务响应慢，请稍后重试</div>'}
+    else{resultDiv.innerHTML='<div style=color:#e53935>❌ 请求失败: '+e.message+'</div>'}
+  }
+  btn.disabled=false;btn.textContent='🚀 开始分析';
+}
+
+// ============================================================
+// 用户管理
+// ============================================================
+async function showUserModal(){document.getElementById('userModal').classList.add('show');await loadLeaders();loadUsers()}
+async function loadLeaders(){
+  var r=await fetch('/api/users');var users=await r.json();
+  var sel=document.getElementById('newManager');
+  sel.innerHTML='<option value="">无上级</option>';
+  users.forEach(function(u){
+    if(u.role==='leader'||u.role==='admin'){
+      sel.innerHTML+=`<option value="${u.username}">${u.display_name||u.username}</option>`;
+    }
+  });
+}
+async function loadUsers(){
+  var r=await fetch('/api/users');var users=await r.json();
+  var tbody=document.querySelector('#userTable tbody');
+  tbody.innerHTML=users.map(function(u){
+    var roleLabel={'admin':'管理员','leader':'主管','user':'用户'}[u.role]||'用户';
+    var managerName=u.manager||'-';
+    var resetBtn=`<button class="btn" style="padding:2px 6px;font-size:10px" onclick="resetUserPwd('${u.username}')">重置密码</button>`;
+    var delBtn=u.username==='admin'?'':`<button class="btn btn-danger" style="padding:2px 6px;font-size:10px;margin-left:4px" onclick="delUser('${u.username}')">删除</button>`;
+    return `<tr><td style="padding:4px 8px;border-bottom:1px solid #f0f0f0">${u.username}</td><td style="padding:4px 8px;border-bottom:1px solid #f0f0f0">${u.display_name||'-'}</td><td style="padding:4px 8px;border-bottom:1px solid #f0f0f0">${roleLabel}</td><td style="padding:4px 8px;border-bottom:1px solid #f0f0f0">${managerName}</td><td style="padding:4px 8px;border-bottom:1px solid #f0f0f0;text-align:center;white-space:nowrap">${resetBtn}${delBtn}</td></tr>`;
+  }).join('');
+}
+async function addUser(){
+  var u=document.getElementById('newUsername').value.trim();
+  var p=document.getElementById('newPassword').value;
+  var n=document.getElementById('newDisplayName').value.trim();
+  var rl=document.getElementById('newRole').value;
+  var mg=document.getElementById('newManager').value;
+  if(!u||!p){showToast('用户名和密码不能为空','error');return}
+  var r=await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,display_name:n,role:rl,manager:mg})});
+  var d=await r.json();
+  if(d.success){showToast(d.message);document.getElementById('newUsername').value='';document.getElementById('newPassword').value='';document.getElementById('newDisplayName').value='';loadUsers()}
+  else showToast(d.message,'error');
+}
+async function resetUserPwd(u){
+  if(!confirm('确认重置用户「'+u+'」的密码为 123456？'))return;
+  var r=await fetch('/api/users/'+encodeURIComponent(u)+'/reset_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:'123456'})});
+  var d=await r.json();
+  d.success?showToast('密码已重置为 123456'):showToast(d.message,'error');
+}
+async function delUser(u){
+  if(!confirm('确认删除用户「'+u+'」？'))return;
+  var r=await fetch('/api/users/'+encodeURIComponent(u),{method:'DELETE'});var d=await r.json();
+  d.success?showToast(d.message):showToast(d.message,'error');
+  loadUsers();
+}
+// 修改密码
+function showPwdModal(){
+  document.getElementById('pwdModal').classList.add('show');
+  document.getElementById('oldPassword').value='';
+  document.getElementById('newPassword1').value='';
+}
+async function changePassword(){
+  var oldPwd=document.getElementById('oldPassword').value;
+  var newPwd=document.getElementById('newPassword1').value;
+  if(!oldPwd||!newPwd){showToast('请填写新旧密码','error');return}
+  var r=await fetch('/api/change_password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({old_password:oldPwd,new_password:newPwd})});
+  var d=await r.json();
+  if(d.success){showToast('密码已修改，下次登录生效');hideModal('pwdModal')}
+  else showToast(d.message,'error');
+}
+
+// ============================================================
+// 备份管理
+// ============================================================
+async function showBackupModal(){document.getElementById('backupModal').classList.add('show');loadBackups()}
+async function loadBackups(){
+  var r=await fetch('/api/backup/list');var list=await r.json();
+  var tbody=document.querySelector('#backupTable tbody');
+  tbody.innerHTML=list.map(function(b){
+    var shortName=b.name.length>32?b.name.substring(0,16)+'...'+b.name.slice(-16):b.name;
+    var typeTag=b.type==='完整'?'<span style="background:#e8f2fb;color:#1a6fb5;padding:1px 5px;border-radius:3px;font-size:10px">完整</span>':b.type==='总表'?'<span style="background:#fef3c7;color:#b45309;padding:1px 5px;border-radius:3px;font-size:10px">总表</span>':'<span style="background:#f0f0f0;color:#888;padding:1px 5px;border-radius:3px;font-size:10px">自动</span>';
+    var restoreBtn=b.name.includes('_恢复前')?'':`<button class="btn" style="padding:2px 5px;font-size:10px;color:#e53935;border-color:#f5c6c3" onclick="restoreBackup('${b.name}')">恢复</button>`;
+    return `<tr><td style="padding:4px 6px;border-bottom:1px solid #f0f0f0;font-family:var(--mono);font-size:11px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${b.name}">${shortName}</td><td style="padding:4px 6px;border-bottom:1px solid #f0f0f0;text-align:center">${typeTag}</td><td style="padding:4px 6px;border-bottom:1px solid #f0f0f0;text-align:right;font-size:11px">${b.size_kb}KB</td><td style="padding:4px 6px;border-bottom:1px solid #f0f0f0;font-size:11px;white-space:nowrap">${b.time}</td><td style="padding:4px 6px;border-bottom:1px solid #f0f0f0;text-align:center;white-space:nowrap"><a href="/api/backup/download/${b.name}" class="btn" style="padding:2px 5px;font-size:10px">下载</a>${restoreBtn}<button class="btn btn-danger" style="padding:2px 5px;font-size:10px;margin-left:3px" onclick="delBackup('${b.name}')">删除</button></td></tr>`;
+  }).join('');
+}
+async function doBackup(){
+  var btype=document.getElementById('backupType').value;
+  var r=await fetch('/api/backup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:btype})});
+  var d=await r.json();
+  if(d.success){document.getElementById('backupResult').style.display='block';document.getElementById('backupResult').textContent='✅ 备份成功: '+d.path;loadBackups();showToast('备份完成')}
+  else showToast('备份失败','error');
+}
+async function restoreBackup(fn){
+  var isJson=fn.endsWith('.json');
+  var warnMsg=isJson?'⚠️ 确认从「'+fn+'」恢复项目数据？\n\n恢复前会自动备份当前数据库，项目数据将按名称匹配合并。':'⚠️ 确认从「'+fn+'」完整恢复数据库？\n\n恢复前会自动备份当前数据，当前全部数据将被覆盖。建议先手动备份。';
+  if(!confirm(warnMsg))return;
+  var r=await fetch('/api/backup/restore/'+encodeURIComponent(fn),{method:'POST'});
+  var d=await r.json();
+  if(d.success){showToast('✅ '+d.message);loadBackups();if(!isJson)setTimeout(function(){location.reload()},1500)}
+  else showToast(d.message,'error');
+}
+async function delBackup(fn){
+  if(!confirm('确认删除备份「'+fn+'」？'))return;
+  await fetch('/api/backup/'+encodeURIComponent(fn),{method:'DELETE'});
+  loadBackups();
+}
+
+// ============================================================
+// 跟踪时间轴
+// ============================================================
+let currentTrackProject='';
+
+async function showTracking(name){
+  currentTrackProject=name;
+  document.getElementById('trackingTitle').textContent='📋 '+name+' — 跟踪时间轴';
+  document.getElementById('trackingModal').classList.add('show');
+  // 初始化时间输入框为当前日期
+  var now=new Date();var tz=now.getTimezoneOffset();now=new Date(now.getTime()-tz*60000);
+  document.getElementById('trackTime').value=now.toISOString().slice(0,10);
+  document.getElementById('trackInput').value='';
+  await refreshTracking();
+}
+
+async function refreshTracking(){
+  var r=await fetch('/api/tracking/'+encodeURIComponent(currentTrackProject));var logs=await r.json();
+  var tl=document.getElementById('trackingTimeline');
+  var empty=document.getElementById('trackingEmpty');
+  if(!logs||logs.length===0){tl.style.display='none';empty.style.display='block';return}
+  tl.style.display='block';empty.style.display='none';
+  tl.innerHTML=logs.map(function(l,i){
+    var time=l['操作时间']||'';var content=(l['跟踪情况']||'');
+    var operator=l['操作人']||'';var id=l['id'];
+    return `<div style="position:relative;padding:10px 0 10px 18px;border-left:2px solid ${i===0?'#6366f1':'#e0e2e6'};margin-left:6px">
+      <div style="position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:${i===0?'#6366f1':'#c8ccd4'};border:2px solid #fff;box-shadow:0 0 0 1px ${i===0?'#6366f1':'#d5d7da'}"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;color:#8f93a0;margin-bottom:3px">${time}  ·  ${operator||'系统'}</div>
+          <div style="font-size:13px;color:#2a2f3a;line-height:1.6;white-space:pre-wrap;word-break:break-word">${content}</div>
+        </div>
+        <button onclick="delTracking(${id})" title="删除此记录" style="flex-shrink:0;width:22px;height:22px;border:none;background:none;color:#c0c4cc;cursor:pointer;font-size:14px;border-radius:3px;line-height:1;padding:0;transition:all .15s" onmouseenter="this.style.color='#e53935';this.style.background='#fef2f2'" onmouseleave="this.style.color='#c0c4cc';this.style.background='none'">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addTracking(){
+  var content=document.getElementById('trackInput').value.trim();
+  if(!content){showToast('请输入跟踪内容','error');return}
+  var time=document.getElementById('trackTime').value;
+  var r=await fetch('/api/tracking/'+encodeURIComponent(currentTrackProject),{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({content:content,time:time})
+  });
+  var d=await r.json();
+  if(d.error){showToast(d.error,'error');return}
+  document.getElementById('trackInput').value='';
+  showToast('✓ 已添加跟踪记录');
+  await refreshTracking();
+  // 直接更新表格中对应单元格，不重新加载整个表格
+  updateTableTrackingCell(currentTrackProject, content, time);
+}
+
+async function delTracking(id){
+  if(!confirm('确认删除此跟踪记录？'))return;
+  await fetch('/api/tracking/'+id,{method:'DELETE'});
+  showToast('✓ 已删除');
+  await refreshTracking();
+  // 删除后也更新表格中对应单元格
+  updateTableTrackingCellAfterDel(currentTrackProject);
+}
+// 直接更新表格中某个项目的跟踪情况单元格
+function updateTableTrackingCell(name, content, date){
+  var rows = document.querySelectorAll('tbody tr');
+  // 找到"跟踪情况"列索引
+  var ths = document.querySelectorAll('thead th');
+  var colIdx = -1;
+  ths.forEach(function(th, i){
+    if(th.textContent.trim().indexOf('跟踪情况')===0) colIdx = i;
+  });
+  if(colIdx < 0) return;
+  var displayText = '【' + date + '】' + content;
+  // 遍历行找到对应项目
+  rows.forEach(function(tr){
+    var tds = tr.querySelectorAll('td');
+    // 第一列通常是项目名称
+    if(tds.length > colIdx && tds[0].textContent.trim() === name){
+      var td = tds[colIdx];
+      var span = td.querySelector('span');
+      if(span){
+        span.textContent = displayText.length > 30 ? displayText.substring(0,30)+'...' : displayText;
+      }
+    }
+  });
+}
+
+// 删除跟踪记录后更新表格单元格
+async function updateTableTrackingCellAfterDel(name){
+  try{
+    var r = await fetch('/api/tracking/' + encodeURIComponent(name));
+    var logs = await r.json();
+    if(logs && logs.length > 0){
+      var latest = logs[0];
+      var time = (latest['操作时间']||'').substring(0,10);
+      updateTableTrackingCell(name, latest['跟踪情况']||'', time);
+    }
+  }catch(e){}
+}
+
+function toggleClearBtn(){
+  const inp=document.getElementById('searchInput');
+  const btn=document.getElementById('clearSearch');
+  btn.style.display=inp.value?'block':'none';
+}
+// 从数据看板跳转：解析 URL 参数，自动搜索指定项目
+(function(){
+  const params=new URLSearchParams(location.search);
+  const project=params.get('project');
+  const tracking=params.get('tracking');
+  if(project){
+    document.getElementById('searchInput').value=decodeURIComponent(project);
+    toggleClearBtn();
+  }
+  // 自动打开跟踪时间轴
+  if(project && tracking==='1'){
+    setTimeout(function(){ showTracking(decodeURIComponent(project)); }, 600);
+  }
+})();
+loadProjects();
+</script>
+</body>
+</html>

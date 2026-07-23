@@ -1,38 +1,71 @@
 /* ===== 顶栏 ===== */
 .topbar {
-  background: linear-gradient(135deg, #1e3a5f 0%, #0f2440 100%);
-  color: #fff;
+  background: #fff;
+  color: #333;
   height: 56px;
-  padding: 0 20px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 0;
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  border-bottom: 1px solid #e8e8e8;
 }
 
+.topbar-nav-btn {
+  background: transparent;
+  color: #333;
+  border: none;
+  padding: 18px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .2s;
+  position: relative;
+  font-weight: 400;
+}
+.topbar-nav-btn::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 3px;
+  background: #d32f2f;
+  transition: width .2s;
+}
+.topbar-nav-btn:hover { color: #d32f2f; }
+.topbar-nav-btn:hover::after { width: 100%; }
+.topbar-nav-btn.active { color: #d32f2f; font-weight: 600; }
+.topbar-nav-btn.active::after { width: 100%; }
+
 .topbar .logo {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
+  color: #1a1a1a;
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-right: 32px;
 }
 
 .topbar .logo::before {
-  content: '◈';
-  color: #60a5fa;
-  font-size: 20px;
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #d32f2f;
+  border-radius: 2px;
 }
 
 .tenant-switch {
-  background: rgba(255,255,255,.12);
-  border: 1px solid rgba(255,255,255,.2);
-  color: #fff;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  color: #333;
   padding: 5px 12px;
-  border-radius: 7px;
+  border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
   display: flex;
@@ -80,11 +113,12 @@
 }
 
 .user-menu .name {
-  color: #fff;
+  color: #333;
 }
 
 .user-menu .scope {
-  background: rgba(255,255,255,.15);
+  background: #f0f0f0;
+  color: #666;
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 10.5px;
@@ -92,16 +126,20 @@
 
 /* ===== 布局 ===== */
 .layout {
-  display: grid;
-  grid-template-columns: 190px 1fr;
+  display: block;
   min-height: calc(100vh - 56px);
+  overflow-x: hidden;
 }
 
-.sidebar {
-  background: #fff;
-  border-right: 1px solid var(--border);
-  padding: 12px 0;
+.main.full {
+  padding: 16px 24px;
+  max-width: 1320px;
+  margin: 0 auto;
+  width: 100%;
+  overflow-x: hidden;
 }
+
+.sidebar { display: none; }
 
 .nav-item {
   padding: 9px 16px;
@@ -148,6 +186,8 @@
 }
 
 .main {
+  flex: 1;
+  min-width: 0;
   padding: 20px 24px;
   overflow-y: auto;
 }
@@ -330,31 +370,23 @@
 
 /* ===== 响应式: 窄屏适配 ===== */
 @media (max-width: 900px) {
-  .layout { grid-template-columns: 160px 1fr; min-height: calc(100vh - 56px); }
-  .main { padding: 14px; }
-  .nav-item { padding: 8px 12px; font-size: 12px; }
+  .main.full { padding: 14px; max-width: 100%; }
   .page-title { font-size: 16px; }
+  .topbar-nav-btn { padding: 18px 10px; font-size: 12px; }
 }
 @media (max-width: 640px) {
-  /* 极窄屏: 侧边栏缩为图标列 */
-  .layout { grid-template-columns: 56px 1fr; }
-  .sidebar { padding: 8px 0; }
-  .nav-item { padding: 10px 0; justify-content: center; font-size: 0; }
-  .nav-item .icon { font-size: 16px; width: auto; }
-  .nav-item .icon + * { display: none; }
-  .nav-section { padding: 8px 0 4px; text-align: center; font-size: 0; }
-  .nav-section::before { content: '·'; color: #cbd5e1; }
-  .main { padding: 10px; }
+  .main.full { padding: 10px; }
   .page-title { font-size: 15px; }
   .page-subtitle { font-size: 11px; }
   .topbar { padding: 0 10px; height: 48px; }
-  .topbar .logo { font-size: 13px; }
+  .topbar .logo { font-size: 13px; margin-right: 12px; }
   .topbar .user-menu { gap: 6px; font-size: 11px; }
+  .topbar-nav-btn { padding: 18px 4px; font-size: 10px; }
   /* KPI/Grid 全部塌成单列 */
   .kpi-row { grid-template-columns: 1fr !important; gap: 8px !important; }
   .grid2 { grid-template-columns: 1fr !important; gap: 10px !important; }
   .page-header-tabs { flex-direction: column; align-items: stretch; }
-  .subtabs-inline { width: 100%; overflow-x: auto; }
+  .subtabs-inline { width: 100%; overflow-x: auto; margin-bottom: 14px; }
   /* 卡片/表格更紧凑 */
   .card { padding: 10px; }
   .card-title { font-size: 12px; }
