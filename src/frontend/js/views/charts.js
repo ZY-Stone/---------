@@ -499,7 +499,10 @@ function makeHBar(labels, data, color, id, opts) {
 })();
 
 // ===== 6b. 产品宽度: 历史趋势（折线图） =====
-App.charts.wWidthTrend = new Chart(document.getElementById('chart-w-width-trend'), {
+(function() {
+var trendCanvas = document.getElementById('chart-w-width-trend');
+if (trendCanvas) {
+App.charts.wWidthTrend = new Chart(trendCanvas, {
   type: 'line',
   data: {
     labels: ['08','09','10','11','12','01','02','03','04','05','06','07'],
@@ -522,6 +525,8 @@ App.charts.wWidthTrend = new Chart(document.getElementById('chart-w-width-trend'
     }
   }
 });
+}
+})();
 
 // Keep old chart for compatibility (wrapped in null check — canvas may not exist)
 (function() {
@@ -645,7 +650,7 @@ new Chart(quadCtx, {
 })();
 
 // ===== 8. 潜力产品: 行业分布（饼图） =====
-new Chart(document.getElementById('chart-industry'), {
+var indCanvas=document.getElementById('chart-industry'); if(indCanvas) new Chart(indCanvas, {
   type: 'doughnut',
   data: {
     labels: ['政府', '公安', '教育', '交通', '卫生', '文体', '司法', '税务', '能源', '企业通用', '其他'],
@@ -820,7 +825,7 @@ var _ct = document.getElementById('chart-trend'); if (_ct) new Chart(_ct, {
 })();
 
 // ===== 13. 潜力产品: 销售量构成 (按产品) — 环形饼图 =====
-App.charts.potComposition = new Chart(document.getElementById('chart-p-composition'), {
+var pcCanvas=document.getElementById('chart-p-composition'); App.charts.potComposition = pcCanvas ? new Chart(pcCanvas, {
   type: 'doughnut',
   data: {
     labels: ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'],
@@ -859,7 +864,10 @@ App.charts.potComposition = new Chart(document.getElementById('chart-p-compositi
 });
 
 // ===== 14. 潜力产品本期销售额趋势 (12月×12产品线) =====
-new Chart(document.getElementById('chart-p-yoy'), {
+(function() {
+var pYoyCanvas = document.getElementById('chart-p-yoy');
+if (pYoyCanvas) {
+new Chart(pYoyCanvas, {
   type: 'line',
   data: {
     labels: ['08','09','10','11','12','01','02','03','04','05','06','07'],
@@ -887,10 +895,12 @@ new Chart(document.getElementById('chart-p-yoy'), {
     }
   }
 });
+}
+})();
 
 // ===== 15. 潜力产品: 量价四象限 (散点图·参考乔梦杰版) =====
 var quadColors = { '量价齐升': '#10b981', '量跌价增': '#f59e0b', '量价齐跌': '#ef4444', '量增价跌': '#8b5cf6' };
-App.charts.potQuadrant = new Chart(document.getElementById('chart-p-quadrant'), {
+var pqCanvas=document.getElementById('chart-p-quadrant'); App.charts.potQuadrant = pqCanvas ? new Chart(pqCanvas, {
   type: 'scatter',
   data: { datasets: [] },
   options: {
@@ -951,9 +961,9 @@ if (deptRankCanvas) new Chart(deptRankCanvas, {
 })();
 
 // ===== 17. 潜力产品: 空白产品率 & 待突破实体率 综合对比 (柱+线双轴) =====
-(function() {
+// 12 个产品的空白率(%) 和 待突破率(%)
 var gapCombinedCanvas = document.getElementById('chart-p-gap-combined');
-if (gapCombinedCanvas) App.charts.pGapCombined = new Chart(gapCombinedCanvas, {
+App.charts.pGapCombined = gapCombinedCanvas ? new Chart(gapCombinedCanvas, {
   type: 'bar',
   data: {
     labels: ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'],
@@ -974,7 +984,7 @@ if (gapCombinedCanvas) App.charts.pGapCombined = new Chart(gapCombinedCanvas, {
       x:  { grid: { display: false }, ticks: { font: { size: 10 } } }
     }
   }
-});
+}) : null;
 
 // ===== 18. 潜力产品: 产品维度-量价四象限 (散点图) =====
 (function() {
@@ -1047,7 +1057,7 @@ if (gapCombinedCanvas) App.charts.pGapCombined = new Chart(gapCombinedCanvas, {
 
   // ===== 18. 潜力产品·产品维度 — 四象限散点图（覆盖率 × 增速） =====
   var quad2Colors = { '成熟核心': '#10b981', '蓝海潜力': '#3b82f6', '增长见顶': '#f59e0b', '弱势品类': '#ef4444' };
-  App.charts.potQuad2 = new Chart(document.getElementById('chart-p-quad2'), {
+  var pq2Canvas=document.getElementById('chart-p-quad2'); App.charts.potQuad2 = pq2Canvas ? new Chart(pq2Canvas, {
     type: 'scatter',
     data: { datasets: [
       { label: '成熟核心', data: [], backgroundColor: quad2Colors['成熟核心'], pointRadius: 8, pointHoverRadius: 12 },
@@ -1100,7 +1110,7 @@ if (gapCombinedCanvas) App.charts.pGapCombined = new Chart(gapCombinedCanvas, {
   });
 
   // ===== 19. 潜力产品·产品维度 — 多品类趋势对比折线图 =====
-  App.charts.potTrendCompare = new Chart(document.getElementById('chart-p-trend-compare'), {
+  var ptcCanvas=document.getElementById('chart-p-trend-compare'); App.charts.potTrendCompare = ptcCanvas ? new Chart(ptcCanvas, {
     type: 'line',
     data: { labels: ['08','09','10','11','12','01','02','03','04','05','06','07'], datasets: [] },
     options: {
@@ -1111,5 +1121,5 @@ if (gapCombinedCanvas) App.charts.pGapCombined = new Chart(gapCombinedCanvas, {
         x: { grid: { display: false } }
       }
     }
-  });
+}) : null;
 })();

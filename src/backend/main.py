@@ -24,7 +24,8 @@ from seed import seed
 from config import CORS_ORIGINS
 
 # 前端静态文件路径
-SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src")
+SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+FRONTEND_DIR = os.path.join(SRC_DIR, "frontend")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -99,10 +100,10 @@ def health():
 @app.get("/app")
 def serve_frontend():
     """托管前端 SPA 页面"""
-    index_path = os.path.join(SRC_DIR, "index.html")
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
     if os.path.isfile(index_path):
         return FileResponse(index_path)
-    return {"message": "前端文件未找到，请直接打开 src/index.html", "service": "产品分析一体化平台 API v2.0"}
+    return {"message": "前端文件未找到，请检查 frontend/index.html", "service": "产品分析一体化平台 API v2.0"}
 
 
 # ── 注册路由 ──
@@ -113,6 +114,7 @@ from routers.width import router as width_router
 from routers.potential import router as potential_router
 from routers.export import router as export_router
 from routers.backup import router as backup_router
+from routers.data_import import router as data_import_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -121,12 +123,13 @@ app.include_router(width_router)
 app.include_router(potential_router)
 app.include_router(export_router)
 app.include_router(backup_router)
+app.include_router(data_import_router)
 
 # ── 静态文件托管（最后注册，确保 API 路由优先） ──
-if os.path.isdir(SRC_DIR):
-    app.mount("/css", StaticFiles(directory=os.path.join(SRC_DIR, "css")), name="css")
-    app.mount("/js", StaticFiles(directory=os.path.join(SRC_DIR, "js")), name="js")
-    print(f"[init] 前端静态文件: {SRC_DIR}")
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
+    app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
+    print(f"[init] 前端静态文件: {FRONTEND_DIR}")
 
 
 # ── 直接运行入口 ──

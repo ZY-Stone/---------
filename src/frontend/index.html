@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>销售分析一体化平台 · Demo v2.0</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%232563eb'/><text x='16' y='23' text-anchor='middle' fill='white' font-size='20' font-family='sans-serif'>分</text></svg>">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="css/tokens.css">
@@ -844,54 +845,6 @@
       <!-- ===== 2. 产品维度 ===== -->
       <div data-tab-content="p-product" style="display:none">
 
-        <!-- 预警概览 4卡片 -->
-        <div class="alert-cards-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
-          <div class="alert-card alert-risk" onclick="App.filterProductAlert('risk')" style="cursor:pointer;padding:12px 14px;border-radius:10px;border-left:4px solid #ef4444;background:linear-gradient(135deg,#fef2f2,#fff5f5);transition:box-shadow .2s">
-            <div style="font-size:13px;font-weight:700;color:#dc2626;margin-bottom:6px">⚠️ 衰退预警产品</div>
-            <div style="font-size:11px;color:#6b7280;line-height:1.7" id="pAlertRisk"></div>
-          </div>
-          <div class="alert-card alert-opportunity" onclick="App.filterProductAlert('opportunity')" style="cursor:pointer;padding:12px 14px;border-radius:10px;border-left:4px solid #f59e0b;background:linear-gradient(135deg,#fffbeb,#fefce8);transition:box-shadow .2s">
-            <div style="font-size:13px;font-weight:700;color:#d97706;margin-bottom:6px">🚀 高增长低渗透品类</div>
-            <div style="font-size:11px;color:#6b7280;line-height:1.7" id="pAlertOpportunity"></div>
-          </div>
-          <div class="alert-card alert-core" onclick="App.filterProductAlert('core')" style="cursor:pointer;padding:12px 14px;border-radius:10px;border-left:4px solid #1a56db;background:linear-gradient(135deg,#eff6ff,#f0f4ff);transition:box-shadow .2s">
-            <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:6px">📈 核心主力品类健康度</div>
-            <div style="font-size:11px;color:#6b7280;line-height:1.7" id="pAlertCore"></div>
-          </div>
-          <div class="alert-card alert-changes" onclick="App.filterProductAlert('changes')" style="cursor:pointer;padding:12px 14px;border-radius:10px;border-left:4px solid #7c3aed;background:linear-gradient(135deg,#f5f3ff,#faf5ff);transition:box-shadow .2s">
-            <div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:6px">📌 本期重点异动</div>
-            <div style="font-size:11px;color:#6b7280;line-height:1.7" id="pAlertChanges"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">
-            <span class="left">🏆 潜力产品</span>
-            <span class="right" style="display:flex;gap:6px">
-              <span class="tag" id="p-rank-sort-label">按销售额降序</span>
-              <button class="btn-ghost" style="font-size:10px;padding:2px 8px" onclick="App.resetProductRankSort()">🔄 默认排序</button>
-            </span>
-          </div>
-          <div class="table-wrap" style="max-height:520px">
-          <table class="table tight-table" id="p-product-rank-table" style="min-width:1200px">
-            <thead><tr>
-              <th style="width:32px;cursor:pointer" onclick="App.sortProductRank('index')">#</th>
-              <th style="cursor:pointer" onclick="App.sortProductRank('name')">产品</th>
-              <th style="text-align:right;cursor:pointer" onclick="App.sortProductRank('sales')">销售额(万) ▾</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('amtYoY')">金额同比</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('qtyYoY')">数量同比</th>
-              <th style="text-align:right;cursor:pointer" onclick="App.sortProductRank('avgPrice')">平均单价(万)</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('priceYoY')">单价同比</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('custCount')">合作客户</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('newCust')">新增客户</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('lostCust')">流失客户</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('top3Ratio')">TOP3依赖度</th>
-              <th style="text-align:center;cursor:pointer" onclick="App.sortProductRank('type')">分类</th>
-            </tr></thead>
-            <tbody id="p-product-rank-body"></tbody>
-          </table>
-          </div>
-        </div>
 
         <!-- 产品覆盖率排名（规上客户 + 规上用户） -->
         <div class="grid2" style="margin-top:16px">
@@ -1042,213 +995,14 @@
 
       <!-- ===== 4. 客户维度 ===== -->
       <div data-tab-content="p-customer" style="display:none">
-        <!-- ===== 客户分层分析 ===== -->
-        <div class="card">
-          <div class="card-title"><span class="left">🎯 客户分层分析 (销售额 × 产品宽度)</span><span class="tag">点击卡片下钻筛选</span></div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="p-cust-seg-cards">
-            <div class="segment-card star" onclick="App.filterCustSegment('star')" style="cursor:pointer" title="点击筛选明星客户">
-              <div class="seg-header"><span class="seg-icon">⭐</span><span class="seg-title">明星客户</span><span class="seg-badge" id="seg-star-count">5</span></div>
-              <div class="seg-metrics" id="seg-star-metrics" style="font-size:10px;color:#6b7280;margin:4px 0"></div>
-              <div class="seg-migrate" id="seg-star-migrate" style="font-size:10px"></div>
-              <div class="seg-detail">高销售额 · 高宽度</div>
-              <div class="seg-action" id="seg-star-action"></div>
-              <div class="seg-custs" id="seg-star-list"></div>
-            </div>
-            <div class="segment-card cash" onclick="App.filterCustSegment('cash')" style="cursor:pointer" title="点击筛选维持客户">
-              <div class="seg-header"><span class="seg-icon">💰</span><span class="seg-title">维持客户</span><span class="seg-badge" id="seg-cash-count">5</span></div>
-              <div class="seg-metrics" id="seg-cash-metrics" style="font-size:10px;color:#6b7280;margin:4px 0"></div>
-              <div class="seg-migrate" id="seg-cash-migrate" style="font-size:10px"></div>
-              <div class="seg-detail">高销售额 · 低宽度</div>
-              <div class="seg-action" id="seg-cash-action"></div>
-              <div class="seg-custs" id="seg-cash-list"></div>
-            </div>
-            <div class="segment-card potential" onclick="App.filterCustSegment('potential')" style="cursor:pointer" title="点击筛选潜力客户">
-              <div class="seg-header"><span class="seg-icon">🌱</span><span class="seg-title">潜力客户</span><span class="seg-badge" id="seg-potential-count">5</span></div>
-              <div class="seg-metrics" id="seg-potential-metrics" style="font-size:10px;color:#6b7280;margin:4px 0"></div>
-              <div class="seg-migrate" id="seg-potential-migrate" style="font-size:10px"></div>
-              <div class="seg-detail">低销售额 · 高宽度</div>
-              <div class="seg-action" id="seg-potential-action"></div>
-              <div class="seg-custs" id="seg-potential-list"></div>
-            </div>
-            <div class="segment-card sleep" onclick="App.filterCustSegment('sleep')" style="cursor:pointer" title="点击筛选沉睡客户">
-              <div class="seg-header"><span class="seg-icon">💤</span><span class="seg-title">沉睡客户</span><span class="seg-badge" id="seg-sleep-count">5</span></div>
-              <div class="seg-metrics" id="seg-sleep-metrics" style="font-size:10px;color:#6b7280;margin:4px 0"></div>
-              <div class="seg-migrate" id="seg-sleep-migrate" style="font-size:10px"></div>
-              <div class="seg-detail">低销售额 · 低宽度</div>
-              <div class="seg-action" id="seg-sleep-action"></div>
-              <div class="seg-custs" id="seg-sleep-list"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 客户 × 潜力产品交叉矩阵 -->
-        <div class="card">
-          <div class="card-title">
-            <span class="left">🎯 客户 × 潜力产品交叉矩阵</span>
-            <div class="right-meta" style="display:flex;align-items:center;gap:6px">
-              <button id="p-matrix-btn-sales" onclick="App._matrixView='sales';App.renderCustMatrix()" style="font-size:10px;padding:2px 6px;border:1px solid #1a56db;border-radius:3px;background:#1a56db;color:#fff;font-weight:600;cursor:pointer">销售额</button>
-              <button id="p-matrix-btn-cov" onclick="App._matrixView='coverage';App.renderCustMatrix()" style="font-size:10px;padding:2px 6px;border:1px solid #d1d5db;border-radius:3px;background:#fff;cursor:pointer">覆盖情况</button>
-              <span id="p-matrix-scope" class="tag">全部客户</span>
-            </div>
-          </div>
-          <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
-            <table class="cross-table" style="width:100%">
-              <thead id="pCustMatrixThead"></thead>
-              <tbody id="pCustMatrixBody"></tbody>
-              <tfoot id="pCustMatrixFoot"></tfoot>
-            </table>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 0;font-size:11px;color:#6b7280">
-            <div>每页 <select id="p-matrix-page-size" onchange="App._matrixPage=1;App.renderCustMatrix()" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px"><option value="10" selected>10</option><option value="20">20</option><option value="30">30</option></select> 条 <span id="p-matrix-total"></span></div>
-            <div id="p-matrix-pager"></div>
-          </div>
-        </div>
-
-        <!-- 客户健康度 & 生命周期分析 -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-title">
-            <span class="left">💚 客户健康度 & 生命周期分析</span>
-            <div class="right-meta" style="display:flex;align-items:center;gap:6px">
-              <span id="p-lifecycle-scope" class="tag">全部客户</span>
-            </div>
-          </div>
-          <div class="grid4" style="margin-bottom:14px">
-            <div class="kpi-card" onclick="App.showLifecycleDrill('new')" style="cursor:pointer" title="点击查看新增客户明细"><div class="kpi-label">🆕 新增客户</div><div class="kpi-value" style="color:#10b981" id="p-life-new">3</div><div class="kpi-sub">本期首次合作</div></div>
-            <div class="kpi-card" onclick="App.showLifecycleDrill('active')" style="cursor:pointer" title="点击查看活跃客户明细"><div class="kpi-label">🟢 存量活跃</div><div class="kpi-value" style="color:#3b82f6" id="p-life-active">14</div><div class="kpi-sub">持续复购客户</div></div>
-            <div class="kpi-card" onclick="App.showLifecycleDrill('decline')" style="cursor:pointer" title="点击查看萎缩客户明细"><div class="kpi-label">🟡 萎缩客户</div><div class="kpi-value" style="color:#f59e0b" id="p-life-decline">5</div><div class="kpi-sub">销售额同比下滑</div></div>
-            <div class="kpi-card" onclick="App.showLifecycleDrill('lost')" style="cursor:pointer" title="点击查看流失客户明细"><div class="kpi-label">🔴 流失客户</div><div class="kpi-value" style="color:#ef4444" id="p-life-lost">2</div><div class="kpi-sub">上期有采购·本期无</div></div>
-          </div>
-          <div class="table-wrap-auto">
-            <table class="table tight-table" style="width:100%">
-              <thead><tr><th>客户</th><th style="text-align:center">生命周期</th><th style="text-align:right">本期(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">同比</th><th>对接销售</th><th style="text-align:center">覆盖产品</th></tr></thead>
-              <tbody id="p-lifecycle-body"></tbody>
-            </table>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 0;font-size:11px;color:#6b7280">
-            <div>每页 <select id="p-life-page-size" onchange="App._lifePage=1;App.renderCustLifecycle()" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px"><option value="10" selected>10</option><option value="20">20</option></select> 条 <span id="p-life-total"></span></div>
-            <div id="p-life-pager"></div>
-          </div>
-        </div>
-
-        <!-- 客户贡献分层 -->
-        <div class="grid2" style="margin-top:16px">
-          <div class="card">
-            <div class="card-title"><span class="left">🏅 高贡献客户 Top10</span><span class="tag" id="p-top10-scope">全部客户</span></div>
-            <div class="table-wrap-auto">
-              <table class="table tight-table" style="width:100%">
-                <thead><tr><th style="width:1%">#</th><th>客户</th><th style="text-align:right">销售额(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖产品</th><th>对接销售</th></tr></thead>
-                <tbody id="p-cust-top10-body"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title"><span class="left">⚠️ 薄弱客户 后10</span><span class="tag" id="p-bottom10-scope">全部客户</span></div>
-            <div class="table-wrap-auto">
-              <table class="table tight-table" style="width:100%">
-                <thead><tr><th style="width:1%">#</th><th>客户</th><th style="text-align:right">销售额(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖产品</th><th>对接销售</th></tr></thead>
-                <tbody id="p-cust-bottom10-body"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- 客户交易的用户分析 -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-title">
-            <span class="left">📊 客户交易的用户分析</span>
-            <div class="right-meta" style="display:flex;align-items:center;gap:6px">
-              <span class="tag" id="p-cust-user-count">客户 × 用户</span>
-            </div>
-          </div>
-          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-            <div style="display:flex;align-items:center;gap:6px">
-              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索客户</label>
-              <input type="text" id="pCustUserSearch" placeholder="客户名称..." oninput="App.renderCustUserLink()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
-            </div>
-            <span style="font-size:11px;color:#94a3b8;margin-left:auto">展示每个售达方客户经常交易的用户及潜力产品明细</span>
-          </div>
-          <div class="table-wrap" style="max-height:520px">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th style="width:1%">#</th>
-                  <th style="text-align:left">售达方（客户）</th>
-                  <th style="text-align:center">交易用户数</th>
-                  <th style="text-align:center">潜力产品总数</th>
-                  <th style="text-align:center">总销售额(万)</th>
-                  <th style="text-align:left">用户</th>
-                  <th style="text-align:center">贡献额(万)</th>
-                  <th style="text-align:center">潜力产品数</th>
-                </tr>
-              </thead>
-              <tbody id="pCustUserBody"></tbody>
-            </table>
-            <style>
-              #pCustUserBody tr, #p-lifecycle-body tr, #p-cust-top10-body tr, #p-cust-bottom10-body tr { border-bottom: 1px solid #e5e7eb; }
-              #pCustUserBody td, #p-lifecycle-body td, #p-cust-top10-body td, #p-cust-bottom10-body td { padding: 5px 8px; border-right: 1px solid #f3f4f6; }
-              #pCustUserBody td:last-child, #p-lifecycle-body td:last-child, #p-cust-top10-body td:last-child, #p-cust-bottom10-body td:last-child { border-right: none; }
-            </style>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 0;font-size:11px;color:#6b7280">
-            <div>每页 <select id="p-custuser-page-size" onchange="App._custUserPage=1;App.renderCustUserLink()" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px"><option value="10" selected>10</option><option value="100">100</option></select> 条 <span id="p-custuser-total"></span></div>
-            <div id="p-custuser-pager"></div>
-          </div>
-        </div>
+        <!-- 客户维度演示模块已移除 -->
       </div>
 
       <!-- ===== 5. 用户维度 ===== -->
       <div data-tab-content="p-user" style="display:none">
-        <!-- 用户分层分析 -->
-        <div class="card">
-          <div class="card-title"><span class="left">🎯 用户分层分析 (销售额 × 产品覆盖)</span><span class="tag">点击卡片查看明细</span></div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px" id="p-user-seg-cards">
-            <div class="segment-card star" onclick="App.showUserSegmentDrill('star')" style="cursor:pointer"><div class="seg-header"><span class="seg-icon">⭐</span><span class="seg-title">明星用户</span><span class="seg-badge" id="useg-star-count">3</span></div><div class="seg-detail">高贡献 · 高覆盖</div><div class="seg-custs" id="useg-star-list"></div></div>
-            <div class="segment-card cash" onclick="App.showUserSegmentDrill('cash')" style="cursor:pointer"><div class="seg-header"><span class="seg-icon">💰</span><span class="seg-title">维持用户</span><span class="seg-badge" id="useg-cash-count">5</span></div><div class="seg-detail">高贡献 · 低覆盖</div><div class="seg-custs" id="useg-cash-list"></div></div>
-            <div class="segment-card potential" onclick="App.showUserSegmentDrill('potential')" style="cursor:pointer"><div class="seg-header"><span class="seg-icon">🌱</span><span class="seg-title">潜力用户</span><span class="seg-badge" id="useg-potential-count">4</span></div><div class="seg-detail">低贡献 · 高覆盖</div><div class="seg-custs" id="useg-potential-list"></div></div>
-            <div class="segment-card sleep" onclick="App.showUserSegmentDrill('sleep')" style="cursor:pointer"><div class="seg-header"><span class="seg-icon">💤</span><span class="seg-title">沉睡用户</span><span class="seg-badge" id="useg-sleep-count">8</span></div><div class="seg-detail">低贡献 · 低覆盖</div><div class="seg-custs" id="useg-sleep-list"></div></div>
-          </div>
-        </div>
-
-        <!-- 用户生命周期 -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">💚 用户健康度 & 生命周期</span><span id="p-ulife-scope" class="tag">全部用户</span></div>
-          <div class="grid4" style="margin-bottom:14px">
-            <div class="kpi-card" onclick="App.showUserLifeDrill('new')" style="cursor:pointer"><div class="kpi-label">🆕 新增用户</div><div class="kpi-value" style="color:#10b981" id="p-ulife-new">2</div></div>
-            <div class="kpi-card" onclick="App.showUserLifeDrill('active')" style="cursor:pointer"><div class="kpi-label">🟢 存量活跃</div><div class="kpi-value" style="color:#3b82f6" id="p-ulife-active">12</div></div>
-            <div class="kpi-card" onclick="App.showUserLifeDrill('decline')" style="cursor:pointer"><div class="kpi-label">🟡 萎缩用户</div><div class="kpi-value" style="color:#f59e0b" id="p-ulife-decline">4</div></div>
-            <div class="kpi-card" onclick="App.showUserLifeDrill('lost')" style="cursor:pointer"><div class="kpi-label">🔴 流失用户</div><div class="kpi-value" style="color:#ef4444" id="p-ulife-lost">2</div></div>
-          </div>
-          <div class="table-wrap-auto">
-            <table class="table tight-table" style="width:100%"><thead><tr><th>用户</th><th style="text-align:center">生命周期</th><th style="text-align:right">本期(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖产品</th></tr></thead><tbody id="p-ulife-body"></tbody></table>
-          </div>
-        </div>
-
-        <!-- 用户 × 潜力产品交叉矩阵 -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">🎯 用户 × 潜力产品交叉矩阵</span><span id="p-umatrix-scope" class="tag">全部用户</span></div>
-          <div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table class="cross-table" style="width:100%"><thead id="pUmatrixThead"></thead><tbody id="pUmatrixBody"></tbody><tfoot id="pUmatrixFoot"></tfoot></table></div>
-        </div>
-
-        <!-- TOP/Bottom 用户 -->
-        <div class="grid2" style="margin-top:16px">
-          <div class="card"><div class="card-title"><span class="left">🏅 高贡献用户 Top10</span></div>
-            <div class="table-wrap-auto"><table class="table tight-table" style="width:100%"><thead><tr><th style="width:1%">#</th><th>用户</th><th style="text-align:right">贡献额(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖产品</th></tr></thead><tbody id="p-user-top10-body"></tbody></table></div>
-          </div>
-          <div class="card"><div class="card-title"><span class="left">⚠️ 薄弱用户 后10</span></div>
-            <div class="table-wrap-auto"><table class="table tight-table" style="width:100%"><thead><tr><th style="width:1%">#</th><th>用户</th><th style="text-align:right">贡献额(万)</th><th style="text-align:center">同比</th><th style="text-align:center">覆盖产品</th></tr></thead><tbody id="p-user-bottom10-body"></tbody></table></div>
-          </div>
-        </div>
-
-        <!-- 用户关联客户明细 -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">📊 用户关联客户明细</span><span class="tag">用户 × 客户</span></div>
-          <div class="table-wrap-auto">
-            <table class="table tight-table" style="width:100%"><thead><tr><th style="width:1%">#</th><th style="text-align:left">最终用户</th><th style="text-align:center">关联客户数</th><th style="text-align:center">潜力产品总数</th><th style="text-align:center">总贡献额(万)</th><th style="text-align:left">关联客户</th><th style="text-align:center">客户贡献(万)</th><th style="text-align:center">潜力产品数</th></tr></thead><tbody id="pUserLinkBody"></tbody></table>
-          </div>
-        </div>
+        <!-- 用户维度演示模块已移除 -->
       </div>
 
-      <!-- ===== 7. 数据导入与管理 ===== -->
       <div data-tab-content="p-import" style="display:none">
         <div class="info-banner">💡 上传 Excel 总表，系统自动识别客户/用户数据并更新全平台潜力产品数据源。模板：<a href="assets/reference/数据导入模版-0716-潜力产品.xlsx" download style="color:#2563eb;font-weight:700">📥 下载标准模板</a></div>
 
@@ -1591,12 +1345,13 @@
 </div>
 </div>
 
-<script src="js/data.js"></script>
-<script src="js/import_data.js"></script>
-<script src="js/ai.js"></script>
-<script src="js/sidebar.js"></script>
-<script src="js/api.js"></script>
-<script src="js/charts.js"></script>
+<script src="js/core/config.js"></script>
+<script src="js/data/models.js"></script>
+<script src="js/data/import.js"></script>
+<script src="js/ui/ai.js"></script>
+<script src="js/ui/sidebar.js"></script>
+<script src="js/core/api.js"></script>
+<script src="js/views/charts.js"></script>
 <script src="js/app.js"></script>
 
 </body>

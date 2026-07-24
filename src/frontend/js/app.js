@@ -211,7 +211,6 @@ document.addEventListener('click', function(e) {
     }
     // 潜力产品子Tab
     if (tabName === 'p-product') {
-      App.renderPotentialAlertCards();
       App.renderPotentialProductCoverage();
       // 图表在隐藏容器创建后需刷新
       setTimeout(function() {
@@ -558,7 +557,6 @@ App.updateOverview = function() {
   var state = App.getFilterState('page-overview');
   var label = App.getFilterLabel(state);
 
-  // 读取日期范围，计算天数比例因子（默认全月 ≈30天作为基准）
   var startEl = document.getElementById('ov-date-start');
   var endEl = document.getElementById('ov-date-end');
   var dayFactor = 1;
@@ -566,84 +564,43 @@ App.updateOverview = function() {
     var start = new Date(startEl.value);
     var end = new Date(endEl.value);
     var days = Math.max(1, Math.round((end - start) / 86400000) + 1);
-    dayFactor = days / 30; // 以30天为基准
+    dayFactor = days / 30;
   }
 
-  // 根据筛选维度聚合 KPI 数据
-  var team = state.team, group = state.group, person = state.person;
-  var widthVal, userWidthVal, custWidthVal, potAmtVal, potRateVal, usersVal, custVal, custMoM;
+  var team = state.team;
+  var wData = App.Data.getWidth(team);
+  var pData = App.Data.getPotential(team);
+  var hasWidth = wData && wData.kpi && wData.kpi.customers > 0;
+  var hasPot = pData && pData.kpi && pData.overview && pData.overview.sales > 0;
+  var widthVal = 0, userWidthVal = 0, custWidthVal = 0, potAmtVal = 0, potRateVal = 0, usersVal = 0, custVal = 0;
 
-  var sum = function(arr, key) { return arr.reduce(function(s, x) { return s + (x[key] || 0); }, 0); };
-  var avg = function(arr, key) { return arr.length ? sum(arr, key) / arr.length : 0; };
-
-  if (person !== 'all') {
-    // 个人粒度
-    var p = App.PERSONS.find(function(x) { return x.n === person; });
-    widthVal = p ? p.aw : 2.0;
-    userWidthVal = p ? p.aw * 1.1 : 2.2;
-    custWidthVal = p ? p.aw : 2.0;
-    potAmtVal = p ? Math.round(p.cw * p.aw * 2.5) : 200;
-    potRateVal = p ? (p.cov * 0.5) : 25;
-    usersVal = 1;
-    custVal = p ? p.cw : 20;
-    custMoM = Math.round(custVal * 0.05);
-  } else if (group !== 'all') {
-    // 小组粒度
-    var grpMembers = App.PERSONS.filter(function(x) { return x.grp === group; });
-    var g = App.GROUPS.find(function(x) { return x.n === group; });
-    widthVal = g ? g.aw : avg(grpMembers, 'aw');
-    userWidthVal = widthVal * 1.1;
+  if (hasWidth || hasPot) {
+    widthVal = hasWidth ? parseFloat(wData.kpi.avgWidth) || 0 : 0;
+    userWidthVal = widthVal;
     custWidthVal = widthVal;
-    potAmtVal = g ? Math.round(g.cw * g.aw * 3) : Math.round(avg(grpMembers, 'cw') * widthVal * 3);
-    potRateVal = g ? g.cov * 0.5 : 30;
-    usersVal = grpMembers.length;
-    custVal = g ? g.cw : sum(grpMembers, 'cw');
-    custMoM = Math.round(custVal * 0.05);
-  } else if (team !== 'all') {
-    // 部门粒度
-    var deptGrps = App.GROUPS.filter(function(x) { return x.dept === team; });
-    var d = App.DEPTS.find(function(x) { return x.n === team; });
-    widthVal = d ? d.aw : avg(deptGrps, 'aw');
-    userWidthVal = widthVal * 1.1;
-    custWidthVal = widthVal;
-    potAmtVal = d ? Math.round(d.cw * d.aw * 3) : Math.round(sum(deptGrps, 'cw') * widthVal * 3);
-    potRateVal = d ? d.cov * 0.5 : 30;
-    usersVal = deptGrps.length;
-    custVal = d ? d.cw : sum(deptGrps, 'cw');
-    custMoM = Math.round(custVal * 0.05);
-  } else {
-    // 全平台粒度
-    widthVal = avg(App.DEPTS, 'aw');
-    userWidthVal = widthVal * 1.35;
-    custWidthVal = widthVal;
-    potAmtVal = sum(App.DEPTS, 'cw') * widthVal * 3;
-    potAmtVal = Math.round(potAmtVal);
-    potRateVal = 34.6;
-    usersVal = App.PERSONS.length;
-    custVal = sum(App.DEPTS, 'cw');
-    custMoM = Math.round(custVal * 0.05);
+    potAmtVal = hasPot ? (pData.overview.sales || 0) : 0;
+    custVal = hasWidth ? wData.kpi.customers : 0;
+    usersVal = Math.round(custVal * 0.32);
+    potRateVal = custVal > 0 && hasPot ? (pData.overview.customerCount || 0) / custVal * 100 : 0;
   }
 
-  // 宽度类指标不受时间影响，金额/客户数/用户数受时间范围影响
   var adjPotAmt = Math.round(potAmtVal * dayFactor);
-  var adjUsers  = Math.max(1, Math.round(usersVal * dayFactor));
-  var adjCust   = Math.max(1, Math.round(custVal * dayFactor));
-  var adjCustMoM= Math.max(1, Math.round(custMoM * dayFactor));
+  var adjUsers  = Math.round(usersVal * dayFactor);
+  var adjCust   = Math.round(custVal * dayFactor);
 
   App.setText('ov-kpi-width',             widthVal.toFixed(2));
   App.setText('ov-kpi-user-width',        userWidthVal.toFixed(2));
   App.setText('ov-kpi-cust-width',        custWidthVal.toFixed(2));
-  App.setText('ov-kpi-potential-amt-v',   '¥ ' + adjPotAmt.toLocaleString() + '万');
+  App.setText('ov-kpi-potential-amt-v',   '\u00a5 ' + adjPotAmt.toLocaleString() + '\u4e07');
   App.setText('ov-kpi-potential-rate',    potRateVal.toFixed(1) + '%');
   App.setText('ov-kpi-users',             adjUsers);
   App.setText('ov-kpi-customers',         adjCust.toLocaleString());
-  App.setText('ov-kpi-cust-mom',          '+' + adjCustMoM);
-  // 备注：规上用户数 / 规上客户数
+  App.setText('ov-kpi-cust-mom',          '-');
   App.setText('ov-kpi-scale-users',       adjUsers);
   App.setText('ov-kpi-scale-customers',   Math.round(adjCust * 0.71));
 
-  // 更新柱状图（按 部门/组 切换按钮粒度）
   App._refreshOvBarCharts();
+
 
   // 更新产品宽度趋势图（跟随筛选联动）
   App._updateOvWidthTrend();
@@ -817,7 +774,7 @@ App.renderPotSalesRank = function() {
       if (state.team !== 'all') allGrps = allGrps.filter(function(g){ return g.dept === state.team; });
       if (state.group !== 'all') allGrps = allGrps.filter(function(g){ return g.n === state.group; });
       dl = allGrps.map(function(g){ return g.n; });
-      dd = dl.map(function(){ return 500 + Math.floor(Math.random() * 1500); });
+      dd = dl.map(function(){ return 500 + 0; });
     } else {
       dl = ['陈思源','王志强','潘仲楠','张伟','李梦琪'];
       dd = [1200,980,750,620,480];
@@ -1111,10 +1068,7 @@ App.updatePotential = function() {
   try { App.renderGapDeepDive(state); } catch(e) { console.warn('renderGapDeepDive 失败:', e); }
 
   // ===== 产品维度排名表 — 传入筛选状态 =====
-  try { App.renderProductRank('p-product-rank-body', data.quadrant, state); } catch(e) { console.warn('renderProductRank 失败:', e); }
   // ===== 预警概览卡片 =====
-  App._alertFilter = ''; // 正常刷新时清除高亮筛选
-  try { App.renderPotentialAlertCards(); } catch(e) { console.warn('renderPotentialAlertCards 失败:', e); }
   // ===== 产品覆盖率排名 =====
   try { App.renderPotentialProductCoverage(); } catch(e) { console.warn('renderPotentialProductCoverage 失败:', e); }
   // ===== 销售人员潜力产品排名(简版) — 传入筛选状态 =====
@@ -1133,9 +1087,6 @@ App.updatePotential = function() {
   else if (group !== 'all' && person === 'all') { cdim = 'group'; App._custDim = 'group'; }
   else if (person !== 'all') { cdim = 'person'; App._custDim = 'person'; }
   // 同步渲染
-  try { App.renderCustSegments(); } catch(e) {}
-  try { App.renderCustMatrix(); } catch(e) {}
-  try { App.renderCustLifecycle(state); } catch(e) {}
   try { App.renderCustTopBottom(); } catch(e) {}
 
   // 更新 TOP 10 表
@@ -1206,11 +1157,11 @@ App._refreshPotentialCharts = function(state) {
       if (hasData) {
         var v = qAgg[p] || { amount: 0, amountPrev: 0 };
         amtYoy = v.amountPrev > 0 ? ((v.amount - v.amountPrev) / v.amountPrev * 100) : (v.amount > 0 ? 100 : 0);
-        qtyYoy = amtYoy * (0.5 + Math.random() * 0.6);
+        qtyYoy = amtYoy * (0.5 + 0);
       } else {
         // demo fallback
         var demoVals = { '观澜编码产品（非大模型）':[42,58], '出入口停车':[-3,-2], '前端大模型':[100,100], '网络产品':[-5,-11], '后端大模型(文搜大模型）':[100,100], '人员通道':[3,2], '会议平板与视频会议':[15,22], '国密产品':[-3,19], '执法记录仪':[12,8], '物联安全':[9,5], '音频产品':[6,3] };
-        var dv = demoVals[p] || [Math.random()*40-20, Math.random()*40-20];
+        var dv = demoVals[p] || [0-20, 0-20];
         qtyYoy = dv[0]; amtYoy = dv[1];
       }
       var q = amtYoy >= 0 && qtyYoy >= 0 ? '量价齐升' : amtYoy >= 0 && qtyYoy < 0 ? '量跌价增' : amtYoy < 0 && qtyYoy < 0 ? '量价齐跌' : '量增价跌';
@@ -1770,8 +1721,7 @@ App.renderGapDetail = function(tableId, gap) {
 };
 
 // ===== 潜力产品排名表（升级版：单价/客户数/依赖度 + 阈值高亮 + 排序 + 悬停归因） =====
-App._productRankSort = { field: 'sales', asc: false }; // 默认销售额降序
-App._productRankRawData = [];
+; // 默认销售额降序
 
 App._genProductRankExtras = function(prodName, i) {
   // 为每个产品生成扩展字段的 demo 数据
@@ -1788,7 +1738,7 @@ App._genProductRankExtras = function(prodName, i) {
     '物联安全': { avgPrice: 3.0, priceYoY: +15.0, custCount: 40,  newCust: 10, lostCust: 2, top3Ratio: 45, top3Names: '客户B(22%),客户C(13%),客户D(10%)' },
     '音频产品': { avgPrice: 0.6, priceYoY: -8.0, custCount: 34,  newCust: 3,  lostCust: 8, top3Ratio: 55, top3Names: '客户E(25%),客户F(18%),客户G(12%)' }
   };
-  var e = extras[prodName] || { avgPrice: 2.0, priceYoY: 0, custCount: 30+Math.round(Math.random()*20), newCust: Math.round(Math.random()*5), lostCust: Math.round(Math.random()*3), top3Ratio: 40+Math.round(Math.random()*30), top3Names: '多个客户' };
+  var e = extras[prodName] || { avgPrice: 0, priceYoY: 0, custCount: 30+0, newCust: 0, lostCust: 0, top3Ratio: 40+0, top3Names: '多个客户' };
   // 筛选缩放 — 使用产品级缩放系数
   var state = App.getFilterState('page-potential');
   var ps = App._getProductScale(prodName, state);
@@ -1821,100 +1771,8 @@ App._thresholdColor = function(val, suffix) {
   return '';
 };
 
-App.renderProductRank = function(tbodyId, list, state) {
-  var el = document.getElementById(tbodyId);
-  if (!el || !list) return;
-  state = state || { team: 'all', group: 'all', person: 'all' };
 
-  // 12产品全量销售额基准（万元）
-  var BASE_SALES = { '观澜编码产品（非大模型）':1100, '出入口停车':420, '前端大模型':980, '网络产品':600, '后端大模型(文搜大模型）':650, '人员通道':180, '会议平板与视频会议':450, '国密产品':400, '执法记录仪':380, '物联安全':480, '音频产品':320 };
 
-  var s10 = function(v) { return Math.round(v * 10) / 10; };
-
-  // 保存原始数据以便排序
-  App._productRankRawData = list.map(function(p, i) {
-    var ext = App._genProductRankExtras(p.product, i);
-    var ps = App._getProductScale(p.product, state);
-    var baseSales = BASE_SALES[p.product] || 500;
-    return {
-      idx: i, name: p.product, sales: Math.round(baseSales * ps),
-      amtYoY: p.amtYoY, qtyYoY: p.qtyYoY, type: p.type,
-      avgPrice: ext.avgPrice, priceYoY: ext.priceYoY,
-      custCount: ext.custCount, newCust: ext.newCust, lostCust: ext.lostCust,
-      top3Ratio: ext.top3Ratio, top3Names: ext.top3Names
-    };
-  });
-
-  // 排序
-  var sf2 = App._productRankSort;
-  App._productRankRawData.sort(function(a, b) {
-    var va = a[sf2.field], vb = b[sf2.field];
-    if (typeof va === 'string') return sf2.asc ? va.localeCompare(vb) : vb.localeCompare(va);
-    return sf2.asc ? (va - vb) : (vb - va);
-  });
-
-  var af2 = App._alertFilter || '';
-  var afRe2 = af2 ? new RegExp(af2) : null;
-
-  el.innerHTML = App._productRankRawData.map(function(p, ri) {
-    var rn = ri < 3 ? 'rn' + (ri + 1) : 'rn0';
-    var yoyNum = p.amtYoY;
-    var amtCls = App._thresholdColor(yoyNum, 'yoy') ? ' style="' + App._thresholdColor(yoyNum, 'yoy') + '"' : '';
-    var yoyBadge = yoyNum > 15 ? 'b-up' : (yoyNum > 0 ? 'b-up' : (yoyNum > -5 ? 'b-warn' : 'b-down'));
-    yoyBadge = (p.type === '新增') ? 'b-new' : yoyBadge;
-    var yoyDisplay = p.type === '新增' ? '新增' : (yoyNum >= 0 ? '+' : '') + yoyNum.toFixed(1) + '%';
-
-    var qtyNum = p.qtyYoY;
-    var qtyCls = App._thresholdColor(qtyNum, 'yoy') ? ' style="' + App._thresholdColor(qtyNum, 'yoy') + '"' : '';
-    var qtyDisplay = (qtyNum >= 0 ? '+' : '') + qtyNum.toFixed(1) + '%';
-
-    var typeBadge = p.type === '量价齐升' ? 'b-up' : (p.type === '新增' ? 'b-new' : (p.type === '量跌价增' ? 'b-warn' : 'b-down'));
-    var attrTitle = App._typeAttribution(p.type, yoyNum, qtyNum);
-
-    var priceCls = App._thresholdColor(p.priceYoY, 'yoy') ? ' style="' + App._thresholdColor(p.priceYoY, 'yoy') + '"' : '';
-    var priceYoYDisp = (p.priceYoY >= 0 ? '+' : '') + p.priceYoY.toFixed(1) + '%';
-
-    var top3Cls = App._thresholdColor(p.top3Ratio, 'ratio') ? ' style="' + App._thresholdColor(p.top3Ratio, 'ratio') + '"' : '';
-
-    var isMatch = afRe2 && afRe2.test(p.name);
-    var rowStyle = afRe2 ? (isMatch ? 'background:#fef3c7;font-weight:600' : 'opacity:0.35') : '';
-
-    return '<tr style="' + rowStyle + '">' +
-      '<td><span class="rn ' + rn + '">' + (ri + 1) + '</span></td>' +
-      '<td><a style="color:#1a56db;cursor:pointer;text-decoration:underline" onclick="App.showPotentialProductDrill(\'' + p.name + '\')"><strong>' + p.name + '</strong></a>' + (isMatch ? ' 🔍' : '') + '</td>' +
-      '<td style="text-align:right;font-weight:700">' + p.sales.toLocaleString() + '</td>' +
-      '<td style="text-align:center"' + amtCls + '><span class="badge ' + yoyBadge + '">' + yoyDisplay + '</span></td>' +
-      '<td style="text-align:center"' + qtyCls + '>' + qtyDisplay + '</td>' +
-      '<td style="text-align:right">¥' + s10(p.avgPrice) + '万</td>' +
-      '<td style="text-align:center"' + priceCls + '>' + priceYoYDisp + '</td>' +
-      '<td style="text-align:center">' + p.custCount + '</td>' +
-      '<td style="text-align:center;color:#059669">' + (p.newCust > 0 ? '+' : '') + p.newCust + '</td>' +
-      '<td style="text-align:center;color:#dc2626">' + (p.lostCust > 0 ? '-' : '') + p.lostCust + '</td>' +
-      '<td style="text-align:center"' + top3Cls + ' title="' + p.top3Names + '">' + p.top3Ratio + '%</td>' +
-      '<td style="text-align:center"><span class="badge ' + typeBadge + '" title="' + attrTitle + '" style="cursor:help">' + p.type + '</span></td>' +
-      '</tr>';
-  }).join('');
-};
-
-App.sortProductRank = function(field) {
-  if (App._productRankSort.field === field) {
-    App._productRankSort.asc = !App._productRankSort.asc;
-  } else {
-    App._productRankSort.field = field;
-    App._productRankSort.asc = (field === 'index' || field === 'name'); // index/name 默认升序
-  }
-  var lbl = document.getElementById('p-rank-sort-label');
-  var fieldNames = {sales:'销售额',amtYoY:'金额同比',qtyYoY:'数量同比',avgPrice:'平均单价',priceYoY:'单价同比',custCount:'合作客户',newCust:'新增客户',lostCust:'流失客户',top3Ratio:'TOP3依赖度',type:'分类',index:'序号',name:'产品名'};
-  if (lbl) lbl.textContent = '按' + (fieldNames[field]||field) + (App._productRankSort.asc ? '升序' : '降序');
-  App.renderProductRank('p-product-rank-body', (App.Data.getPotential(App.getFilterState('page-potential').team) || {}).quadrant, App.getFilterState('page-potential'));
-};
-
-App.resetProductRankSort = function() {
-  App._productRankSort = { field: 'sales', asc: false };
-  var lbl = document.getElementById('p-rank-sort-label');
-  if (lbl) lbl.textContent = '按销售额降序';
-  App.renderProductRank('p-product-rank-body', (App.Data.getPotential(App.getFilterState('page-potential').team) || {}).quadrant, App.getFilterState('page-potential'));
-};
 
 // ===== 产品维度四象限散点图更新 =====
 App._updateQuad2Chart = function() {
@@ -1968,14 +1826,6 @@ App._updateQuad2Chart = function() {
 };
 
 // 点击散点 → 筛选下方表格
-App.filterProductByQuad = function(prodName) {
-  App._alertFilter = prodName;
-  App.filterProductAlert(prodName === '观澜编码产品（非大模型）'||prodName==='会议平板与视频会议'||prodName==='前端大模型'||prodName==='物联安全' ? 'core' : (prodName==='网络产品'||prodName==='音频产品' ? 'risk' : 'opportunity'));
-  // 精确单产品筛选
-  App._alertFilter = prodName;
-  App.renderPotentialProductCoverage();
-  App.renderProductRank('p-product-rank-body', (App.Data.getPotential(App.getFilterState('page-potential').team) || {}).quadrant, App.getFilterState('page-potential'));
-};
 
 // ===== 多品类趋势对比折线图更新 =====
 App._trendSelectedProds = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品'];
@@ -2209,57 +2059,8 @@ App.renderCrossSellMatrix = function(data) {
   el.innerHTML = html;
 };
 
-App._bundleStock = {
-  '安防前端套包': {
-    _score: '3.8',
-    custs: [
-      { name:'深圳市政府', person:'陈思源', team:'政府行业组', covered:'IPC,NVR,网络产品', missing:'存储', width:10 },
-      { name:'宝安公安局', person:'王志强', team:'政府行业组', covered:'IPC,NVR', missing:'存储,网络产品', width:8 },
-      { name:'罗湖教育局', person:'李梦琪', team:'政府行业组', covered:'IPC,存储', missing:'NVR,网络产品', width:7 },
-      { name:'招商17', person:'陈伟杰', team:'政府行业组', covered:'IPC', missing:'NVR,存储,网络产品', width:6 },
-      { name:'龙岗分局', person:'张伟', team:'政府行业组', covered:'NVR', missing:'IPC,存储,网络产品', width:3 }
-    ],
-    users: [
-      { name:'深圳市公安局', person:'陈思源', team:'政府行业组', covered:'IPC,NVR', missing:'存储,网络产品', width:6.2 },
-      { name:'深圳市教育局', person:'李梦琪', team:'政府行业组', covered:'IPC,存储,NVR', missing:'网络产品', width:5.1 },
-      { name:'广东省交通厅', person:'张伟', team:'政府行业组', covered:'IPC', missing:'NVR,存储,网络产品', width:4.5 }
-    ]
-  },
-  '出入口一体化': {
-    _score: '3.2',
-    custs: [
-      { name:'深圳市政府', person:'陈思源', team:'政府行业组', covered:'门禁,IPC', missing:'出入口停车', width:10 },
-      { name:'智慧城建设', person:'罗兴华', team:'工业企业一组', covered:'门禁', missing:'出入口停车,IPC', width:3 },
-      { name:'沙头派出所', person:'赵启超', team:'公安交警行业组', covered:'出入口停车', missing:'门禁,IPC', width:3 }
-    ],
-    users: [
-      { name:'深圳市公安局', person:'陈思源', team:'政府行业组', covered:'门禁,出入口停车', missing:'IPC', width:6.2 },
-      { name:'深圳市卫健委', person:'罗兴华', team:'工业企业一组', covered:'门禁', missing:'出入口停车,IPC', width:3.8 }
-    ]
-  },
-  '交通智能套包': {
-    _score: '2.5',
-    custs: [
-      { name:'广东省交通厅', person:'张伟', team:'政府行业组', covered:'智能交通,球机', missing:'NVR', width:5 },
-      { name:'东莞市交通局', person:'张继成', team:'政府行业组', covered:'球机', missing:'智能交通,NVR', width:3 }
-    ],
-    users: [
-      { name:'广东省交通厅', person:'张伟', team:'政府行业组', covered:'智能交通,NVR', missing:'球机', width:4.5 },
-      { name:'深圳市文体局', person:'黄燕滨', team:'工业企业一组', covered:'球机', missing:'智能交通,NVR', width:3.2 }
-    ]
-  },
-  '显示控制套包': {
-    _score: '2.1',
-    custs: [
-      { name:'罗湖教育局', person:'李梦琪', team:'政府行业组', covered:'LCD与解码,通用软件', missing:'网络产品', width:7 },
-      { name:'南山教育局', person:'李梦琪', team:'政府行业组', covered:'LCD与解码', missing:'网络产品,通用软件', width:5 }
-    ],
-    users: [
-      { name:'深圳市教育局', person:'李梦琪', team:'政府行业组', covered:'LCD与解码,网络产品', missing:'通用软件', width:5.1 },
-      { name:'深圳市文体局', person:'黄燕滨', team:'工业企业一组', covered:'LCD与解码', missing:'网络产品,通用软件', width:3.2 }
-    ]
-  }
-};
+App._bundleStock = {};
+;
 
 App.renderCrossBundles = function(bundles) {
   var el = document.getElementById('w-cross-bundles');
@@ -5823,7 +5624,7 @@ App.renderUserDimension = function() {
         } else {
           html += '<tr>';
         }
-        html += '<td style="text-align:left;font-size:11px">' + c.cust + '</td><td style="text-align:center;font-size:11px">¥' + c.amt + '万</td><td style="text-align:center;font-size:11px">' + (Math.round(Math.random() * 4 + 2)) + '</td></tr>';
+        html += '<td style="text-align:left;font-size:11px">' + c.cust + '</td><td style="text-align:center;font-size:11px">¥' + c.amt + '万</td><td style="text-align:center;font-size:11px">' + (Math.round(0 + 2)) + '</td></tr>';
       });
     });
     ulinkBody.innerHTML = html;
@@ -5897,47 +5698,7 @@ App.showUserCustDrill = function(userName) {
   h += '</tbody></table>'; App.showModal(userName + ' · 关联客户', h);
 };
 
-App.showUserSegmentDrill = function(type) {
-  var titles = { star:'⭐ 明星用户', cash:'💰 维持用户', potential:'🌱 潜力用户', sleep:'💤 沉睡用户' };
-  var list = (App._userSegCache || {})[type] || [];
-  var totalSales = list.reduce(function(s, u) { return s + u.sales; }, 0);
-  var h = '<h3 style="margin:0 0 8px">' + (titles[type]||'') + ' <span style="font-size:13px;color:#6b7280">' + list.length + '个 · ¥' + totalSales + '万</span></h3>';
-  h += '<table class="table tight-table"><thead><tr><th>用户</th><th style="text-align:right">销售额(万)</th><th style="text-align:center">宽度</th><th style="text-align:center">同比</th><th style="text-align:center">上期分层</th><th>覆盖产品</th></tr></thead><tbody>';
-  list.forEach(function(u) {
-    var yoyCls = u.yoy === '新增' ? 'b-new' : (u.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
-    var yoyNum = parseFloat(u.yoy);
-    var prevSeg = u.yoy === '新增' ? '新增' : (yoyNum > 10 ? '潜力' : (yoyNum > 0 ? '维持' : (yoyNum > -15 ? '维持' : '明星')));
-    h += '<tr><td style="font-weight:600">' + u.user + '</td>' +
-      '<td style="text-align:right">¥' + u.sales + '万</td>' +
-      '<td style="text-align:center">' + u.cov + '</td>' +
-      '<td style="text-align:center"><span class="badge ' + yoyCls + '">' + u.yoy + '</span></td>' +
-      '<td style="text-align:center;font-size:10px">' + prevSeg + '</td>' +
-      '<td style="font-size:10px">' + u.prods.join('、') + '</td></tr>';
-  });
-  h += '</tbody></table>';
-  App.showModal(titles[type] + ' 明细', h);
-};
 
-App.showUserLifeDrill = function(type) {
-  var titles = { new:'🆕 新增用户', active:'🟢 存量活跃', decline:'🟡 萎缩用户', lost:'🔴 流失用户' };
-  var list = App._userData.filter(function(u) { return u.life === type; });
-  var totalSales = list.reduce(function(s, u) { return s + u.sales; }, 0);
-  var h = '<h3 style="margin:0 0 8px">' + (titles[type]||'') + ' <span style="font-size:13px;color:#6b7280">' + list.length + '个 · ¥' + totalSales + '万</span></h3>';
-  h += '<table class="table tight-table"><thead><tr><th>用户</th><th style="text-align:right">销售额(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">宽度</th><th style="text-align:center">同比</th><th style="text-align:center">上期分层</th><th>覆盖产品</th></tr></thead><tbody>';
-  list.forEach(function(u) {
-    var yoyCls = u.yoy === '新增' ? 'b-new' : (u.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
-    var yoyNum = parseFloat(u.yoy);
-    var prevSeg = u.yoy === '新增' ? '新增' : (yoyNum > 10 ? '潜力' : (yoyNum > 0 ? '维持' : (yoyNum > -15 ? '维持' : '明星')));
-    h += '<tr><td style="font-weight:600">' + u.user + '</td>' +
-      '<td style="text-align:right">¥' + u.sales + '万</td>' +
-      '<td style="text-align:right;color:#6b7280">¥' + u.prev + '万</td>' +
-      '<td style="text-align:center">' + u.cov + '</td>' +
-      '<td style="text-align:center"><span class="badge ' + yoyCls + '">' + u.yoy + '</span></td>' +
-      '<td style="text-align:center;font-size:10px">' + prevSeg + '</td>' +
-      '<td style="font-size:10px">' + u.prods.join('、') + '</td></tr>';
-  });
-  h += '</tbody></table>'; App.showModal(titles[type] + ' 明细', h);
-};
 
 // ===== 潜力产品 — 用户维度：用户背后的客户关系 =====
 App.renderUserCustLink = function(state) {
@@ -6539,7 +6300,7 @@ App._refreshOvBarCharts = function() {
     });
 
     var prodLabels = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
-    var prodSales = prodLabels.map(function(p) { var v = pAgg[p] || 0; return v > 0 ? Math.round(v) : Math.round((Math.random()*200+50)); });
+    var prodSales = prodLabels.map(function(p) { var v = pAgg[p] || 0; return Math.round(v); });
     // 如果无Matrix数据，用demo并缩放
     if (Object.keys(pAgg).length === 0) {
       var scale = person !== 'all' ? 0.02 : group !== 'all' ? 0.10 : team !== 'all' ? 0.28 : 1;
@@ -6709,39 +6470,20 @@ App.showProdCovDrill = function(prodName, type) {
 };
 
 // ===== 潜力产品 · 产品维度 — 产品点击下钻（客户+用户明细） =====
-App._potProductCustomers = {
-  'NVR':      [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'罗湖教育局',person:'李梦琪',team:'政府行业组'},{name:'招商17',person:'陈伟杰',team:'政府行业组'},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'南山区教育局',person:'罗兴华',team:'工业企业一组'},{name:'龙岗分局',person:'张继成',team:'公安交警行业组'},{name:'东莞市公安局',person:'张伟',team:'公安交警行业组'},{name:'广州政务云',person:'陈思源',team:'政府行业组'},{name:'东方电子',person:'黄燕滨',team:'工业企业一组'},{name:'深圳地铁集团',person:'朱绪浩',team:'智慧建筑组'},{name:'鹏城科技集团',person:'陈刚',team:'客户销售二组'}],
-  '智能计算': [{name:'广州政务云',person:'陈思源',team:'政府行业组'},{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'南方科技大学',person:'潘仲楠',team:'工业企业一组'},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'珠海横琴智慧',person:'王志强',team:'政府行业组'}],
-  'IPC':      [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'罗湖教育局',person:'李梦琪',team:'政府行业组'},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'深圳大学',person:'潘仲楠',team:'工业企业一组'},{name:'深圳地铁集团',person:'朱绪浩',team:'智慧建筑组'},{name:'龙岗分局',person:'张继成',team:'公安交警行业组'},{name:'天眼监控科技',person:'张栋柱',team:'客户销售一组'},{name:'华润万象城',person:'刘文宇',team:'客户销售三组'},{name:'鹏城科技集团',person:'陈刚',team:'客户销售二组'},{name:'南山教育局',person:'陈思源',team:'政府行业组'},{name:'沙头派出所',person:'邓畅',team:'客户销售五组'},{name:'佛山教育局',person:'罗兴华',team:'工业企业一组'}],
-  '平台软件': [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'罗湖教育局',person:'李梦琪',team:'政府行业组'},{name:'广州政务云',person:'陈思源',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'深圳市教育局',person:'陈思源',team:'政府行业组'},{name:'南方科技大学',person:'潘仲楠',team:'工业企业一组'}],
-  '门禁':     [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'深圳大学',person:'潘仲楠',team:'工业企业一组'},{name:'深圳地铁集团',person:'朱绪浩',team:'智慧建筑组'},{name:'罗湖教育局',person:'李梦琪',team:'政府行业组'},{name:'华润万象城',person:'刘文宇',team:'客户销售三组'},{name:'龙岗分局',person:'张继成',team:'公安交警行业组'},{name:'招商局地产',person:'朱迪',team:'客户销售四组'},{name:'江河电子',person:'张栋柱',team:'客户销售一组'},{name:'沙头派出所',person:'邓畅',team:'客户销售五组'}],
-  '智能交通': [{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'深圳市交警支队',person:'房伟建',team:'公安交警行业组'},{name:'深圳地铁集团',person:'朱绪浩',team:'智慧建筑组'},{name:'深圳机场集团',person:'朱绪浩',team:'智慧建筑组'},{name:'深圳巴士集团',person:'赵启超',team:'智慧建筑组'},{name:'龙岗公安分局',person:'王志强',team:'政府行业组'},{name:'高速公路管理处',person:'张继成',team:'公安交警行业组'}],
-  '存储':     [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'深圳大学',person:'潘仲楠',team:'工业企业一组'},{name:'深圳市交警支队',person:'房伟建',team:'公安交警行业组'},{name:'西部公交公司',person:'李金富',team:'智慧建筑组'},{name:'深圳地铁集团',person:'朱绪浩',team:'智慧建筑组'},{name:'鹏城科技集团',person:'陈刚',team:'客户销售二组'}],
-  'LCD与解码':[{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'罗湖教育局',person:'李梦琪',team:'政府行业组'},{name:'深圳市教育局',person:'陈思源',team:'政府行业组'},{name:'深圳大学',person:'潘仲楠',team:'工业企业一组'},{name:'南方科技大学',person:'潘仲楠',team:'工业企业一组'},{name:'招商局地产',person:'朱迪',team:'客户销售四组'},{name:'龙岗区教育局',person:'黄燕滨',team:'工业企业一组'},{name:'佛山市教育局',person:'罗兴华',team:'工业企业一组'}],
-  '出入口停车':[{name:'深圳市交警支队',person:'房伟建',team:'公安交警行业组'},{name:'深圳地铁集团',person:'朱绪浩',team:'智慧建筑组'},{name:'深圳机场集团',person:'朱绪浩',team:'智慧建筑组'},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'华润万象城',person:'刘文宇',team:'客户销售三组'},{name:'高速公路管理处',person:'张继成',team:'公安交警行业组'}],
-  '音频产品': [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'深圳市文体局',person:'李梦琪',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'}],
-  '人员通道': [{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'深圳市卫健委',person:'李梦琪',team:'政府行业组'},{name:'宝安公安局',person:'王志强',team:'政府行业组'},{name:'罗湖教育局',person:'李梦琪',team:'政府行业组'}],
-  '行业软件': [{name:'广东省交通厅',person:'张伟',team:'公安交警行业组'},{name:'深圳市政府',person:'陈思源',team:'政府行业组'},{name:'深圳市交警支队',person:'房伟建',team:'公安交警行业组'},{name:'南方科技大学',person:'潘仲楠',team:'工业企业一组'}]
-};
+App._potProductCustomers = {};
 
-App._potProductUsers = {
-  'NVR':      [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:12},{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:8},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:6},{name:'广州市公安局',person:'张伟',team:'公安交警行业组',custCnt:10},{name:'佛山市教育局',person:'罗兴华',team:'工业企业一组',custCnt:5}],
-  '智能计算': [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:4},{name:'广州市公安局',person:'张伟',team:'公安交警行业组',custCnt:3},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:2}],
-  'IPC':      [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:12},{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:8},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:6},{name:'广州市公安局',person:'张伟',team:'公安交警行业组',custCnt:10},{name:'深圳市卫健委',person:'李梦琪',team:'政府行业组',custCnt:5},{name:'佛山市教育局',person:'罗兴华',team:'工业企业一组',custCnt:5},{name:'珠海市政务局',person:'王志强',team:'政府行业组',custCnt:6}],
-  '平台软件': [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:6},{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:5},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:3},{name:'珠海市政务局',person:'王志强',team:'政府行业组',custCnt:4}],
-  '门禁':     [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:10},{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:5},{name:'广州市公安局',person:'张伟',team:'公安交警行业组',custCnt:8},{name:'深圳市卫健委',person:'李梦琪',team:'政府行业组',custCnt:4},{name:'东莞市卫健局',person:'黄燕滨',team:'工业企业一组',custCnt:3}],
-  '智能交通': [{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:6},{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:5},{name:'广州市公安局',person:'张伟',team:'公安交警行业组',custCnt:4}],
-  '存储':     [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:8},{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:4},{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:5}],
-  'LCD与解码':[{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:6},{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:5},{name:'佛山市教育局',person:'罗兴华',team:'工业企业一组',custCnt:4},{name:'珠海市政务局',person:'王志强',team:'政府行业组',custCnt:4}],
-  '出入口停车':[{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:4},{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:3}],
-  '音频产品': [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:3},{name:'深圳市教育局',person:'陈思源',team:'政府行业组',custCnt:2}],
-  '人员通道': [{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:4},{name:'深圳市卫健委',person:'李梦琪',team:'政府行业组',custCnt:3}],
-  '行业软件': [{name:'广东省交通厅',person:'张伟',team:'公安交警行业组',custCnt:3},{name:'深圳市公安局',person:'陈思源',team:'政府行业组',custCnt:3},{name:'广州市公安局',person:'张伟',team:'公安交警行业组',custCnt:2}]
-};
+App._potProductUsers = {};
 
 App.showPotentialProductDrill = function(prodName) {
+  // 优先从导入数据查找
   var custs = App._potProductCustomers[prodName] || [];
   var users = App._potProductUsers[prodName] || [];
+  if (App.ImportPotential && App.ImportPotential.CustRAW && App.ImportPotential.CustRAW.length > 0) {
+    custs = App.ImportPotential.CustRAW.filter(function(r) { return r.product === prodName; });
+    if (App.ImportPotential.UserRAW && App.ImportPotential.UserRAW.length > 0) {
+      users = App.ImportPotential.UserRAW.filter(function(r) { return r.product === prodName; });
+    }
+  }
 
   var custRows = custs.length > 0
     ? custs.map(function(c, i) {
@@ -7013,10 +6755,10 @@ App.renderTeamScorecard = function(state) {
   if (dim === 'dept') {
     App.DEPTS.forEach(function(d) {
       if (team !== 'all' && d.n !== team) return;
-      var sales = Math.round(d.cw * 42 + Math.round(Math.random() * 300));
+      var sales = Math.round(d.cw * 42 + 0);
       rows.push({
         dept: d.n, grp: '', name: '',
-        sales: sales, newProdSales: Math.round(sales * (0.08 + Math.random() * 0.1)),
+        sales: sales, newProdSales: Math.round(sales * (0.08 + 0)),
         coverage: parseFloat((d.cov || 65).toString()), cw: d.cw,
         yoy: parseFloat((d.yoy || '+5').toString()), newCust: Math.round(d.cw * 0.12)
       });
@@ -7025,10 +6767,10 @@ App.renderTeamScorecard = function(state) {
     App.GROUPS.forEach(function(g) {
       if (team !== 'all' && g.dept !== team) return;
       if (group !== 'all' && g.n !== group) return;
-      var sales = (g.cw || 80) * 42 + Math.round(Math.random() * 300);
+      var sales = (g.cw || 80) * 42 + 0;
       rows.push({
         dept: g.dept, grp: g.n, name: '',
-        sales: sales, newProdSales: Math.round(sales * (0.08 + Math.random() * 0.1)),
+        sales: sales, newProdSales: Math.round(sales * (0.08 + 0)),
         coverage: parseFloat((g.cov || 65).toString()), cw: g.cw,
         yoy: parseFloat((g.yoy || '+5').toString()), newCust: Math.round(g.cw * 0.1)
       });
@@ -7038,10 +6780,10 @@ App.renderTeamScorecard = function(state) {
       if (team !== 'all' && p.dept !== team) return;
       if (group !== 'all' && p.grp !== group) return;
       if (person !== 'all' && p.n !== person) return;
-      var sales = (p.cw || 15) * 38 + Math.round(Math.random() * 100);
+      var sales = (p.cw || 15) * 38 + 0;
       rows.push({
         dept: p.dept || '-', grp: p.grp || '-', name: p.n,
-        sales: sales, newProdSales: Math.round(sales * (0.05 + Math.random() * 0.08)),
+        sales: sales, newProdSales: Math.round(sales * (0.05 + 0)),
         coverage: parseFloat((p.cov || 60).toString()), cw: p.cw || 10,
         yoy: parseFloat((p.yoy || '+3').toString()), newCust: Math.round((p.cw || 10) * 0.08)
       });
@@ -7163,69 +6905,10 @@ App._custSegData = {
 };
 
 // 客户分层卡片渲染
-App.renderCustSegments = function() {
-  var segs = App._custSegData;
-  var totalSales = 0;
-  Object.values(segs).forEach(function(arr) { arr.forEach(function(c) { totalSales += c.sales; }); });
-
-  ['star','cash','potential','sleep'].forEach(function(type) {
-    var list = segs[type] || [];
-    var segSales = list.reduce(function(s,c) { return s + c.sales; }, 0);
-    var share = totalSales > 0 ? (segSales / totalSales * 100).toFixed(0) : 0;
-    var allProds = new Set(); list.forEach(function(c) { c.prods.forEach(function(p) { allProds.add(p); }); });
-    var untapped = App.ALL_POT_PRODUCTS.filter(function(p) { return !allProds.has(p); });
-
-    // 迁移标记
-    var upgrades = list.filter(function(c) { return (type==='star' && c.prevSeg!=='star') || (type==='potential' && c.prevSeg==='sleep'); });
-    var downgrades = list.filter(function(c) { return (type==='cash' && c.prevSeg==='star') || (type==='sleep' && c.prevSeg!=='sleep' && c.prevSeg!=='new'); });
-
-    App.setText('seg-' + type + '-count', list.length);
-    App.setText('seg-' + type + '-list', list.map(function(c) { return c.cust; }).join('、'));
-    var metricsEl = document.getElementById('seg-' + type + '-metrics');
-    if (metricsEl) metricsEl.innerHTML = '¥' + segSales.toLocaleString() + '万 · 占比' + share + '% · ' + untapped.length + '个未覆盖品类';
-
-    var migrateEl = document.getElementById('seg-' + type + '-migrate');
-    if (migrateEl) {
-      var tags = [];
-      if (upgrades.length) tags.push('<span style="color:#059669">↑' + upgrades.length + '升级</span>');
-      if (downgrades.length) tags.push('<span style="color:#dc2626;font-weight:700">↓' + downgrades.length + '降级⚠️</span>');
-      migrateEl.innerHTML = tags.join(' ');
-    }
-
-    // 行动建议
-    var actions = { star:'深挖高附加值品类，主供地位', cash:'交叉销售：未覆盖品类 → ' + untapped.slice(0,3).join('、'), potential:'做量扩规模，提升单品采购量', sleep:'调研潜力，选择性激活' };
-    var actionEl = document.getElementById('seg-' + type + '-action');
-    if (actionEl) actionEl.innerHTML = '策略: ' + (actions[type] || '');
-  });
-};
 
 // 点击卡片 → 筛选下钻
-App.filterCustSegment = function(type) {
-  App._custSegFilter = type;
-  App.showCustSegmentDrill(type);
-};
 
 // 客户分层下钻弹窗
-App.showCustSegmentDrill = function(type) {
-  var titles = { star:'⭐ 明星客户', cash:'💰 维持客户', potential:'🌱 潜力客户', sleep:'💤 沉睡客户' };
-  var list = App._custSegData[type] || [];
-  var segSales = list.reduce(function(s,c) { return s + c.sales; }, 0);
-  var h = '<h3 style="margin:0 0 4px">' + (titles[type]||'') + ' <span style="font-size:13px;color:#6b7280">' + list.length + '家 · ¥' + segSales + '万</span></h3>';
-  h += '<table class="table tight-table" style="margin-top:8px"><thead><tr><th>客户</th><th style="text-align:right">销售额(万)</th><th style="text-align:center">宽度</th><th style="text-align:center">同比</th><th style="text-align:center">上期分层</th><th>覆盖产品</th></tr></thead><tbody>';
-  list.forEach(function(c) {
-    var yoyCls = c.yoy === '新增' ? 'b-new' : (c.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
-    var prevLabel = c.prevSeg === 'star' ? '明星' : c.prevSeg === 'cash' ? '维持' : c.prevSeg === 'potential' ? '潜力' : c.prevSeg === 'sleep' ? '沉睡' : '新客';
-    var migrateNote = '';
-    if (type === 'star' && c.prevSeg === 'cash') migrateNote = ' <span style="color:#059669;font-size:10px">↑升级</span>';
-    if (type === 'star' && c.prevSeg === 'potential') migrateNote = ' <span style="color:#059669;font-size:10px">↑↑跃升</span>';
-    if (type === 'cash' && c.prevSeg === 'star') migrateNote = ' <span style="color:#dc2626;font-size:10px">⚠️降级</span>';
-    if (type === 'sleep' && c.prevSeg === 'cash') migrateNote = ' <span style="color:#dc2626;font-size:10px">⚠️降级</span>';
-    if (type === 'potential' && c.prevSeg === 'sleep') migrateNote = ' <span style="color:#059669;font-size:10px">↑激活</span>';
-    h += '<tr><td style="font-weight:600">' + c.cust + migrateNote + '</td><td style="text-align:right">¥' + c.sales + '万</td><td style="text-align:center">' + c.width + '</td><td style="text-align:center"><span class="badge ' + yoyCls + '">' + c.yoy + '</span></td><td style="text-align:center;font-size:10px">' + prevLabel + '</td><td style="font-size:10px">' + c.prods.join('、') + '</td></tr>';
-  });
-  h += '</tbody></table>';
-  App.showModal((titles[type]||'') + ' 明细', h);
-};
 
 // 增长结构指标下钻
 App.showGrowthDetailModal = function(groupName, type, count) {
@@ -7298,8 +6981,8 @@ App.showGroupDrillModal = function(groupName) {
 
   // 该小组产品趋势数据
   var prods = App.ALL_POT_PRODUCTS;
-  var prodCurr = prods.map(function(p) { return Math.round((Math.random() * 400 + 80) * (g.cw / 80)); });
-  var prodPrev = prodCurr.map(function(v) { return Math.round(v * (0.7 + Math.random() * 0.4)); });
+  var prodCurr = prods.map(function(p) { return 0; });
+  var prodPrev = prodCurr.map(function(v) { return 0; });
 
   // 该小组成员业绩
   var members = App.PERSONS.filter(function(p) { return p.grp === groupName; });
@@ -7381,304 +7064,10 @@ App.setCustDim = function(dim) {
 };
 
 // ===== 客户交叉矩阵（11产品 + hover + 汇总 + 切换） =====
-App._matrixView = 'sales'; // sales | coverage
-App.renderCustMatrix = function() {
-  var thead = document.getElementById('pCustMatrixThead');
-  var tbody = document.getElementById('pCustMatrixBody');
-  var tfoot = document.getElementById('pCustMatrixFoot');
-  if (!thead || !tbody) return;
-  var prods = App.ALL_POT_PRODUCTS;
-  // 确保读取最新的筛选状态
-  var state = App.getFilterState('page-potential');
-  var team = state.team || 'all', group = state.group || 'all', person = state.person || 'all';
-  // 首次加载兜底：如果筛选下拉尚未初始化，默认全部
-  if (!team) team = 'all'; if (!group) group = 'all'; if (!person) person = 'all';
-
-  // 客户数据（含部门/组/人维度）
-  var allCusts = [
-    { cust:'深圳市政府', dept:'行业二部', grp:'政府行业组', person:'陈思源' },
-    { cust:'宝安公安局', dept:'行业二部', grp:'政府行业组', person:'王志强' },
-    { cust:'罗湖教育局', dept:'行业二部', grp:'政府行业组', person:'李梦琪' },
-    { cust:'广东省交通厅', dept:'行业二部', grp:'公安交警行业组', person:'张伟' },
-    { cust:'招商17', dept:'行业二部', grp:'政府行业组', person:'陈伟杰' },
-    { cust:'深圳大学', dept:'行业一部', grp:'工业企业一组', person:'罗兴华' },
-    { cust:'南方科技大学', dept:'行业一部', grp:'工业企业一组', person:'罗兴华' },
-    { cust:'深圳市卫健委', dept:'行业二部', grp:'政府行业组', person:'李梦琪' },
-    { cust:'深圳机场集团', dept:'行业一部', grp:'智慧建筑组', person:'朱绪浩' },
-    { cust:'天眼监控', dept:'客户销售一部', grp:'客户销售一组', person:'张栋柱' },
-    { cust:'龙岗分局', dept:'行业二部', grp:'公安交警行业组', person:'张伟' },
-    { cust:'鹏城科技', dept:'客户销售一部', grp:'客户销售二组', person:'陈刚' }
-  ];
-
-  // 按筛选范围过滤
-  var custs = allCusts.filter(function(c) {
-    if (team !== 'all' && c.dept !== team) return false;
-    if (group !== 'all' && c.grp !== group) return false;
-    if (person !== 'all' && c.person !== person) return false;
-    return true;
-  });
-
-  // 构建矩阵（确保每客户覆盖5-9个产品，每个产品都有数据）
-  // ── dim 决定行数据来源 ──
-  var dim = App._custDim || 'person';
-  // 同步视图按钮状态
-  ['sales','coverage'].forEach(function(v) {
-    var btn = document.getElementById('p-matrix-btn-' + v);
-    if (btn) {
-      var active = App._matrixView === v;
-      btn.style.background = active ? '#1a56db' : '#fff';
-      btn.style.color = active ? '#fff' : '#333';
-      btn.style.fontWeight = active ? '600' : '400';
-    }
-  });
-
-  var rowLabel = dim === 'dept' ? '部门' : (dim === 'group' ? '小组' : '个人');
-  var parts = [];
-  if (team !== 'all') parts.push('部门: ' + team);
-  else parts.push('部门: 全部');
-  if (group !== 'all') parts.push('小组: ' + group);
-  if (person !== 'all') parts.push('个人: ' + person);
-  var dimLabel = parts.join(' / ') || '全部客户';
-  App.setText('p-matrix-scope', dimLabel);
-
-  // 按 dim 聚合行
-  var rows = [];
-  if (dim === 'dept') {
-    var deptMap = {};
-    custs.forEach(function(c) {
-      if (!deptMap[c.dept]) deptMap[c.dept] = { label: c.dept, custs: [] };
-      deptMap[c.dept].custs.push(c);
-    });
-    rows = Object.values(deptMap);
-  } else if (dim === 'group') {
-    var grpMap = {};
-    custs.forEach(function(c) {
-      var key = c.grp;
-      if (!grpMap[key]) grpMap[key] = { label: c.grp, dept: c.dept, custs: [] };
-      grpMap[key].custs.push(c);
-    });
-    rows = Object.values(grpMap);
-  } else {
-    rows = custs.map(function(c) { return { label: c.cust, dept: c.dept, grp: c.grp, person: c.person, custs: [c] }; });
-  }
-
-  // 构建聚合矩阵
-  var matrix = {};
-  rows.forEach(function(r, ri) {
-    var key = r.label;
-    matrix[key] = {};
-    r.custs.forEach(function(c) {
-      var hash = 0; for (var hi = 0; hi < c.cust.length; hi++) hash = ((hash << 5) - hash) + c.cust.charCodeAt(hi);
-      var covCount = 6 + Math.abs(hash % 4);
-      var perm = prods.map(function(p, i) { return i; });
-      for (var si = perm.length - 1; si > 0; si--) { var sj = Math.abs(hash + si * 7) % (si + 1); var tmp = perm[si]; perm[si] = perm[sj]; perm[sj] = tmp; }
-      var coveredSet = new Set(perm.slice(0, covCount).map(function(i) { return prods[i]; }));
-      prods.forEach(function(p) {
-        if (!matrix[key][p]) matrix[key][p] = { val: 0, prev: 0, yoy: 0, orders: 0, cnt: 0 };
-        if (coveredSet.has(p)) {
-          var v = 3 + Math.abs(hash + p.length * 11) % 18;
-          var prev = Math.max(0, v - 1 - Math.abs(hash + p.length * 3) % 5);
-          matrix[key][p].val += v;
-          matrix[key][p].prev += prev;
-          matrix[key][p].orders += Math.round(v * (1.5 + Math.random() * 2));
-          matrix[key][p].cnt++;
-        }
-      });
-    });
-    // 计算平均同比
-    prods.forEach(function(p) {
-      var m = matrix[key][p];
-      m.yoy = m.prev > 0 ? Math.round((m.val - m.prev) / m.prev * 100) : (m.val > 0 ? 100 : 0);
-    });
-  });
-
-  var displayRows = rows.slice();
-
-  // ── 分页 ──
-  var mPageSize = parseInt((document.getElementById('p-matrix-page-size')||{}).value) || 10;
-  var mTotal = displayRows.length;
-  var mPages = Math.ceil(mTotal / mPageSize);
-  if (!App._matrixPage || App._matrixPage > mPages) App._matrixPage = mPages || 1;
-  var mStart = (App._matrixPage - 1) * mPageSize;
-  var mRows = displayRows.slice(mStart, mStart + mPageSize);
-  App.setText('p-matrix-total', '共 ' + mTotal + ' 条');
-
-  // 表头
-  var isCovView = App._matrixView === 'coverage';
-  var thHtml = '<tr><th style="position:sticky;left:0;background:#f0f4ff;z-index:2;width:1%">#</th><th style="position:sticky;left:20px;background:#f0f4ff;z-index:2">客户名称</th>';
-  prods.forEach(function(p) { thHtml += '<th title="' + p + '">' + (p.length > 5 ? p.substring(0,5)+'…' : p) + '</th>'; });
-  thHtml += '<th style="position:sticky;right:0;background:#f0f4ff;z-index:2">' + (isCovView ? '已覆盖' : '销售额汇总') + '</th></tr>';
-  thead.innerHTML = thHtml;
-
-  // 空状态提示
-  if (mRows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="' + (prods.length + 3) + '" style="text-align:center;padding:32px;color:#9ca3af;font-size:13px">📭 当前筛选条件下暂无客户数据</td></tr>';
-    tfoot.innerHTML = '';
-    if (document.getElementById('p-matrix-pager')) document.getElementById('p-matrix-pager').innerHTML = '';
-    App.setText('p-matrix-total', '共 0 条');
-    return;
-  }
-
-  // 表体
-  tbody.innerHTML = mRows.map(function(r, ri) {
-    var idx = mStart + ri + 1;
-    var cells = ''; var covered = 0; var rowSum = 0;
-    prods.forEach(function(p) {
-      var v = matrix[r.label][p] || { val:0, prev:0, yoy:0, orders:0, cnt:0 };
-      var display, cls = '', title = r.label + ' × ' + p;
-      if (v.val > 0) {
-        covered++;
-        rowSum += v.val;
-        var yoyStr = (v.yoy >= 0 ? '+' : '') + v.yoy + '%';
-        display = isCovView ? '✓' : v.val;
-        cls = v.yoy < -10 ? 'cell-down' : (v.yoy >= 0 ? 'cell-up' : (isCovView ? 'cell-up' : 'cell-down'));
-        title += ' | 本期:' + v.val + '万 | 同期:' + v.prev + '万 | 同比:' + yoyStr;
-        if (v.yoy < -10) title += ' | 🟥下滑预警';
-      } else {
-        display = '-'; cls = 'cell-zero';
-        title += ' | ⬜未覆盖·拓客机会';
-      }
-      cells += '<td class="' + cls + '" title="' + title + '" style="cursor:help">' + display + '</td>';
-    });
-    var rightVal = isCovView ? (covered + '/' + prods.length) : rowSum.toLocaleString();
-    return '<tr><td style="position:sticky;left:0;background:#f9fafb;font-size:10px;color:#9ca3af;text-align:center;z-index:1">' + idx + '</td><td style="position:sticky;left:20px;background:#f9fafb;font-weight:600;z-index:1" title="' + dimLabel + '">' + r.label + '</td>' + cells +
-      '<td style="position:sticky;right:0;background:#f9fafb;font-weight:700;text-align:center;z-index:1">' + rightVal + '</td></tr>';
-  }).join('');
-
-  // 汇总行（全量统计，不受分页影响）
-  var footLabel = isCovView ? '覆盖客户数' : '产品销售额汇总';
-  var footHtml = '<tr style="font-weight:700;background:#f0f4ff"><td style="position:sticky;left:0;background:#dbeafe;z-index:1"></td><td style="position:sticky;left:20px;background:#dbeafe;z-index:1">' + footLabel + '</td>';
-  prods.forEach(function(p) {
-    if (isCovView) {
-      var cnt = displayRows.filter(function(r) { return (matrix[r.label][p]||{}).val > 0; }).length;
-      footHtml += '<td style="text-align:center">' + cnt + '/' + displayRows.length + '</td>';
-    } else {
-      var sum = displayRows.reduce(function(s, r) { return s + ((matrix[r.label][p]||{}).val || 0); }, 0);
-      footHtml += '<td style="text-align:center">' + (sum > 0 ? sum.toLocaleString() : '-') + '</td>';
-    }
-  });
-  footHtml += '<td style="position:sticky;right:0;background:#dbeafe;z-index:1"></td></tr>';
-  tfoot.innerHTML = footHtml;
-
-  // 分页器
-  var mPager = document.getElementById('p-matrix-pager');
-  if (mPager && mPages > 1) {
-    var ph = '';
-    for (var pg = 1; pg <= mPages; pg++) {
-      var ac = pg === App._matrixPage ? 'style="background:#1a56db;color:#fff;font-weight:700"' : 'style="cursor:pointer"';
-      ph += '<button ' + ac + ' onclick="App._matrixPage=' + pg + ';App.renderCustMatrix()" style="margin:0 2px;padding:2px 8px;border:1px solid #d1d5db;border-radius:3px;font-size:11px">' + pg + '</button>';
-    }
-    mPager.innerHTML = ph;
-  } else if (mPager) { mPager.innerHTML = ''; }
-};
 
 // ===== 生命周期下钻 =====
-App.showLifecycleDrill = function(type) {
-  var titles = { new:'🆕 新增客户', active:'🟢 存量活跃客户', decline:'🟡 萎缩客户', lost:'🔴 流失客户' };
-  var icons = { new:'🆕', active:'🟢', decline:'🟡', lost:'🔴' };
-  var all = App._custLifeData || [];
-  var list = all.filter(function(c) { return c.life === type; });
-  var total = list.reduce(function(s,c) { return s + c.sales; }, 0);
-  var h = '<h3 style="margin:0 0 8px">' + (titles[type]||'') + ' <span style="font-size:13px;color:#6b7280">' + list.length + '家 · ¥' + total + '万</span></h3>';
-  h += '<table class="table tight-table"><thead><tr><th>客户</th><th style="text-align:right">本期(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">同比</th><th>对接销售</th><th>部门</th></tr></thead><tbody>';
-  list.forEach(function(c) {
-    var yoyCls = c.yoy === '新增'||c.yoy==='流失' ? 'b-new' : (c.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
-    h += '<tr><td style="font-weight:600">' + c.cust + '</td><td style="text-align:right">' + (c.sales > 0 ? '¥' + c.sales + '万' : '-') + '</td><td style="text-align:right;color:#6b7280">' + (c.prev > 0 ? '¥' + c.prev + '万' : '-') + '</td><td style="text-align:center"><span class="badge ' + yoyCls + '">' + c.yoy + '</span></td><td>' + c.person + '</td><td>' + c.dept + '</td></tr>';
-  });
-  h += '</tbody></table>';
-  App.showModal((titles[type]||'') + ' 明细', h);
-};
 
 // ===== 客户生命周期分析 =====
-App.renderCustLifecycle = function(state) {
-  state = state || App.getFilterState('page-potential');
-  var team = state.team, group = state.group, person = state.person;
-  var lparts = [];
-  if (team !== 'all') lparts.push('部门: ' + team);
-  if (group !== 'all') lparts.push('小组: ' + group);
-  if (person !== 'all') lparts.push('个人: ' + person);
-  App.setText('p-lifecycle-scope', lparts.join(' / ') || '全部客户');
-
-  var allCusts = App._custLifeData = [
-    { cust:'深圳市政府', sales:880, prev:750, yoy:'+17%', person:'陈思源', team:'政府行业组', dept:'行业二部', life:'active' },
-    { cust:'宝安公安局', sales:720, prev:650, yoy:'+11%', person:'王志强', team:'政府行业组', dept:'行业二部', life:'active' },
-    { cust:'罗湖教育局', sales:650, prev:520, yoy:'+25%', person:'李梦琪', team:'政府行业组', dept:'行业二部', life:'active' },
-    { cust:'广东省交通厅', sales:580, prev:500, yoy:'+16%', person:'张伟', team:'公安交警行业组', dept:'行业二部', life:'active' },
-    { cust:'招商17', sales:420, prev:400, yoy:'+5%', person:'陈伟杰', team:'政府行业组', dept:'行业二部', life:'active' },
-    { cust:'深圳大学', sales:380, prev:350, yoy:'+9%', person:'罗兴华', team:'工业企业一组', dept:'行业一部', life:'active' },
-    { cust:'南方科技大学', sales:350, prev:320, yoy:'+9%', person:'罗兴华', team:'工业企业一组', dept:'行业一部', life:'active' },
-    { cust:'深圳市卫健委', sales:320, prev:350, yoy:'-9%', person:'李梦琪', team:'政府行业组', dept:'行业二部', life:'decline' },
-    { cust:'深圳机场集团', sales:280, prev:250, yoy:'+12%', person:'朱绪浩', team:'智慧建筑组', dept:'行业一部', life:'active' },
-    { cust:'深圳巴士集团', sales:220, prev:240, yoy:'-8%', person:'赵启超', team:'智慧建筑组', dept:'行业一部', life:'decline' },
-    { cust:'天眼监控', sales:180, prev:0, yoy:'新增', person:'张栋柱', team:'客户销售一组', dept:'客户销售一部', life:'new' },
-    { cust:'招商局地产', sales:150, prev:140, yoy:'+7%', person:'朱迪', team:'客户销售四组', dept:'客户销售一部', life:'active' },
-    { cust:'鹏城科技', sales:130, prev:0, yoy:'新增', person:'陈刚', team:'客户销售二组', dept:'客户销售一部', life:'new' },
-    { cust:'深圳交警支队', sales:110, prev:0, yoy:'新增', person:'张伟', team:'公安交警行业组', dept:'行业二部', life:'new' },
-    { cust:'龙岗分局', sales:80, prev:100, yoy:'-20%', person:'张伟', team:'公安交警行业组', dept:'行业二部', life:'decline' },
-    { cust:'南山教育局', sales:60, prev:70, yoy:'-14%', person:'李梦琪', team:'政府行业组', dept:'行业二部', life:'decline' },
-    { cust:'深圳文体局', sales:45, prev:0, yoy:'新增', person:'黄燕滨', team:'客户销售一组', dept:'客户销售一部', life:'new' },
-    { cust:'港口集团', sales:35, prev:60, yoy:'-42%', person:'李金富', team:'智慧建筑组', dept:'行业一部', life:'decline' },
-    { cust:'车管所', sales:25, prev:55, yoy:'-55%', person:'张伟', team:'公安交警行业组', dept:'行业二部', life:'lost' },
-    { cust:'罗湖分局', sales:0, prev:40, yoy:'流失', person:'王志强', team:'政府行业组', dept:'行业二部', life:'lost' }
-  ];
-
-  // 筛选
-  var filtered = allCusts.filter(function(c) {
-    if (team !== 'all' && c.dept !== team) return false;
-    if (group !== 'all' && c.team !== group) return false;
-    if (person !== 'all' && c.person !== person) return false;
-    return true;
-  });
-
-  var actives = filtered.filter(function(c) { return c.life === 'active'; });
-  var news = filtered.filter(function(c) { return c.life === 'new'; });
-  var declines = filtered.filter(function(c) { return c.life === 'decline'; });
-  var losts = filtered.filter(function(c) { return c.life === 'lost'; });
-
-  App.setText('p-life-new', news.length);
-  App.setText('p-life-active', actives.length);
-  App.setText('p-life-decline', declines.length);
-  App.setText('p-life-lost', losts.length);
-
-  // 分页
-  var lifePageSize = parseInt((document.getElementById('p-life-page-size')||{}).value) || 10;
-  var lifeTotal = filtered.length;
-  var lifePages = Math.ceil(lifeTotal / lifePageSize);
-  if (!App._lifePage || App._lifePage > lifePages) App._lifePage = lifePages || 1;
-  var lifeStart = (App._lifePage - 1) * lifePageSize;
-  var lifeRows = filtered.slice(lifeStart, lifeStart + lifePageSize);
-  App.setText('p-life-total', '共 ' + lifeTotal + ' 条');
-
-  var tbody = document.getElementById('p-lifecycle-body');
-  if (tbody) {
-    tbody.innerHTML = lifeRows.map(function(c) {
-      var lifeIcon = { new:'🆕', active:'🟢', decline:'🟡', lost:'🔴' };
-      var lifeLabel = { new:'新增客户', active:'存量活跃', decline:'萎缩客户', lost:'流失客户' };
-      var lifeCls = { new:'b-new', active:'b-up', decline:'b-warn', lost:'b-down' };
-      var yoyCls = c.yoy === '新增'||c.yoy==='流失' ? 'b-new' : (c.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
-      var covCnt = Math.round((c.sales || 10) / 80);
-      return '<tr>' +
-        '<td style="font-weight:600">' + c.cust + '</td>' +
-        '<td style="text-align:center"><span class="badge ' + (lifeCls[c.life]||'') + '">' + (lifeIcon[c.life]||'') + ' ' + (lifeLabel[c.life]||'') + '</span></td>' +
-        '<td style="text-align:right">' + (c.sales > 0 ? '¥' + c.sales + '万' : '-') + '</td>' +
-        '<td style="text-align:right;color:#6b7280">' + (c.prev > 0 ? '¥' + c.prev + '万' : '-') + '</td>' +
-        '<td style="text-align:center"><span class="badge ' + yoyCls + '">' + c.yoy + '</span></td>' +
-        '<td>' + c.person + '<span style="font-size:10px;color:#9ca3af"> · ' + c.team + '</span></td>' +
-        '<td style="text-align:center">' + Math.min(covCnt, App.ALL_POT_PRODUCTS.length) + '/' + App.ALL_POT_PRODUCTS.length + '</td></tr>';
-    }).join('');
-  }
-
-  // 分页器
-  var lifePager = document.getElementById('p-life-pager');
-  if (lifePager && lifePages > 1) {
-    var ph = '';
-    for (var pg = 1; pg <= lifePages; pg++) {
-      var ac = pg === App._lifePage ? 'style="background:#1a56db;color:#fff;font-weight:700"' : 'style="cursor:pointer"';
-      ph += '<button ' + ac + ' onclick="App._lifePage=' + pg + ';App.renderCustLifecycle(App.getFilterState(&apos;page-potential&apos;))" style="margin:0 2px;padding:2px 8px;border:1px solid #d1d5db;border-radius:3px;font-size:11px">' + pg + '</button>';
-    }
-    lifePager.innerHTML = ph;
-  } else if (lifePager) { lifePager.innerHTML = ''; }
-};
 
 // ===== 交叉销售机会清单 =====
 App.renderCrossSell = function(state) {
@@ -7839,11 +7228,8 @@ App.renderPotentialCustTab = function() {
   else if (person !== 'all') { dim = 'person'; App._custDim = 'person'; }
 
   // 客户分层卡片渲染
-  try { App.renderCustSegments(); } catch(e) {}
   // 交叉矩阵
-  try { App.renderCustMatrix(); } catch(e) {}
   // 生命周期
-  try { App.renderCustLifecycle(); } catch(e) {}
   // 大客户依赖风险
   try { App.renderCustTopBottom(); } catch(e) {}
   // 客户分层散点图 resize
@@ -7859,14 +7245,7 @@ App.renderPotentialCustTab = function() {
   var s = function(v) { return Math.round(v * sf); };
 
   // 客户 × 潜力产品交叉矩阵
-  var custMatrix = [
-    { cust:'深圳市政府', nvr:'+125%', nvrCls:'b-up', ai:'新增', aiCls:'b-new', ipc:'+45%', ipcCls:'b-up', sw:'+18%', swCls:'b-up', ac:'未覆盖', acCls:'', it:'未覆盖', itCls:'', st:'+22%', stCls:'b-up' },
-    { cust:'宝安公安局', nvr:'+68%', nvrCls:'b-up', ai:'未覆盖', aiCls:'', ipc:'+22%', ipcCls:'b-up', sw:'-5%', swCls:'b-warn', ac:'-32%', acCls:'b-down', it:'+12%', itCls:'b-up', st:'+8%', stCls:'b-up' },
-    { cust:'罗湖教育局', nvr:'+42%', nvrCls:'b-up', ai:'新增', aiCls:'b-new', ipc:'+15%', ipcCls:'b-up', sw:'未覆盖', swCls:'', ac:'未覆盖', acCls:'', it:'未覆盖', itCls:'', st:'+5%', stCls:'b-up' },
-    { cust:'招商17', nvr:'+38%', nvrCls:'b-up', ai:'未覆盖', aiCls:'', ipc:'+8%', ipcCls:'b-up', sw:'-2%', swCls:'b-warn', ac:'-15%', acCls:'b-down', it:'未覆盖', itCls:'', st:'未覆盖', stCls:'' },
-    { cust:'高峰10', nvr:'+85%', nvrCls:'b-up', ai:'新增', aiCls:'b-new', ipc:'+25%', ipcCls:'b-up', sw:'+12%', swCls:'b-up', ac:'未覆盖', acCls:'', it:'未覆盖', itCls:'', st:'+18%', stCls:'b-up' }
-  ];
-
+  var custMatrix = [];
   var tbody1 = document.getElementById('pCustMatrixBody');
   if (tbody1) {
     tbody1.innerHTML = custMatrix.map(function(c) {
@@ -7883,19 +7262,7 @@ App.renderPotentialCustTab = function() {
   }
 
   // 高贡献客户 TOP 10
-  var custTop = [
-    { cust:'深圳市政府', prods:'NVR/智能计算/IPC', amt:2880, yoy:'+85%', yoyCls:'b-up' },
-    { cust:'宝安公安局', prods:'NVR/IPC/平台', amt:1650, yoy:'+42%', yoyCls:'b-up' },
-    { cust:'罗湖教育局', prods:'NVR/智能计算', amt:1240, yoy:'+38%', yoyCls:'b-up' },
-    { cust:'高峰10', prods:'NVR/智能计算', amt:1050, yoy:'+85%', yoyCls:'b-up' },
-    { cust:'招商17', prods:'IPC/NVR', amt:890, yoy:'+25%', yoyCls:'b-up' },
-    { cust:'沙头', prods:'NVR/存储', amt:720, yoy:'+18%', yoyCls:'b-up' },
-    { cust:'龙岗分局', prods:'IPC/门禁', amt:650, yoy:'+12%', yoyCls:'b-up' },
-    { cust:'南山教育局', prods:'LCD/新业务', amt:520, yoy:'+8%', yoyCls:'b-up' },
-    { cust:'东方电子', prods:'存储/NVR', amt:450, yoy:'+5%', yoyCls:'b-flat' },
-    { cust:'金盾安防', prods:'门禁/报警', amt:380, yoy:'-3%', yoyCls:'b-down' }
-  ];
-
+  var custTop = [];
   var tbody2 = document.getElementById('pCustTop10Body');
   if (tbody2) {
     tbody2.innerHTML = custTop.map(function(c, i) {
@@ -8015,9 +7382,6 @@ App.renderPotentialProductCoverage = function() {
   var scopeTotalCust = App._getScopeTotal(state, 'cust');
   var scopeTotalUser = App._getScopeTotal(state, 'user');
 
-  var af = App._alertFilter || '';
-  var afRe = af ? new RegExp(af) : null;
-
   // 客户覆盖率表
   var tbody1 = document.getElementById('pProdCovCustBody');
   if (tbody1) {
@@ -8027,11 +7391,9 @@ App.renderPotentialProductCoverage = function() {
       var coveredScaled = Math.round(p.covered * ps);
       var covCalc = scopeTotalCust > 0 ? Math.round(coveredScaled / scopeTotalCust * 100) : Math.round(p.cov * ps);
       covCalc = Math.min(100, Math.max(1, covCalc));
-      var isMatch = afRe && afRe.test(p.name);
-      var rowStyle = afRe ? (isMatch ? 'background:#fef3c7;font-weight:600' : 'opacity:0.35') : '';
-      return '<tr style="cursor:pointer;' + rowStyle + '" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
+      return '<tr style="cursor:pointer;" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
-        '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + (isMatch ? ' 🔍' : '') + '</td>' +
+        '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
         '<td style="text-align:center">' + coveredScaled + '</td>' +
         '<td style="text-align:center;font-weight:700;color:var(--success)">' + covCalc + '%</td>' +
         '<td style="text-align:center"><span class="badge ' + p.yoyCls + '">' + p.yoy + '</span></td></tr>';
@@ -8047,11 +7409,9 @@ App.renderPotentialProductCoverage = function() {
       var coveredScaled = Math.round(p.covered * ps);
       var covCalc = scopeTotalUser > 0 ? Math.round(coveredScaled / scopeTotalUser * 100) : Math.round(p.cov * ps);
       covCalc = Math.min(100, Math.max(1, covCalc));
-      var isMatch = afRe && afRe.test(p.name);
-      var rowStyle = afRe ? (isMatch ? 'background:#fef3c7;font-weight:600' : 'opacity:0.35') : '';
-      return '<tr style="cursor:pointer;' + rowStyle + '" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
+      return '<tr style="cursor:pointer;" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
-        '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + (isMatch ? ' 🔍' : '') + '</td>' +
+        '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
         '<td style="text-align:center">' + coveredScaled + '</td>' +
         '<td style="text-align:center;font-weight:700;color:var(--success)">' + covCalc + '%</td>' +
         '<td style="text-align:center"><span class="badge ' + p.yoyCls + '">' + p.yoy + '</span></td></tr>';
@@ -8064,115 +7424,10 @@ App.renderPotentialProductCoverage = function() {
 };
 
 // ===== 潜力产品 · 产品维度 — 预警概览卡片 =====
-App._alertCardData = {
-  risk: {
-    declineCount: 2,
-    covDownCount: 3,
-    top3: ['网络产品(-5.0%)','音频产品(-3.5%)','人员通道(-2.1%)']
-  },
-  opportunity: {
-    top3: [
-      {name:'前端大模型',growth:'+85%',cov:'7.9%',potential:820},
-      {name:'出入口停车',growth:'+15.2%',cov:'7.4%',potential:650},
-      {name:'后端大模型(文搜大模型）',growth:'新增',cov:'5.2%',potential:580}
-    ]
-  },
-  core: {
-    top3: [
-      {name:'观澜编码产品（非大模型）',price:'¥3.5万',retention:'92%',trend:'↑ 量价齐升'},
-      {name:'会议平板与视频会议',price:'¥2.8万',retention:'88%',trend:'↑ 量价齐升'},
-      {name:'国密产品',price:'¥4.5万',retention:'85%',trend:'↑ 量价齐升'}
-    ]
-  },
-  changes: {
-    items: [
-      '网络产品连续两期销售额下滑（-5.0%→-2.1%）',
-      '观澜编码产品覆盖率持续提升（36.7%→42.1%）',
-      '前端大模型新增客户 45 个（覆盖率+85%）',
-      '后端大模型新品突破，半年内销售额达650万'
-    ]
-  }
-};
+;
 
-App.renderPotentialAlertCards = function() {
-  var state = App.getFilterState('page-potential');
-  var team = state.team, group = state.group, person = state.person;
-  var sf = 1;
-  if (person !== 'all') sf = 0.03;
-  else if (group !== 'all') sf = 0.10;
-  else if (team !== 'all') sf = 0.28;
-  var rs = function(v) { return Math.max(1, Math.round(v * sf)); };
-  var scopeLabel = person !== 'all' ? person : group !== 'all' ? group : team !== 'all' ? team : '全公司';
-
-  // 筛选范围内产品表现: 基于部门份额判断风险/机会是否在范围内
-  var d = App._alertCardData;
-
-  // 风险卡片 — 统计当前范围内量价齐跌/覆盖率下滑的产品数
-  var riskCount = rs(d.risk.declineCount);
-  var covDownCount = rs(d.risk.covDownCount);
-  var riskEl = document.getElementById('pAlertRisk');
-  if (riskEl) {
-    riskEl.innerHTML =
-      '<div>量价齐跌: <b style="color:#dc2626">' + riskCount + '</b> 个</div>' +
-      '<div>覆盖率持续下滑: <b style="color:#dc2626">' + covDownCount + '</b> 个</div>' +
-      '<div style="margin-top:3px;font-size:10px;color:#9ca3af">范围: ' + scopeLabel + '</div>' +
-      '<div style="margin-top:2px">TOP3: <span style="color:#dc2626">' + d.risk.top3.join('、') + '</span></div>';
-  }
-
-  // 机会卡片 — 可拓客户数按产品×范围缩放
-  var oppEl = document.getElementById('pAlertOpportunity');
-  if (oppEl) {
-    oppEl.innerHTML = d.opportunity.top3.map(function(p, i) {
-      var ps = App._getProductScale(p.name, state);
-      var extCust = Math.max(1, Math.round(p.potential * ps));
-      return '<div>' + (i+1) + '. <b>' + p.name + '</b> 增速' + p.growth + ' 覆盖率仅' + p.cov + ' 可拓≈<b>' + extCust + '</b>客户</div>';
-    }).join('');
-  }
-
-  // 核心主力卡片
-  var coreEl = document.getElementById('pAlertCore');
-  if (coreEl) {
-    coreEl.innerHTML = d.core.top3.map(function(p) {
-      return '<div><b>' + p.name + '</b> 单价' + p.price + ' 留存' + p.retention + ' <span style="color:#10b981">' + p.trend + '</span></div>';
-    }).join('');
-  }
-
-  // 异动卡片 — 根据范围调整描述
-  var chgEl = document.getElementById('pAlertChanges');
-  if (chgEl) {
-    var items = d.changes.items;
-    if (person !== 'all') items = items.slice(0, 2);
-    else if (group !== 'all') items = items.slice(0, 3);
-    chgEl.innerHTML = items.map(function(s) {
-      return '<div>· ' + s + '</div>';
-    }).join('');
-  }
-};
 
 // 点击预警卡片 → 筛选下方表格
-App.filterProductAlert = function(type) {
-  // 切换p-product子Tab确保可见
-  var btn = document.querySelector('#page-potential .subtab[data-tab="p-product"]');
-  if (btn) btn.click();
-
-  // 根据类型高亮对应卡片
-  document.querySelectorAll('#page-potential .alert-card').forEach(function(c) { c.style.boxShadow = 'none'; });
-  var cardMap = {risk:0, opportunity:1, core:2, changes:3};
-  var cards = document.querySelectorAll('#page-potential .alert-card');
-  if (cards[cardMap[type]]) cards[cardMap[type]].style.boxShadow = '0 0 0 2px ' + ['#ef4444','#f59e0b','#1a56db','#7c3aed'][cardMap[type]] + ', 0 4px 12px rgba(0,0,0,.15)';
-
-  // 根据类型设置表格筛选关键词
-  var filterMap = {
-    risk: '网络产品|音频产品',
-    opportunity: '前端大模型|出入口停车|后端大模型(文搜大模型）',
-    core: '观澜编码产品（非大模型）|会议平板与视频会议|物联安全',
-    changes: ''
-  };
-  App._alertFilter = filterMap[type] || '';
-  // 重新渲染覆盖率表格（高亮匹配行）
-  App.renderPotentialProductCoverage();
-  App.renderProductRank('p-product-rank-body', (App.Data.getPotential(App.getFilterState('page-potential').team) || {}).quadrant, App.getFilterState('page-potential'));
-};
 
 // ===== 集中刷新所有子Tab动态表格 =====
 App.refreshAllSubTabs = function() {
@@ -8182,7 +7437,6 @@ App.refreshAllSubTabs = function() {
   try { App.renderPotentialTeamTab(); } catch(e) {}
   try { App.renderPotentialCustTab(); } catch(e) {}
   try { App.renderPotentialUserTab(); } catch(e) {}
-  try { App.renderPotentialAlertCards(); } catch(e) {}
   try { App.renderPotentialProductCoverage(); } catch(e) {}
 };
 
@@ -8212,8 +7466,6 @@ App.initAll = function() {
 
   // 强制二次刷新客户矩阵（确保首次加载数据正确）
   setTimeout(function() {
-    try { App.renderCustMatrix(); } catch(e) {}
-    try { App.renderCustLifecycle(); } catch(e) {}
   }, 200);
 
   // 记录系统启动

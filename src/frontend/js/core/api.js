@@ -165,6 +165,7 @@ App.API = (function() {
   // ── 公开 API ──
   return {
     BASE: BASE,
+    request: request,
     checkAvailable: checkAvailable,
     isAvailable: function() { return _available; },
     restoreToken: restoreToken,

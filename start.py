@@ -12,8 +12,8 @@ import webbrowser
 import socket
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.join(BASE_DIR, "backend")
-FRONTEND_FILE = os.path.join(BASE_DIR, "src", "index.html")
+BACKEND_DIR = os.path.join(BASE_DIR, "src", "backend")
+FRONTEND_FILE = os.path.join(BASE_DIR, "src", "frontend", "index.html")
 
 # 配置
 HOST = "127.0.0.1"

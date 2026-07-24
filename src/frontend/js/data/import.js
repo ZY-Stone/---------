@@ -6,7 +6,12 @@ App.ImportData.shortProds = App.ImportData.PRODS.map(function(p) { return p.leng
 
 App.ImportData.history = [];
 App.ImportData.init = function() {
-  App.ImportData.syncFromRaw();
+  var savedCust = localStorage.getItem('pa_width_cust');
+  var savedUser = localStorage.getItem('pa_width_user');
+  var hasRestored = false;
+  if (savedCust) { try { App.ImportData.CustGS = JSON.parse(savedCust); hasRestored = true; } catch(e) {} }
+  if (savedUser) { try { App.ImportData.UserGS = JSON.parse(savedUser); hasRestored = true; } catch(e) {} }
+  if (!hasRestored) { App.ImportData.syncFromRaw(); }
   App.ImportData.updateTags();
   App.ImportData.renderHistory();
   App.ImportData.render();
@@ -76,11 +81,39 @@ App.ImportData.deleteHistory = function(idx) {
   App.ImportData.renderHistory();
 };
 
-// 清空所有历史
+// 清空所有历史记录
 App.ImportData.clearAll = function() {
   if (!confirm('确定清空所有历史记录吗？当前数据不会被影响。')) return;
   App.ImportData.history = [];
   App.ImportData.renderHistory();
+};
+
+// 清空全部导入数据并重置平台
+App.ImportData.resetAll = function() {
+  if (!confirm('确定清空所有导入数据吗？\n\n此操作将清除：\n- 产品宽度导入数据\n- 潜力产品导入数据\n- 所有历史记录\n- 本地缓存\n\n此操作不可撤销！')) return;
+  // 清空内存
+  App.ImportData.UserGS = [];
+  App.ImportData.CustGS = [];
+  App.ImportData.history = [];
+  App.WidthCustomer.RAW = [];
+  if (App.ImportPotential) {
+    App.ImportPotential.CustRAW = [];
+    App.ImportPotential.UserRAW = [];
+  }
+  // 清空 localStorage
+  var keys = ['pa_width_cust', 'pa_width_user', 'pa_import_cust', 'pa_import_user'];
+  keys.forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
+  // 刷新所有视图
+  App.ImportData.renderHistory();
+  App.ImportData.updateTags();
+  App.ImportData.render();
+  try { App.updateWidth(); } catch(e) {}
+  try { App.updatePotential(); } catch(e) {}
+  try { App.updateOverview(); } catch(e) {}
+  if (App.ImportPotential && typeof App.ImportPotential.render === 'function') {
+    try { App.ImportPotential.render(); } catch(e) {}
+  }
+  alert('✅ 已清空所有导入数据，平台已恢复空状态');
 };
 
 // 下载当前数据为 Excel
@@ -144,9 +177,9 @@ App.ImportData.syncFromRaw = function() {
       else { var up = {}; prods.forEach(function(p) { up[p] = (r.prods && r.prods[p]) ? 1 : 0; }); um[uk] = { user: r.user, siebel: '', industry: '', sales: r.account, dept: r.team, guishang: '是', width: r.width, prods: up, contact: '', level: '' }; }
     }
     if (r.guishang === 1) {
-      var ck = r.user;
+      var ck = r.account || r.user;
       if (cm[ck]) { cm[ck].width = Math.max(cm[ck].width, r.width); prods.forEach(function(p) { if (r.prods && r.prods[p]) cm[ck].prods[p] = 1; }); }
-      else { var cp = {}; prods.forEach(function(p) { cp[p] = (r.prods && r.prods[p]) ? 1 : 0; }); cm[ck] = { name: r.user, siebel: '', sales: r.account, dept: r.team, guishang: '是', width: r.width, prods: cp, contact: '', level: '' }; }
+      else { var cp = {}; prods.forEach(function(p) { cp[p] = (r.prods && r.prods[p]) ? 1 : 0; }); cm[ck] = { name: ck, siebel: '', sales: r.account, dept: r.team, guishang: '是', width: r.width, prods: cp, contact: '', level: '' }; }
     }
   });
   App.ImportData.UserGS = Object.values(um); App.ImportData.CustGS = Object.values(cm);
@@ -195,6 +228,8 @@ App.ImportData.handleUpload = function(input) {
 
         if (hasUser && !foundUser) {
           foundUser = true;
+          // Schema探测：自动匹配表头→逻辑字段
+          try { App.Field.detectSchema(hd, 'width.user'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'user');
           var em = {}; App.ImportData.UserGS.forEach(function(r) { em[r.user] = r; });
           j.slice(1).forEach(function(row) {
@@ -205,6 +240,7 @@ App.ImportData.handleUpload = function(input) {
           });
         } else if (hasCust && !foundCust) {
           foundCust = true;
+          try { App.Field.detectSchema(hd, 'width.cust'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'cust');
           var em = {}; App.ImportData.CustGS.forEach(function(r) { em[r.name] = r; });
           j.slice(1).forEach(function(row) {
@@ -259,8 +295,22 @@ App.ImportData.handleUpload = function(input) {
       }
 
       var oldUserLen = App.ImportData.UserGS.length, oldCustLen = App.ImportData.CustGS.length;
-      App.ImportData.syncToRaw(); App.ImportData.updateTags(); App.ImportData.render(); App.WidthDetail.clearCache(); App.updateWidth();
+      App.ImportData.syncToRaw(); App.ImportData.updateTags(); App.ImportData.render(); App.WidthDetail.clearCache();
+      // 导入后全链路刷新
+      App.updateWidth();
+      try { App.updatePotential(); } catch(e) {}
+      try { App.updateOverview(); } catch(e) {}
+      try { App.renderWidthUserTab(); } catch(e) {}
+      try { App.renderWidthProblemDiag(); } catch(e) {}
+      // 同步触发潜力产品刷新
+      if (potMatrix.length > 0) {
+        try { App.updatePotential(); } catch(e) {}
+        try { App.updateOverview(); } catch(e) {}
+      }
       App.ImportData.saveToHistory(file.name);
+      // 持久化数据到 localStorage
+      try { localStorage.setItem('pa_width_cust', JSON.stringify(App.ImportData.CustGS)); } catch(e) { console.warn('localStorage 保存 CustGS 失败 (可能配额已满):', e.message); }
+      try { localStorage.setItem('pa_width_user', JSON.stringify(App.ImportData.UserGS)); } catch(e) { console.warn('localStorage 保存 UserGS 失败 (可能配额已满):', e.message); }
       var msg = '导入完成! 文件: ' + file.name;
       msg += '\n\n规上用户: 新增' + nu + ' / 更新' + uu + '（共' + App.ImportData.UserGS.length + '）';
       if (!foundUser) msg += '\n  ⚠ 未找到用户sheet';
@@ -291,19 +341,26 @@ App.ImportData.mapCols = function(hd, tp) {
 
 App.ImportData.syncToRaw = function() {
   var nr = [], p = App.ImportData.PRODS;
-  App.ImportData.UserGS.forEach(function(u) { nr.push({ team: u.dept || '', account: u.sales || '', user: u.user, width: u.width, guishang: u.guishang === '是' ? 1 : 0, prods: u.prods }); });
-  App.ImportData.CustGS.forEach(function(c) { if (!nr.find(function(r) { return r.user === c.name; })) { nr.push({ team: c.dept || '', account: c.sales || '', user: c.name, width: c.width, guishang: c.guishang === '是' ? 1 : 0, prods: c.prods }); } });
+  var seenUsers = new Set();
+  App.ImportData.UserGS.forEach(function(u) { nr.push({ team: u.dept || '', account: u.sales || '', user: u.user, width: u.width, guishang: u.guishang === '是' ? 1 : 0, prods: u.prods }); seenUsers.add(u.user); });
+  App.ImportData.CustGS.forEach(function(c) { if (!seenUsers.has(c.name)) { nr.push({ team: c.dept || '', account: c.sales || '', user: c.name, width: c.width, guishang: c.guishang === '是' ? 1 : 0, prods: c.prods }); seenUsers.add(c.name); } });
   App.WidthCustomer.RAW = nr;
 };
 
 App.ImportData._page = 1;
 
+App.ImportData.getPageSize = function() {
+  var psEl = document.getElementById('wImportPageSize');
+  var pageSize = psEl ? (psEl.value === '0' ? 0 : parseInt(psEl.value) || 20) : 20;
+  return pageSize;
+};
+
+
 App.ImportData.render = function() {
   var isU = App.ImportData.currentView === 'user', data = (isU ? App.ImportData.UserGS : App.ImportData.CustGS).slice();
   var srch = ((document.getElementById('wImportSearch') || {}).value || '').trim().toLowerCase();
   var srt = (document.getElementById('wImportSort') || {}).value || 'width_desc';
-  var psEl = document.getElementById('wImportPageSize');
-  var pageSize = psEl ? parseInt(psEl.value) || 20 : 20;
+  var pageSize = App.ImportData.getPageSize();
   if (pageSize === 0) pageSize = Math.max(data.length, 1);
   if (srch) data = data.filter(function(r) { return (r.user || r.name || '').toLowerCase().indexOf(srch) >= 0 || (r.sales || '').toLowerCase().indexOf(srch) >= 0; });
   if (srt === 'width_desc') data.sort(function(a,b) { return b.width - a.width; });
@@ -444,8 +501,7 @@ App.ImportData.startEdit = function(td, field) {
   var isU = App.ImportData.currentView === 'user';
   var arr = isU ? App.ImportData.UserGS : App.ImportData.CustGS;
   var page = App.ImportData._page || 1;
-  var psEl = document.getElementById('wImportPageSize');
-  var pageSize = psEl ? parseInt(psEl.value) || 20 : 20;
+  var pageSize = App.ImportData.getPageSize();
   if (pageSize === 0) pageSize = Math.max(arr.length, 1);
   var tr = td.parentElement;
   var rows = Array.from(tr.parentElement.children);
