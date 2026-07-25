@@ -1,61 +1,136 @@
 import { create } from 'zustand';
 import * as XLSX from 'xlsx';
-import { useFilterStore } from './filterStore';
-import type { WidthRecord, WidthKpi, ProductCoverage, TeamRank, CustomerItem, CrossSellItem, HeatmapItem } from '../types/common';
+import { GROUPS } from './authStore';
 
-const PRODS = ['IPC','球机','NVR','DVR','XVR','热成像','门禁','可视对讲','道闸','出入口停车','液晶拼接屏','LED屏','LCD','监视器','视频会议','会议平板','解码器','交换机','网桥','无线网桥','服务器','存储','平台软件','智能交通','执法记录仪','人员通道','安检'];
+// 小组名→部门名 映射表
+const GROUP_DEPT_MAP: Record<string, string> = {};
+GROUPS.forEach(g => { GROUP_DEPT_MAP[g.n] = g.dept; });
 
-function mapCols(hd: string[], tp: string) {
+// ===== 27 产品（对齐模板 cols 7-33）=====
+const PRODS = [
+  'IPC','球机','专用摄像机','服务器','网络产品','PC产品','NVR','存储',
+  'LED拼控','LCD解码','智能交通','移动终端产品','出入口停车','门禁','对讲',
+  '人员通道','报警','音频产品','传感产品','智慧屏与视频会议','通用软件',
+  '行业软件','基础软件','新业务(热成像/睿影/消防等)','网络安全','综合布线与机柜机房','智能计算'
+];
+
+// ===== 客户维度 Sheet 表头映射 =====
+const CUST_MAP: Record<string, string> = {
+  'siebel编码': 'siebel', '售达方描述(客户)': 'name', '售达方描述': 'name',
+  '销售': 'sales',
+  '销售部门': 'group',   // 模板中实际存的是小组名，自动推导部门
+  '部门': 'group',
+  '是否规上': 'guishang', '产品线合计': 'width',
+  '接口人': 'contact', '对接人': 'contact',
+  '客户等级': 'level', '等级': 'level',
+};
+
+// ===== 用户维度 Sheet 表头映射 =====
+const USER_MAP: Record<string, string> = {
+  '最终用户-行业': 'industry',   // → 平台「用户行业」
+  '最终用户': 'user',            // → 平台「用户名称」
+  'siebel编码': 'siebel', '销售': 'sales',
+  '销售部门': 'group',   // 模板中实际存的是小组名，自动推导部门
+  '部门': 'group',
+  '是否规上': 'guishang', '产品线合计': 'width',
+  '接口人': 'contact', '对接人': 'contact',
+  '用户等级': 'level', '等级': 'level',
+};
+
+// 根据小组名自动推导部门
+function resolveDept(groupName: string): string {
+  if (!groupName) return '';
+  return GROUP_DEPT_MAP[groupName] || groupName;
+}
+
+function buildMap(headers: string[], mapping: Record<string, string>): Record<string, number> {
   const m: Record<string, number> = {};
-  hd.forEach((h, i) => { const s = String(h||'').trim();
-    if (s.includes('siebel')) m.siebel = i;
-    if (tp === 'user') { if (s.includes('最终用户')&&!s.includes('行业')) m.user = i; if (s.includes('行业')&&s.includes('用户')) m.industry = i; }
-    else { if (s.includes('售达方')||s.includes('客户')) m.name = i; }
-    if (s.includes('销售')&&!s.includes('部门')) m.sales = i;
-    if (s.includes('部门')) m.dept = i; if (s.includes('规上')||s.includes('是否')) m.guishang = i;
-    if (s.includes('合计')||s.includes('宽度')) m.width = i; if (s.includes('接口')||s.includes('对接')) m.contact = i;
-    if (s.includes('等级')) m.level = i; if (s.includes('IPC')||s.includes('球机')) m.prodStart = i;
+  headers.forEach((h, i) => {
+    const key = mapping[String(h || '').trim()];
+    if (key) m[key] = i;
   });
-  if (m.prodStart == null) m.prodStart = 6;
+  // Find prodStart = first product column index
+  for (let i = 0; i < headers.length; i++) {
+    const s = String(headers[i] || '').trim();
+    if (PRODS.includes(s)) { m.prodStart = i; break; }
+  }
   return m;
 }
 
-interface WidthState {
-  userGS: WidthRecord[]; custGS: WidthRecord[]; history: Array<{
-    id: number; file: string; time: string; userCount: number; custCount: number;
-    userSnap: WidthRecord[]; custSnap: WidthRecord[];
-  }>;
-  loading: boolean; currentView: 'user' | 'cust';
-  // getters
-  kpi: WidthKpi;
-  productCoverage: ProductCoverage[];
-  teamWidthRank: TeamRank[];
-  customerAnalysis: { good: CustomerItem[]; bad: CustomerItem[] };
-  userAnalysis: { good: CustomerItem[]; bad: CustomerItem[] };
-  heatmapData: HeatmapItem;
-  crossSell: CrossSellItem;
-  // actions
-  importExcel: (file: File) => Promise<{ nu: number; nc: number }>;
-  resetAll: () => void;
-  restoreLS: () => void;
-  restoreHistory: (idx: number) => void;
-  deleteHistory: (idx: number) => void;
+// ===== 数据行类型 =====
+export interface WidthRow {
+  user?: string; name?: string; siebel: string; industry: string;
+  sales: string; group: string; dept: string; guishang: string;
+  width: number; prods: Record<string, number>;
+  contact: string; level: string;
 }
 
-function computeKpi(custGS: WidthRecord[]): WidthKpi {
+interface HistoryEntry {
+  id: number; file: string; time: string; userCount: number; custCount: number;
+  userSnap: WidthRow[]; custSnap: WidthRow[];
+}
+
+interface WidthState {
+  userGS: WidthRow[]; custGS: WidthRow[];
+  history: HistoryEntry[]; loading: boolean; currentView: 'user' | 'cust';
+  kpi: { avgWidth: string; scaleUsers: number; scaleCustomers: number; coverage: string; widthYoY: string; customersMoM: number; coverageYoY: string };
+  widthDistribution: { labels: string[]; data: number[] };
+  productCoverage: Array<{ product: string; covered: number; rate: string; yoy: string }>;
+  teamWidthRank: Array<{ dept: string; avgWidth: string; count: number }>;
+  customerAnalysis: { good: Array<{ name: string; avgW: number; soldCnt: number; sold: string }>; bad: Array<{ name: string; avgW: number; soldCnt: number; sold: string }> };
+  userAnalysis: { good: Array<{ name: string; avgW: number; soldCnt: number }>; bad: Array<{ name: string; avgW: number; soldCnt: number }> };
+  heatmapData: { total: number; products: Array<{ name: string; rate: string; count: number }> };
+  coverageTable: Array<{ product: string; covered: number; rate: string; yoy: string }>;
+  importExcel: (file: File) => Promise<{ nu: number; nc: number }>;
+  resetAll: () => void; restoreLS: () => void;
+  restoreHistory: (idx: number) => void; deleteHistory: (idx: number) => void;
+}
+
+function compute(custGS: WidthRow[], userGS: WidthRow[]) {
   const c = custGS.filter(x => x.guishang === '是');
-  const sc = c.length;
-  const tw = c.reduce((s,x) => s + (x.width||0), 0);
-  const cv = sc > 0 ? c.reduce((s,x) => s + Object.values(x.prods||{}).filter(v=>v>0).length, 0) / (sc * PRODS.length) * 100 : 0;
-  return { avgWidth: sc > 0 ? (tw/sc).toFixed(2) : '0', scaleUsers: 0, scaleCustomers: sc, coverage: cv.toFixed(1), widthYoY: '-', customersMoM: 0, coverageYoY: '-' };
+  const u = userGS.filter(x => x.guishang === '是');
+  const sc = c.length, su = u.length;
+  const tw = c.reduce((s, x) => s + (x.width || 0), 0);
+  const cv = sc > 0 ? c.reduce((s, x) => s + Object.values(x.prods || {}).filter(v => v > 0).length, 0) / (sc * PRODS.length) * 100 : 0;
+  // Product coverage
+  const coverageTable = PRODS.map(prod => {
+    const covered = c.filter(x => (x.prods || {})[prod] > 0).length;
+    return { product: prod, covered, rate: sc > 0 ? (covered / sc * 100).toFixed(1) : '0', yoy: '-' };
+  }).sort((a, b) => parseFloat(b.rate) - parseFloat(a.rate));
+  // Team rank
+  const tm: Record<string, { total: number; count: number }> = {};
+  c.forEach(x => { const d = x.dept || '未知'; if (!tm[d]) tm[d] = { total: 0, count: 0 }; tm[d].total += x.width || 0; tm[d].count++; });
+  const teamWidthRank = Object.entries(tm).map(([dept, v]) => ({ dept, avgWidth: (v.total / v.count).toFixed(2), count: v.count })).sort((a, b) => parseFloat(b.avgWidth) - parseFloat(a.avgWidth));
+  // Width distribution
+  const buckets = [0, 0, 0, 0, 0, 0];
+  const all = [...c, ...u];
+  all.forEach(x => { const w = x.width || 0; if (w === 0) buckets[0]++; else if (w <= 3) buckets[1]++; else if (w <= 6) buckets[2]++; else if (w <= 10) buckets[3]++; else if (w <= 15) buckets[4]++; else buckets[5]++; });
+  // Customer analysis
+  const cs = [...c].sort((a, b) => (b.width || 0) - (a.width || 0));
+  const custGood = cs.slice(0, 20).map(x => ({ name: x.name || '', avgW: x.width || 0, soldCnt: Object.values(x.prods || {}).filter(v => v > 0).length, sold: x.sales || '-' }));
+  const custBad = [...cs].reverse().slice(0, 20).map(x => ({ name: x.name || '', avgW: x.width || 0, soldCnt: Object.values(x.prods || {}).filter(v => v > 0).length, sold: x.sales || '-' }));
+  // User analysis
+  const us = [...u].sort((a, b) => (b.width || 0) - (a.width || 0));
+  const userGood = us.slice(0, 10).map(x => ({ name: x.user || '', avgW: x.width || 0, soldCnt: Object.values(x.prods || {}).filter(v => v > 0).length }));
+  const userBad = [...us].reverse().slice(0, 10).map(x => ({ name: x.user || '', avgW: x.width || 0, soldCnt: Object.values(x.prods || {}).filter(v => v > 0).length }));
+  // Heatmap
+  const heatmapData = { total: sc, products: PRODS.map(prod => ({ name: prod, rate: sc > 0 ? (c.filter(x => (x.prods || {})[prod] > 0).length / sc * 100).toFixed(1) : '0', count: c.filter(x => (x.prods || {})[prod] > 0).length })) };
+
+  return {
+    kpi: { avgWidth: sc > 0 ? (tw / sc).toFixed(2) : '0', scaleUsers: su, scaleCustomers: sc, coverage: cv.toFixed(1), widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
+    widthDistribution: { labels: ['0', '1-3', '4-6', '7-10', '11-15', '16+'], data: buckets },
+    productCoverage: coverageTable, teamWidthRank, heatmapData, coverageTable,
+    customerAnalysis: { good: custGood, bad: custBad },
+    userAnalysis: { good: userGood, bad: userBad },
+  };
 }
 
 export const useWidthStore = create<WidthState>((set, get) => ({
   userGS: [], custGS: [], history: [], loading: false, currentView: 'user',
-  kpi: { avgWidth:'0',scaleUsers:0,scaleCustomers:0,coverage:'0',widthYoY:'-',customersMoM:0,coverageYoY:'-' },
-  productCoverage: [], teamWidthRank: [], customerAnalysis: { good: [], bad: [] },
-  userAnalysis: { good: [], bad: [] }, heatmapData: { total: 0, products: [] },
-  crossSell: { prods: [], matrix: [], bundles: [] },
+  kpi: { avgWidth: '0', scaleUsers: 0, scaleCustomers: 0, coverage: '0', widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
+  widthDistribution: { labels: ['0', '1-3', '4-6', '7-10', '11-15', '16+'], data: [0, 0, 0, 0, 0, 0] },
+  productCoverage: [], teamWidthRank: [], heatmapData: { total: 0, products: [] }, coverageTable: [],
+  customerAnalysis: { good: [], bad: [] }, userAnalysis: { good: [], bad: [] },
 
   importExcel: (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -64,40 +139,83 @@ export const useWidthStore = create<WidthState>((set, get) => ({
         set({ loading: true });
         const data = new Uint8Array(e.target!.result as ArrayBuffer);
         const wb = XLSX.read(data, { type: 'array' });
-        const u: WidthRecord[] = [], cu: WidthRecord[] = [];
+        const users: WidthRow[] = [], custs: WidthRow[] = [];
+
         wb.SheetNames.forEach(sn => {
           if (!wb.Sheets[sn]) return;
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1 }) as unknown[][];
           if (!rows || rows.length < 2) return;
-          const hd = rows[0].map(h => String(h||''));
-          const hasU = hd.some(h => h.includes('最终用户') && !h.includes('行业'));
-          if (hasU) {
-            const col = mapCols(hd, 'user');
+          const headers = rows[0].map(h => String(h || ''));
+
+          const isUser = headers.some(h => h.includes('最终用户') && !h.includes('行业'));
+          const isCust = headers.some(h => h.includes('售达方'));
+
+          if (isUser) {
+            const cm = buildMap(headers, USER_MAP);
+            const ps = cm.prodStart || 7;
             rows.slice(1).forEach(row => {
-              const nm = String(row[col.user]||'').trim(); if (!nm) return;
-              const entry: WidthRecord = { user: nm, siebel: String(row[col.siebel]||''), industry: String(row[col.industry]||''), sales: String(row[col.sales]||''), dept: String(row[col.dept]||''), guishang: String(row[col.guishang]||'').includes('是')?'是':'否', width: parseInt(String(row[col.width]))||0, prods: {}, contact: String(row[col.contact]||''), level: String(row[col.level]||'') };
-              PRODS.forEach((p, i) => { entry.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
-              u.push(entry);
+              const nm = String(row[cm.user] || '').trim(); if (!nm) return;
+              const sw = parseInt(String(row[cm.width])) || 0;
+              const prods: Record<string, number> = {};
+              let actualW = 0;
+              PRODS.forEach((p, i) => {
+                const v = row[ps + i] === 1 || String(row[ps + i]).trim() === '1' ? 1 : 0;
+                prods[p] = v; actualW += v;
+              });
+              const groupName = String(row[cm.group] || '');
+            users.push({
+                user: nm, siebel: String(row[cm.siebel] || ''), industry: String(row[cm.industry] || ''),
+                sales: String(row[cm.sales] || ''), group: groupName, dept: resolveDept(groupName),
+                guishang: String(row[cm.guishang] || '').includes('是') ? '是' : '否',
+                width: sw || actualW, prods,
+                contact: String(row[cm.contact] || ''), level: String(row[cm.level] || ''),
+              });
+            });
+          }
+          if (isCust) {
+            const cm = buildMap(headers, CUST_MAP);
+            const ps = cm.prodStart || 6;
+            rows.slice(1).forEach(row => {
+              const nm = String(row[cm.name] || '').trim(); if (!nm) return;
+              const sw = parseInt(String(row[cm.width])) || 0;
+              const prods: Record<string, number> = {};
+              let actualW = 0;
+              PRODS.forEach((p, i) => {
+                const v = row[ps + i] === 1 || String(row[ps + i]).trim() === '1' ? 1 : 0;
+                prods[p] = v; actualW += v;
+              });
+              const groupName = String(row[cm.group] || '');
+            custs.push({
+                name: nm, siebel: String(row[cm.siebel] || ''), industry: '',
+                sales: String(row[cm.sales] || ''), group: groupName, dept: resolveDept(groupName),
+                guishang: String(row[cm.guishang] || '').includes('是') ? '是' : (row[cm.guishang] == null ? '否' : '否'),
+                width: sw || actualW, prods,
+                contact: String(row[cm.contact] || ''), level: String(row[cm.level] || ''),
+              });
             });
           }
         });
-        const { userGS: prevU, custGS: prevC, history: prevH } = get();
-        const newU = [...prevU]; u.forEach(r => { const ex = newU.find(x => x.user === r.user); if (ex) Object.assign(ex, r); else newU.push(r); });
-        const newC = [...prevC];
-        cu.forEach(r => { const ex = newC.find(x => x.name === r.name); if (ex) Object.assign(ex, r); else newC.push(r); });
-        const now = new Date();
-        const h = { id: Date.now(), file: file.name, time: now.toLocaleString('zh-CN'), userCount: newU.length, custCount: newC.length, userSnap: prevU, custSnap: prevC };
-        set({ userGS: newU, custGS: newC, kpi: computeKpi(newC), history: [h, ...prevH].slice(0, 20), loading: false });
-        try { localStorage.setItem('pa_width_cust', JSON.stringify(newC)); localStorage.setItem('pa_width_user', JSON.stringify(newU)); } catch {}
-        resolve({ nu: u.length, nc: cu.length });
+
+        const { userGS: pu, custGS: pc, history: ph } = get();
+        const um: Record<string, number> = {}; pu.forEach((r, i) => { um[r.user || ''] = i; });
+        let nu = 0, uu = 0;
+        users.forEach(r => { const k = r.user || ''; if (um[k] !== undefined) { Object.assign(pu[um[k]], r); uu++; } else { pu.push(r); nu++; um[k] = pu.length - 1; } });
+        const cm2: Record<string, number> = {}; pc.forEach((r, i) => { cm2[r.name || ''] = i; });
+        let nc = 0, uc = 0;
+        custs.forEach(r => { const k = r.name || ''; if (cm2[k] !== undefined) { Object.assign(pc[cm2[k]], r); uc++; } else { pc.push(r); nc++; cm2[k] = pc.length - 1; } });
+
+        const computed = compute(pc, pu);
+        const now = new Date(); const ts = now.toLocaleString('zh-CN');
+        set({ userGS: pu, custGS: pc, ...computed, history: [{ id: Date.now(), file: file.name, time: ts, userCount: pu.length, custCount: pc.length, userSnap: JSON.parse(JSON.stringify(get().userGS)), custSnap: JSON.parse(JSON.stringify(get().custGS)) }, ...ph].slice(0, 20), loading: false });
+        try { localStorage.setItem('pa_width_cust', JSON.stringify(pc)); localStorage.setItem('pa_width_user', JSON.stringify(pu)); } catch { /* */ }
+        resolve({ nu, nc });
       } catch (err) { set({ loading: false }); reject(err); }
     };
     reader.readAsArrayBuffer(file);
   }),
-  resetAll: () => { set({ userGS:[], custGS:[], history:[], kpi: computeKpi([]) }); ['pa_width_cust','pa_width_user'].forEach(k => { try { localStorage.removeItem(k); } catch {} }); },
-  restoreLS: () => {
-    try { const c = localStorage.getItem('pa_width_cust'), u = localStorage.getItem('pa_width_user'); const custGS = c ? JSON.parse(c) : []; const userGS = u ? JSON.parse(u) : []; set({ custGS, userGS, kpi: computeKpi(custGS) }); } catch {}
-  },
-  restoreHistory: (idx) => { const h = get().history[idx]; if (!h) return; set({ userGS: JSON.parse(JSON.stringify(h.userSnap)), custGS: JSON.parse(JSON.stringify(h.custSnap)) }); },
+
+  resetAll: () => { set({ userGS: [], custGS: [], history: [], ...compute([], []) }); ['pa_width_cust', 'pa_width_user'].forEach(k => { try { localStorage.removeItem(k); } catch { /* */ } }); },
+  restoreLS: () => { try { const c = localStorage.getItem('pa_width_cust'), u = localStorage.getItem('pa_width_user'); if (c || u) { const custGS = c ? JSON.parse(c) : []; const userGS = u ? JSON.parse(u) : []; set({ custGS, userGS, ...compute(custGS, userGS) }); } } catch { /* */ } },
+  restoreHistory: (idx) => { const h = get().history[idx]; if (!h) return; const userGS = JSON.parse(JSON.stringify(h.userSnap || [])); const custGS = JSON.parse(JSON.stringify(h.custSnap || [])); set({ userGS, custGS, ...compute(custGS, userGS) }); },
   deleteHistory: (idx) => { const h = [...get().history]; h.splice(idx, 1); set({ history: h }); },
 }));

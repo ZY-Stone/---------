@@ -6,13 +6,16 @@
 // ===== 客户维度 (Sheet: 潜力产品-客户, 21 字段) =====
 export interface PotCustRow {
   dept2: string;           // 二级部门 / 业务中心
-  dept3: string;           // 三级部门 / 大部门
-  dept4: string;           // 四级部门 / 团队小组
-  dept5: string;           // 五级部门
+  dept3: string;           // 三级部门 / 大部门 → 平台「部门」
+  dept4: string;           // 四级部门 / 团队小组（备用组）
+  groupRaw: string;        // 五级部门 → 平台「组」（优先）
+  group: string;           // 解析后的组名
+  dept: string;            // 解析后的部门名
   sales: string;           // 销售雇员
-  contact: string;         // 对接人
+  contact: string;         // 对接人 → 平台「接口人」
   product: string;         // 潜力产品
-  custName: string;        // 售达方名称
+  product_id: number | null; // FK → products.id（可选）
+  custName: string;        // 售达方名称 → 平台「客户名称」
   userName: string;        // 最终用户 (可为空)
   amount: number;          // 销售额(万)
   amountPrev: number;      // 同期销售额(万)
@@ -38,6 +41,7 @@ export interface PotUserRow {
   userName: string;        // 最终用户名称
   industry: string;        // 行业
   product: string;         // 潜力产品
+  product_id: number | null; // FK → products.id（可选）
   outAmt: number;          // 产品出库额(万)
   outAmtPrev: number;      // 产品出库额同期
   outYoy: number;          // 产品出库额同比

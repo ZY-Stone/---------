@@ -7,11 +7,11 @@ const CUST_HEADERS: Record<string, string> = {
   '二级部门': 'dept2', '业务中心': 'dept2',
   '三级部门': 'dept3', '大部门': 'dept3',
   '四级部门': 'dept4', '团队小组': 'dept4',
-  '五级部门': 'dept5',
+  '五级部门': 'groupRaw',        // → 平台「组」
   '销售雇员': 'sales', '负责销售': 'sales', '销售人员': 'sales',
-  '对接人': 'contact',
+  '对接人': 'contact',            // → 平台「接口人」
   '潜力产品': 'product',
-  '售达方名称': 'custName', '售达方': 'custName',
+  '售达方名称': 'custName', '售达方': 'custName', '售达方描述': 'custName',  // → 平台「客户名称」
   '最终用户': 'userName', '最终用户名称': 'userName',
   '销售额(万)': 'amount',
   '同期销售额(万)': 'amountPrev',
@@ -29,11 +29,11 @@ const CUST_HEADERS: Record<string, string> = {
 
 const USER_HEADERS: Record<string, string> = {
   '业务中心': 'center',
-  '部门': 'dept3',
+  '部门': 'dept3', '大部门': 'dept3',   // → 平台「部门」
   '团队小组': 'dept4',
   '四级部门': 'dept5',
-  '对接人': 'contact',
-  '最终用户名称': 'userName',
+  '对接人': 'contact',                  // → 平台「接口人」
+  '最终用户名称': 'userName', '最终用户描述': 'userName',  // → 平台「用户名称」
   '行业': 'industry',
   '潜力产品': 'product',
   '产品出库额': 'outAmt',
@@ -52,6 +52,19 @@ const USER_HEADERS: Record<string, string> = {
   '交易客户数同期': 'custsPrev',
   '交易客户数同比': 'custsYoy',
 };
+
+// ===== 组→部门 推断逻辑 =====
+const NO_GROUP_DEPS = new Set(['场景数字化销售部', '大客户销售部']);
+function resolvePotGroup(row: Record<string, string>): { group: string; dept: string } {
+  // 部门 = dept3（三级部门/大部门）
+  const dept = row.dept3 || row.dept2 || '';
+  // 组：优先五级部门 → 四级部门 → 部门自身
+  let group = row.groupRaw || row.dept4 || row.dept5 || '';
+  if (!group || group === '未分配' || group === '' || NO_GROUP_DEPS.has(dept)) {
+    group = dept;  // 无下属组时，组=部门
+  }
+  return { group, dept };
+}
 
 // 按表头名称匹配列索引
 function buildColMap(headers: string[], mapping: Record<string, string>): Record<string, number> {
@@ -211,14 +224,25 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
             rows.slice(1).forEach(row => {
               const product = String(row[cm.product] || '').trim();
               if (!product) return;
-              custRows.push({
+              // 组/部门推断
+              const raw = {
                 dept2: String(row[cm.dept2] || ''),
                 dept3: String(row[cm.dept3] || ''),
                 dept4: String(row[cm.dept4] || ''),
-                dept5: String(row[cm.dept5] || ''),
+                groupRaw: String(row[cm.groupRaw] || ''),
+              };
+              const { group, dept } = resolvePotGroup(raw);
+              custRows.push({
+                dept2: raw.dept2,
+                dept3: raw.dept3,
+                dept4: raw.dept4,
+                groupRaw: raw.groupRaw,
+                group,
+                dept,
                 sales: String(row[cm.sales] || ''),
                 contact: String(row[cm.contact] || ''),
                 product,
+                product_id: null,  // 后端按产品名匹配 products 表填充
                 custName: String(row[cm.custName] || ''),
                 userName: String(row[cm.userName] || ''),
                 amount: parseNum(row[cm.amount]),
@@ -251,6 +275,7 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
                 userName: String(row[cm.userName] || ''),
                 industry: String(row[cm.industry] || ''),
                 product,
+                product_id: null,  // 后端按产品名匹配 products 表填充
                 outAmt: parseNum(row[cm.outAmt]),
                 outAmtPrev: parseNum(row[cm.outAmtPrev]),
                 outYoy: parseNum(row[cm.outYoy]),

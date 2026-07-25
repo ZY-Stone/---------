@@ -25,7 +25,7 @@ from config import CORS_ORIGINS
 
 # 前端静态文件路径
 SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-FRONTEND_DIR = os.path.join(SRC_DIR, "frontend")
+FRONTEND_DIR = os.path.join(SRC_DIR, "frontend-v1")  # 旧版 Vanilla JS
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -115,6 +115,8 @@ from routers.potential import router as potential_router
 from routers.export import router as export_router
 from routers.backup import router as backup_router
 from routers.data_import import router as data_import_router
+from routers.potential_import import router as potential_import_router
+from routers.potential_query import router as potential_query_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -124,6 +126,8 @@ app.include_router(potential_router)
 app.include_router(export_router)
 app.include_router(backup_router)
 app.include_router(data_import_router)
+app.include_router(potential_import_router)
+app.include_router(potential_query_router)
 
 # ── 静态文件托管（最后注册，确保 API 路由优先） ──
 if os.path.isdir(FRONTEND_DIR):
