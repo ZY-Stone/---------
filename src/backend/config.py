@@ -1,23 +1,12 @@
-"""
-backend/config.py — 全局配置
-"""
+"""Application configuration"""
 import os
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# 数据库
-DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'data.db')}"
-
-# JWT
+BASE_DIR = Path(__file__).parent
+DATABASE_URL = f"sqlite:///{BASE_DIR / 'data.db'}"
 SECRET_KEY = "pa-platform-secret-key-2026!@#$%"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 小时
-
-# CORS
+ACCESS_TOKEN_EXPIRE_MINUTES = 480
 CORS_ORIGINS = ["*"]
-
-# 备份
-BACKUP_DIR = os.path.join(BASE_DIR, "backups")
-
-# 分页
+BACKUP_DIR = str(BASE_DIR / "backups")
 PAGE_SIZE_DEFAULT = 50

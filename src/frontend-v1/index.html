@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>销售分析一体化平台 · Demo v2.0</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%232563eb'/><text x='16' y='23' text-anchor='middle' fill='white' font-size='20' font-family='sans-serif'>分</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/reset.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+<!-- ===== 登录遮罩 ===== -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-logo"><span class="login-logo-dot"></span>产品分析一体化平台</div>
+    <div class="login-sub">请输入账号密码登录</div>
+    <div class="login-field"><label>账号</label><input type="text" id="loginUser" placeholder="请输入用户名" autocomplete="off"></div>
+    <div class="login-field"><label>密码</label><input type="password" id="loginPwd" placeholder="请输入密码" onkeydown="if(event.key==='Enter')App.doLogin()"></div>
+    <div class="login-error" id="loginError" style="display:none"></div>
+    <button class="login-btn" onclick="App.doLogin()">登 录</button>
+    <div class="login-hint">Demo 演示 · 管理员初始账号 admin / admin123</div>
+  </div>
+</div>
+
+<!-- ========== 顶栏 ========== -->
+<div class="topbar">
+  <div class="logo">产品分析一体化平台</div>
+  <div class="topbar-nav" style="display:flex;gap:2px;margin-left:24px">
+    <button class="topbar-nav-btn active" data-page="overview" onclick="App.showPage('overview')">📊 数据总览</button>
+    <button class="topbar-nav-btn" data-page="width" onclick="App.showPage('width')">📐 产品宽度分析</button>
+    <button class="topbar-nav-btn" data-page="potential" onclick="App.showPage('potential')">🚀 潜力产品分析</button>
+    <button class="topbar-nav-btn" data-page="admin" onclick="App.showPage('admin')">⚙ 账号管理</button>
+  </div>
+  <div class="user-menu" style="position:relative;cursor:pointer;margin-left:auto">
+    <span class="name" id="topbar-name">廖贝贝</span>
+    <span class="role-badge" id="topbar-role">主管</span>
+    <span style="opacity:.8;margin-left:6px;font-size:16px;cursor:pointer;font-weight:700;color:#333" onclick="App.toggleUserMenu()" title="用户菜单">▼</span>
+    <!-- 用户下拉菜单 -->
+    <div class="user-menu-dropdown" id="userDropdown" style="display:none">
+      <div class="um-item" onclick="App.showPwdModal()">🔑 修改密码</div>
+      <div class="um-item" onclick="App.showHelp()">❓ 帮助说明</div>
+      <div class="um-divider"></div>
+      <div class="um-item" onclick="App.doLogout()">⏻ 退出登录</div>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- ========== 主区 ========== -->
+  <div class="main full">
+
+    <!-- ===== 1. 数据总览 (大幅扩展版) ===== -->
+    <div class="page active" id="page-overview">
+      <!-- ===== 筛选条: 时间 + 团队/组/个人 三维度 ===== -->
+      <div class="filter-bar">
+        <div class="filter-group" style="position:relative">
+          <label>日期</label>
+          <span id="ov-date-range" onclick="App.toggleDatePicker('ov', event)" style="display:flex;align-items:center;gap:4px;border:1px solid #d1d5db;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;background:#fff;white-space:nowrap;user-select:none">
+            <span id="ov-date-text">2026-07-01 ~ 2026-07-16</span> 📅
+          </span>
+          <div id="ov-date-panel" class="date-picker-panel" style="display:none;position:absolute;top:100%;left:0;z-index:200;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;box-shadow:0 8px 32px rgba(0,0,0,.15);margin-top:6px;min-width:280px">
+            <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">📅 选择日期范围</div>
+            <div style="margin-bottom:10px">
+              <label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">开始日期</label>
+              <input type="date" id="ov-date-start" value="2026-07-01" onchange="App.onDateChange('ov')" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;cursor:pointer">
+            </div>
+            <div style="margin-bottom:14px">
+              <label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">结束日期</label>
+              <input type="date" id="ov-date-end" value="2026-07-16" onchange="App.onDateChange('ov')" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;cursor:pointer">
+            </div>
+            <div id="ov-date-quick" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+              <button onclick="App.setQuickDatePanel('ov','week')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近7天</button>
+              <button onclick="App.setQuickDatePanel('ov','biweek')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近14天</button>
+              <button onclick="App.setQuickDatePanel('ov','month')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近30天</button>
+            </div>
+            <button onclick="App.closeDatePicker('ov')" style="width:100%;padding:8px 0;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">确定</button>
+          </div>
+        </div>
+        <div class="filter-group" style="display:flex;gap:4px">
+        </div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>对比期</label><select onchange="App.updateOverview()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-overview')"><option value="all">全部部门</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-overview')"><option value="all">全部小组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-overview')"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost" onclick="App.resetFilters('page-overview')">🔄 重置</button>
+        <div class="right">
+        </div>
+      </div>
+
+      <!-- ===== KPI 卡片行 ===== -->
+      <div class="kpi-row" style="grid-template-columns:repeat(6,1fr);margin-bottom:16px;gap:8px">
+        <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToWidth()"><div class="kpi-label">📐 产品宽度</div><div class="kpi-value" id="ov-kpi-width">3.96</div><div class="kpi-sub">平均宽度</div></div>
+        <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToUsers()"><div class="kpi-label">🧑 用户产品宽度</div><div class="kpi-value" id="ov-kpi-user-width">5.20</div><div class="kpi-sub">规上用户数 <span id="ov-kpi-scale-users">285</span></div></div>
+        <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToWidthCustomer()"><div class="kpi-label">👥 客户产品宽度</div><div class="kpi-value" id="ov-kpi-cust-width">3.96</div><div class="kpi-sub">规上客户数 <span id="ov-kpi-scale-customers">888</span></div></div>
+        <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToPotential()"><div class="kpi-label">🚀 潜力产品销售额</div><div class="kpi-value" id="ov-kpi-potential-amt-v">¥ 9,830万</div><div class="kpi-sub"></div></div>
+        <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToUsers()"><div class="kpi-label">🧑 覆盖用户数</div><div class="kpi-value" id="ov-kpi-users">386</div><div class="kpi-sub"></div></div>
+        <div class="kpi-card k-blue" style="cursor:pointer" onclick="App.drillToPotentialCustomer()"><div class="kpi-label">👥 覆盖客户数</div><div class="kpi-value" id="ov-kpi-customers">1,247</div><div class="kpi-sub">环比 <span class="delta-up" id="ov-kpi-cust-mom">+62</span></div></div>
+      </div>
+
+      <!-- ===== 产品宽度图表 + 趋势 一行 ===== -->
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">
+            <span class="left">📐 产品宽度</span>
+            <span class="right" style="display:flex;gap:4px">
+              <button class="subtab active" data-ov-dim="dept" onclick="App.switchOvWidthDim('dept')">部门</button>
+              <button class="subtab" data-ov-dim="group" onclick="App.switchOvWidthDim('group')">组</button>
+            </span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-ov-dept-width"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title"><span class="left">📐 产品宽度历史趋势 (近12月)</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-ov-width-trend"></canvas></div>
+        </div>
+      </div>
+
+      <!-- ===== 潜力产品 单独一行全宽 ===== -->
+      <div class="card" style="margin-top:16px">
+        <div class="card-title"><span class="left">🚀 潜力产品</span><span class="tag">按筛选</span></div>
+        <div class="chart-wrap" style="height:360px"><canvas id="chart-ov-dept-potential"></canvas></div>
+      </div>
+
+    </div>
+
+    <!-- ===== 2. 产品宽度 ===== -->
+    <div class="page" id="page-width">
+      <div class="subtabs-inline">
+        <button class="subtab active" data-tab="w-overview">📊 总览分析</button>
+        <button class="subtab" data-tab="w-product">📦 产品维度</button>
+        <button class="subtab" data-tab="w-team">👥 团队维度</button>
+        <button class="subtab" data-tab="w-customer">🔑 客户维度</button>
+        <button class="subtab" data-tab="w-user">🏢 用户维度</button>
+        <button class="subtab" data-tab="w-compare">⚖️ 分组对比</button>
+        <button class="subtab" data-tab="w-import">📥 数据导入与管理</button>
+        <button class="subtab" data-tab="w-ai">🤖 AI建议与分析</button>
+      </div>
+
+      <!-- ===== 筛选: 时间 + 团队/组/个人 三维度 ===== -->
+      <div class="filter-bar">
+        <div class="filter-group" style="position:relative">
+          <label>日期</label>
+          <span id="w-date-range" onclick="App.toggleDatePicker('w', event)" style="display:flex;align-items:center;gap:4px;border:1px solid #d1d5db;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;background:#fff;white-space:nowrap;user-select:none">
+            <span id="w-date-text">2026-07-01 ~ 2026-07-16</span> 📅
+          </span>
+          <div id="w-date-panel" class="date-picker-panel" style="display:none;position:absolute;top:100%;left:0;z-index:200;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;box-shadow:0 8px 32px rgba(0,0,0,.15);margin-top:6px;min-width:280px">
+            <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">📅 选择日期范围</div>
+            <div style="margin-bottom:10px"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">开始日期</label><input type="date" id="w-date-start" value="2026-07-01" onchange="App.onDateChange('w')" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;cursor:pointer"></div>
+            <div style="margin-bottom:14px"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">结束日期</label><input type="date" id="w-date-end" value="2026-07-16" onchange="App.onDateChange('w')" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;cursor:pointer"></div>
+            <div id="w-date-quick" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button onclick="App.setQuickDatePanel('w','week')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近7天</button><button onclick="App.setQuickDatePanel('w','biweek')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近14天</button><button onclick="App.setQuickDatePanel('w','month')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近30天</button></div>
+            <button onclick="App.closeDatePicker('w')" style="width:100%;padding:8px 0;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">确定</button>
+          </div>
+        </div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>对比期</label><select onchange="App.updateWidth()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-width')"><option value="all">全部部门</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-width')"><option value="all">全部小组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-width')"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost" onclick="App.resetFilters('page-width')">🔄 重置</button>
+      </div>
+
+      <!-- ===== 1. 总览分析 ===== -->
+      <div data-tab-content="w-overview" style="display:none">
+        <div class="kpi-row" style="grid-template-columns:repeat(4,1fr)">
+          <div class="kpi-card k-green"><div class="kpi-label">📐 产品宽度</div><div class="kpi-value" id="w-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-yoy">+0.42</span></div></div>
+          <div class="kpi-card k-purple"><div class="kpi-label">🏢 规上用户数</div><div class="kpi-value" id="w-kpi-scale-users">285</div><div class="kpi-sub">使用方</div></div>
+          <div class="kpi-card k-orange"><div class="kpi-label">👥 规上客户数</div><div class="kpi-value" id="w-kpi-scale-customers">888</div><div class="kpi-sub">环比 <span class="delta-up" id="w-kpi-cust-mom">+62</span></div></div>
+          <div class="kpi-card"><div class="kpi-label">⚖ 规上客户覆盖率</div><div class="kpi-value" id="w-kpi-coverage">71.2%</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-cov-yoy">+3.5%</span></div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card"><div class="card-title"><span class="left">人均产品宽度分布</span><span class="tag">销售人员维度</span></div><div class="chart-wrap short"><canvas id="chart-w-dist"></canvas></div></div>
+          <div class="card">
+            <div class="card-title">
+              <span class="left">📐 产品宽度</span>
+              <span class="right" style="display:flex;gap:4px">
+                <button class="subtab active" data-w-dim="dept" onclick="App.switchWidthDim('dept')">部门</button>
+                <button class="subtab" data-w-dim="group" onclick="App.switchWidthDim('group')">组</button>
+              </span>
+            </div>
+            <div class="chart-wrap short"><canvas id="chart-w-width-bar"></canvas></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">产品覆盖率</span>
+            <span class="right" style="display:flex;gap:6px">
+              <button class="subtab active" data-cov="cust" onclick="App.switchCovType('cust')">👥 客户</button>
+              <button class="subtab" data-cov="user" onclick="App.switchCovType('user')">🏢 用户</button>
+            </span>
+          </div>
+          <div class="chart-wrap" style="height:420px"><canvas id="chart-w-cov"></canvas></div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">🔥 产品覆盖热力图</span>
+            <span class="right-meta"><span>来源:产品宽度分析</span><a>详情 →</a></span>
+          </div>
+          <div class="heatmap-grid" id="w-heatmap"></div>
+          <div class="heatmap-legend">
+            <span class="legend-item"><span class="legend-box h-low"></span>&lt; 10% 薄弱</span>
+            <span class="legend-item"><span class="legend-box h-medium"></span>10% - 40% 起步</span>
+            <span class="legend-item"><span class="legend-box h-good"></span>40% - 70% 良好</span>
+            <span class="legend-item"><span class="legend-box h-great"></span>≥ 70% 优秀</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📈 人均产品宽度历史趋势 (近12月)</span><span class="tag">按筛选</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-w-width-trend"></canvas></div>
+        </div>
+
+      </div>
+
+      <!-- ===== 2. 产品维度 ===== -->
+      <div data-tab-content="w-product" style="display:none">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title"><span class="left">🏆 产品覆盖率排名 (规上客户)</span><span class="right" style="font-size:12px;color:#6b7280">规上客户 <strong style="color:#1a56db" id="w-cust-scale-count">888</strong> 个</span></div>
+            <div class="table-wrap" style="max-height:420px">
+              <table class="table">
+                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖客户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th></tr></thead>
+                <tbody id="wProdCovCustBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="left">🏆 产品覆盖率排名 (规上用户)</span><span class="right" style="font-size:12px;color:#6b7280">规上用户 <strong style="color:#059669" id="w-user-scale-count">285</strong> 个</span></div>
+            <div class="table-wrap" style="max-height:420px">
+              <table class="table">
+                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖用户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th></tr></thead>
+                <tbody id="wProdCovUserBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">🔗 产品交叉销售关联矩阵 (Lift 提升度)</span><span class="tag">颜色越深=关联越强</span></div>
+          <div class="table-wrap" id="w-cross-sell-matrix" style="max-height:420px"></div>
+          <div class="legend-row" style="margin-top:8px;font-size:11px;gap:10px">
+            <span>Lift级别:</span>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fff"></span> &lt;1.5 弱关联
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fde68a"></span> 1.5-2.0
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#f59e0b"></span> 2.0-3.0
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#dc2626"></span> 3.0-4.0
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#7c3aed"></span> ≥4.0 极强
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📦 产品套包组合</span><span class="tag">高频协同购买组合</span></div>
+          <div id="w-cross-bundles" style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--primary)">
+          <div class="card-title"><span class="left">💡 精准交叉销售推荐</span></div>
+          <div id="w-cross-recommend" style="font-size:12px;line-height:2;color:#475569"></div>
+        </div>
+      </div>
+
+      <!-- ===== 3. 团队维度 ===== -->
+      <div data-tab-content="w-team" style="display:none">
+        <!-- 数据明细 -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">📋 数据明细</span>
+            <span class="right" style="display:flex;gap:4px">
+              <button class="subtab active" data-d="dept" onclick="App.WidthDetail.switchDim('dept')">部门</button>
+              <button class="subtab" data-d="group" onclick="App.WidthDetail.switchDim('group')">组</button>
+              <button class="subtab" data-d="person" onclick="App.WidthDetail.switchDim('person')">个人</button>
+            </span>
+          </div>
+          <!-- 排序 & 导出控件栏 -->
+          <div class="team-controls">
+            <div class="ctrl-group">
+              <label>排序：</label>
+              <select id="wTeamSort" onchange="App.WidthDetail.render()">
+                <option value="default">默认顺序</option>
+                <option value="width_desc">产品宽度↓</option>
+                <option value="width_asc">产品宽度↑</option>
+                <option value="guishang_desc">规上数量↓</option>
+                <option value="customers_desc">客户数↓</option>
+                <option value="coverage_desc">覆盖率↓</option>
+              </select>
+            </div>
+            <div class="ctrl-group">
+              <label>搜索：</label>
+              <input type="text" id="wTeamSearch" placeholder="输入名称关键词..." oninput="App.WidthDetail.render()" style="border:1px solid #d1d5db;border-radius:5px;padding:5px 10px;font-size:12px;width:140px">
+            </div>
+            <div class="ctrl-group">
+              <label>宽度低于：</label>
+              <input type="number" id="wTeamMaxWidth" value="" min="1" max="27" placeholder="不限" oninput="App.WidthDetail.render()" style="border:1px solid #d1d5db;border-radius:5px;padding:5px 8px;font-size:12px;width:60px;text-align:center">
+            </div>
+            <button class="btn-sm export" onclick="App.WidthDetail.export()">📥 导出当前数据</button>
+          </div>
+          <div class="table-wrap" style="max-height:600px">
+            <table class="team-dim-table" id="wTeamDimTable">
+              <thead id="wTeamDimHead"></thead>
+              <tbody id="wTeamTable"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="wTeamPager"></div>
+        </div>
+
+        <!-- 差距分析：团队 vs 部门均值 -->
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--primary)">
+          <div class="card-title">
+            <span class="left">📏 差距分析</span>
+            <span class="tag">团队 vs 部门均值</span>
+          </div>
+          <div id="wGapAnalysis">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px" id="wGapStats"></div>
+            <div class="table-wrap" style="max-height:420px">
+              <table class="table">
+                <thead><tr><th style="width:36px">#</th><th>团队</th><th style="text-align:center">所属部门</th><th style="text-align:center">客均宽度</th><th style="text-align:center">部门均值</th><th style="text-align:center">差距</th><th style="text-align:center">差距率</th><th>状态</th></tr></thead>
+                <tbody id="wGapTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== 4. 客户维度 ===== -->
+      <div data-tab-content="w-customer" style="display:none">
+        <!-- 低宽度客户分析 -->
+        <div class="card" style="border-left:4px solid var(--warning)">
+          <div class="card-title"><span class="left">🔍 低宽度客户分析</span><span class="right-meta" style="display:flex;align-items:center;gap:8px">
+            <span>客户宽度低于</span>
+            <input type="number" id="width-threshold" value="3" min="1" max="27" style="width:52px;padding:4px 6px;border:2px solid var(--warning);border-radius:4px;font-size:13px;font-weight:700;text-align:center;color:var(--warning)" onchange="App.filterLowWidth()" oninput="App.filterLowWidth()">
+            <span>个品类</span>
+            <button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="App.filterLowWidth(true)">📋 查看明细</button>
+          </span></div>
+
+          <!-- 统计卡片 -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+            <div class="kpi-card k-orange" style="padding:10px 14px"><div class="kpi-label">⚠ 低宽度客户</div><div class="kpi-value" id="w-low-count" style="font-size:22px">-</div><div class="kpi-sub">占比 <span id="w-low-rate">-</span></div></div>
+            <div class="kpi-card k-red" style="padding:10px 14px"><div class="kpi-label">📉 平均宽度</div><div class="kpi-value" id="w-low-avg" style="font-size:22px">-</div><div class="kpi-sub">距均值 <span id="w-low-gap">-</span></div></div>
+            <div class="kpi-card k-blue" style="padding:10px 14px"><div class="kpi-label">🎯 提升潜力客户</div><div class="kpi-value" id="w-low-upsell" style="font-size:22px">-</div><div class="kpi-sub">宽度≥2 可快速提升</div></div>
+            <div class="kpi-card k-purple" style="padding:10px 14px"><div class="kpi-label">📦 核心缺失品类</div><div class="kpi-value" id="w-low-missing" style="font-size:14px;font-weight:700">-</div></div>
+          </div>
+
+          <!-- 低宽度客户 TOP 列表 -->
+          <div class="table-wrap" style="max-height:300px;margin-bottom:10px">
+            <table class="team-dim-table">
+              <thead><tr>
+                <th style="width:30px">#</th><th>客户名称</th><th style="text-align:center">团队</th><th style="text-align:center">销售</th><th style="text-align:center">宽度</th><th style="text-align:center">规上</th><th>已有产品</th><th>建议补充</th>
+              </tr></thead>
+              <tbody id="wLowCustTable"></tbody>
+            </table>
+          </div>
+
+          <!-- 部门 / 组维度统计 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+            <div class="chart-box" style="padding:12px">
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">📊 按部门统计（低宽度客户数）</div>
+              <div class="chart-container"><canvas id="chart-w-low-dept" height="200"></canvas></div>
+            </div>
+            <div class="chart-box" style="padding:12px">
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">📊 按组统计（低宽度客户数）</div>
+              <div class="chart-container"><canvas id="chart-w-low-group" height="200"></canvas></div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="left">📐 客户产品宽度覆盖</span></div>
+          <div class="split-list">
+            <div class="good-side">
+              <h5>🟢 优质客户（产品覆盖好，Top10）</h5>
+              <table class="mini-table">
+                <thead><tr><th style="width:1%">#</th><th>客户</th><th style="text-align:center">客均宽度</th><th style="text-align:center">规上</th><th style="text-align:center">品类数</th><th>销售人员</th></tr></thead>
+                <tbody id="w-tbody-cust-good"></tbody>
+              </table>
+            </div>
+            <div class="bad-side">
+              <h5>🔴 待提升客户（产品覆盖弱，后10）</h5>
+              <table class="mini-table">
+                <thead><tr><th style="width:1%">#</th><th>客户</th><th style="text-align:center">客均宽度</th><th style="text-align:center">规上</th><th style="text-align:center">品类数</th><th>销售人员</th></tr></thead>
+                <tbody id="w-tbody-cust-bad"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 客户产品覆盖明细（团队分析） -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">📋 客户产品覆盖明细</span>
+            <span class="tag" id="w-cust-count">32 条记录</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">规上</label>
+              <select id="wCustGsFilter" onchange="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部</option><option value="1">规上</option><option value="0">非规上</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索</label>
+              <input type="text" id="wCustSearch" placeholder="客户 / 账号..." oninput="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">每页</label>
+              <select id="wCustPageSize" onchange="App.WidthCustomer.render()" style="padding:5px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="0">全部</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">排序</label>
+              <select id="wCustSort" onchange="App.WidthCustomer.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option>
+              </select>
+            </div>
+          </div>
+          <div style="max-height:520px;overflow:auto">
+            <table class="table tight-table" style="min-width:2600px">
+              <thead id="wCustTableHead">
+                <tr>
+                  <th>客户名称</th>
+                  <th>所属团队</th>
+                  <th>销售</th>
+                  <th style="text-align:center">产品宽度</th>
+                  <th style="text-align:center">是否规上</th>
+                </tr>
+              </thead>
+              <tbody id="wCustTable"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="wCustPager"></div>
+        </div>
+
+      </div>
+
+      <!-- ===== 5. 用户维度 ===== -->
+      <div data-tab-content="w-user" style="display:none">
+        <!-- 用户低宽度分析 -->
+        <div class="card" style="border-left:4px solid var(--warning)">
+          <div class="card-title"><span class="left">🔍 低宽度用户分析</span><span class="right-meta" style="display:flex;align-items:center;gap:8px">
+            <span>用户宽度低于</span>
+            <input type="number" id="width-user-threshold" value="3" min="1" max="27" style="width:52px;padding:4px 6px;border:2px solid var(--warning);border-radius:4px;font-size:13px;font-weight:700;text-align:center;color:var(--warning)" onchange="App.filterLowWidthUser()" oninput="App.filterLowWidthUser()">
+            <span>个品类</span>
+            <button class="btn-ghost" style="padding:4px 10px;font-size:11px" onclick="App.filterLowWidthUser(true)">📋 查看明细</button>
+          </span></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+            <div class="kpi-card k-orange" style="padding:10px 14px"><div class="kpi-label">⚠ 低宽度用户</div><div class="kpi-value" id="wu-low-count" style="font-size:22px">-</div><div class="kpi-sub">占比 <span id="wu-low-rate">-</span></div></div>
+            <div class="kpi-card k-red" style="padding:10px 14px"><div class="kpi-label">📉 平均宽度</div><div class="kpi-value" id="wu-low-avg" style="font-size:22px">-</div><div class="kpi-sub">距均值 <span id="wu-low-gap">-</span></div></div>
+            <div class="kpi-card k-blue" style="padding:10px 14px"><div class="kpi-label">🎯 提升潜力用户</div><div class="kpi-value" id="wu-low-upsell" style="font-size:22px">-</div><div class="kpi-sub">宽度≥2 可快速提升</div></div>
+            <div class="kpi-card k-purple" style="padding:10px 14px"><div class="kpi-label">📦 核心缺失品类</div><div class="kpi-value" id="wu-low-missing" style="font-size:14px;font-weight:700">-</div></div>
+          </div>
+          <div class="table-wrap" style="max-height:300px;margin-bottom:10px">
+            <table class="team-dim-table">
+              <thead><tr><th style="width:30px">#</th><th>用户名称</th><th style="text-align:center">团队</th><th style="text-align:center">关联客户数</th><th style="text-align:center">销售</th><th style="text-align:center">宽度</th><th>已有产品</th><th>建议补充</th></tr></thead>
+              <tbody id="wuLowUserTable"></tbody>
+            </table>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+            <div class="chart-box" style="padding:12px">
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">📊 按部门统计（低宽度用户数）</div>
+              <div class="chart-container"><canvas id="chart-wu-low-dept" height="200"></canvas></div>
+            </div>
+            <div class="chart-box" style="padding:12px">
+              <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">📊 按组统计（低宽度用户数）</div>
+              <div class="chart-container"><canvas id="chart-wu-low-group" height="200"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="left">📐 用户产品宽度覆盖</span></div>
+          <div class="split-list">
+            <div class="good-side">
+              <h5>🟢 优质用户（产品覆盖好，Top10）</h5>
+              <table class="mini-table">
+                <thead><tr><th>#</th><th>用户</th><th style="text-align:center">用户宽度</th><th style="text-align:center">关联客户</th><th style="text-align:center">品类数</th></tr></thead>
+                <tbody id="w-tbody-user-good"></tbody>
+              </table>
+            </div>
+            <div class="bad-side">
+              <h5>🔴 待提升用户（产品覆盖弱，后10）</h5>
+              <table class="mini-table">
+                <thead><tr><th>#</th><th>用户</th><th style="text-align:center">用户宽度</th><th style="text-align:center">关联客户</th><th style="text-align:center">品类数</th></tr></thead>
+                <tbody id="w-tbody-user-bad"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 用户产品覆盖明细 -->
+        <div class="card">
+          <div class="card-title">
+            <span class="left">📋 用户产品覆盖明细</span>
+            <span class="tag" id="w-user-count">32 条记录</span>
+          </div>
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">规上</label>
+              <select id="wUserGsFilter" onchange="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="">全部</option><option value="1">规上</option><option value="0">非规上</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">搜索</label>
+              <input type="text" id="wUserSearch" placeholder="用户名 / 售达方..." oninput="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:140px">
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">每页</label>
+              <select id="wUserPageSize" onchange="App.WidthUser.render()" style="padding:5px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="0">全部</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:12px;font-weight:600;color:#64748b;white-space:nowrap">排序</label>
+              <select id="wUserSort" onchange="App.WidthUser.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+                <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option>
+              </select>
+            </div>
+          </div>
+          <div style="max-height:520px;overflow:auto">
+            <table class="table tight-table" style="min-width:2600px">
+              <thead id="wUserTableHead">
+                <tr>
+                  <th>用户名称</th>
+                  <th>所属团队</th>
+                  <th>销售</th>
+                  <th style="text-align:center">产品宽度</th>
+                  <th style="text-align:center">是否规上</th>
+                </tr>
+              </thead>
+              <tbody id="wUserTable"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="wUserPager"></div>
+        </div>
+      </div>
+
+      <!-- ===== 6. 数据导入与管理 ===== -->
+      <div data-tab-content="w-import" style="display:none">
+        <div class="info-banner">💡 上传 Excel 总表，系统自动识别客户/用户数据并更新全平台数据源。支持新增与更新（按客户名称/用户名称去重）。模板：<a href="assets/reference/数据导入模版-0716.xlsx" download style="color:#2563eb;font-weight:700">📥 下载标准模板</a></div>
+
+        <!-- 历史数据管理 -->
+        <div class="card" style="border-left:4px solid #7c3aed">
+          <div class="card-title">
+            <span class="left">📜 历史数据管理</span>
+            <span class="right" style="display:flex;gap:6px">
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportData.exportCurrent()">📥 下载当前数据</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportData.clearAll()" title="清空所有历史记录">🗑 清空历史</button>
+            </span>
+          </div>
+          <div class="table-wrap" style="max-height:240px">
+            <table class="table">
+              <thead><tr>
+                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">规上用户</th><th style="text-align:center">规上客户</th><th style="text-align:center">总记录</th><th>操作人</th><th style="text-align:center">操作</th>
+              </tr></thead>
+              <tbody id="wImportHistoryTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 总表卡片 -->
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--primary)">
+          <div class="card-title">
+            <span class="left">📂 产品宽度总表</span>
+            <span class="right" style="display:flex;gap:8px">
+              <span class="tag" id="w-total-user-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer" onclick="App.ImportData.switchView('user')" title="点击查看规上用户明细">🏢 规上用户 <strong id="w-total-user-count">-</strong></span>
+              <span class="tag" id="w-total-cust-tag" style="background:#dcfce7;color:#166534;cursor:pointer" onclick="App.ImportData.switchView('cust')" title="点击查看客户明细">👥 规上客户 <strong id="w-total-cust-count">-</strong></span>
+            </span>
+          </div>
+
+          <!-- 上传区 + 批量操作 -->
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <button style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600" onclick="document.getElementById('importFileInput').click()">📤 上传总表文件</button>
+            <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none" onchange="App.ImportData.handleUpload(this)">
+            <span style="font-size:11px;color:#94a3b8">支持 .xlsx / .xls，按模板格式导入</span>
+            <span style="color:#d5d7da">|</span>
+            <button class="btn-ghost" style="font-size:11px;color:#dc2626" onclick="App.ImportData.batchDelete()" title="删除所有选中行">🗑 批量删除</button>
+            <button class="btn-ghost" style="font-size:11px" onclick="App.ImportData.selectAll()">☑ 全选</button>
+            <button class="btn-ghost" style="font-size:11px" onclick="App.ImportData.deselectAll()">☐ 取消全选</button>
+            <button class="btn-ghost" style="margin-left:auto;font-size:11px" onclick="App.ImportData.addEmptyRecord()">➕ 新增记录</button>
+            <button class="btn-ghost" style="font-size:11px" onclick="App.ImportData.refresh()">🔄 刷新</button>
+          </div>
+
+          <!-- 数据明细表 -->
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <span id="w-import-view-title" style="font-weight:700;font-size:13px;color:#374151">📋 规上用户产品宽度</span>
+            <input type="text" id="wImportSearch" placeholder="搜索名称..." oninput="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
+            <select id="wImportSort" onchange="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+              <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option><option value="name">按名称</option>
+            </select>
+          </div>
+          <div style="position:relative;background:#fff;border:1px solid #dde0e4;border-radius:8px;overflow:hidden">
+            <div id="wImportScroll" style="overflow-x:auto;overflow-y:auto;max-height:480px">
+            <table class="table import-table" style="min-width:2600px" id="wImportDataTable">
+              <thead id="wImportDataThead"></thead>
+              <tbody id="wImportDataTbody"></tbody>
+            </table>
+            </div>
+            <div id="wImportPager" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e0e2e5;font-size:13px;color:#888">
+              <span id="wImportPageInfo"></span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:#888">每页</span>
+                <select id="wImportPageSize" onchange="App.ImportData.render()" style="padding:4px 8px;font-size:12px;border:1px solid #d5d7da;border-radius:4px">
+                  <option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="0">全部</option>
+                </select>
+                <span style="font-size:12px;color:#888">条</span>
+                <div id="wImportPageBtns" style="display:flex;gap:4px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 6. 分组对比 (整合自凯玲版) ===== -->
+      <div data-tab-content="w-compare" style="display:none">
+        <!-- 筛选条 -->
+        <div class="filter-bar">
+          <div class="filter-group">
+            <label>对比对象</label>
+            <select id="compare-mode" onchange="App.renderCompare()">
+              <option value="dept_mean">部门 vs 业务中心均值</option>
+              <option value="dept_dept">部门 vs 部门</option>
+              <option value="group_dept">组 vs 部门</option>
+              <option value="group_group">组 vs 组</option>
+              <option value="person_group">个人 vs 组</option>
+              <option value="person_person">个人 vs 个人</option>
+            </select>
+          </div>
+          <div class="filter-group" id="compare-A-wrap">
+            <label>对比组A</label>
+            <select id="compare-A" onchange="App.renderCompare()"></select>
+          </div>
+          <div class="filter-group" id="compare-B-wrap">
+            <label>对比组B</label>
+            <select id="compare-B" onchange="App.renderCompare()"></select>
+          </div>
+          <button class="btn-ghost" onclick="App.exportCompareResult()">📥 导出对比结果</button>
+          <div class="right"><span class="level-tag" id="compare-level">对比模式: 团队 vs 全部均值</span></div>
+        </div>
+
+        <!-- 综合指标 + 宽度分布 左右均分 -->
+        <div class="grid2" style="margin-bottom:14px">
+          <div class="card">
+            <div class="card-title"><span class="left">📊 综合指标对比</span><span class="tag">差异高亮</span></div>
+            <table class="compare-table" id="w-compare-summary">
+              <thead><tr><th>指标</th><th id="w-compare-th-A">对比组A</th><th id="w-compare-th-B">对比组B</th><th>差异</th></tr></thead>
+              <tbody id="w-compare-summary-body"></tbody>
+            </table>
+          </div>
+          <div class="card">
+            <div class="card-title">
+              <span class="left">📊 产品宽度分布对比</span>
+              <span class="right" style="display:flex;gap:12px;font-size:11px">
+                <span id="w-compare-dist-legend-A" style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#1a56db;border-radius:2px"></span>对比组A</span>
+                <span id="w-compare-dist-legend-B" style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:#dc2626;border-radius:2px"></span>对比组B</span>
+              </span>
+            </div>
+            <div class="chart-wrap" style="height:240px"><canvas id="chart-w-compare-dist"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 产品覆盖率雷达图 放大 -->
+        <div class="card">
+          <div class="card-title"><span class="left">📡 产品覆盖率对比（%）</span><span class="tag" id="w-compare-radar-tag">27品类</span></div>
+          <div class="chart-wrap" style="height:750px"><canvas id="chart-w-compare-radar"></canvas></div>
+        </div>
+
+        <!-- 各产品类别覆盖对比 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">📋 各产品类别覆盖对比 (27品类)</span><span class="tag">差异(A-B)</span></div>
+          <div class="table-wrap" style="max-height:480px">
+            <table class="compare-table">
+              <thead><tr><th>产品类别</th><th id="w-compare-th-A2">对比组A 覆盖率</th><th id="w-compare-th-B2">对比组B 覆盖率</th><th>差异(A-B)</th></tr></thead>
+              <tbody id="w-compare-prod-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== 7. AI建议与分析 ===== -->
+      <div data-tab-content="w-ai" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <span class="left">🤖 AI 智能分析</span>
+            <span class="right" style="display:flex;gap:6px">
+              <button class="subtab active" onclick="App.AI.switchTab('analyze')" id="wAiTabAnalyze">🔍 智能分析</button>
+              <button class="subtab" onclick="App.AI.switchTab('config')" id="wAiTabConfig">⚙️ API配置</button>
+            </span>
+          </div>
+
+          <!-- 分析Tab -->
+          <div id="wAiTabAnalyzeContent">
+            <div id="wAiWelcome" style="padding:14px;background:linear-gradient(135deg,#eff6ff,#f0f4ff);border:1px solid #dbeafe;border-radius:8px;margin-bottom:14px">
+              <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">👋 产品宽度 AI 分析助手</div>
+              <div style="font-size:12px;color:#555;line-height:1.7">我会读取当前产品宽度数据，结合你的问题给出分析。快速提问：</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                <span onclick="App.AI.quick('分析各部门产品宽度表现，找出落后部门及原因')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">📊 部门宽度分析</span>
+                <span onclick="App.AI.quick('分析各产品线覆盖率，哪些品类是短板需要重点突破')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">📦 产品线短板</span>
+                <span onclick="App.AI.quick('分析哪些客户宽度偏低，给出针对性提升建议')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">👤 客户提升</span>
+                <span onclick="App.AI.quick('分析团队维度差距，找出问题最严重的小组')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">⚠️ 团队预警</span>
+                <span onclick="App.AI.quick('基于当前数据，给出下月产品推广策略建议')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">🎯 策略建议</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:12px">
+              <textarea id="wAiPrompt" rows="3" placeholder="输入你的分析问题..." style="flex:1;padding:10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;outline:none;font-family:inherit"></textarea>
+              <button class="btn btn-primary" onclick="App.AI.analyze()" id="wAiAnalyzeBtn" style="padding:8px 20px;font-size:13px;white-space:nowrap;align-self:flex-end">🚀 开始分析</button>
+            </div>
+            <div id="wAiResult" style="display:none;padding:14px;background:#f8f9fb;border-radius:8px;border:1px solid #e5e7eb;font-size:13px;line-height:1.8;max-height:500px;overflow-y:auto;white-space:pre-wrap"></div>
+            <div id="wAiResultBar" style="display:none;align-items:center;gap:8px;margin-top:8px">
+              <span id="wAiElapsed" style="font-size:11px;color:#94a3b8"></span>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.AI.copyResult()">📋 复制结果</button>
+            </div>
+          </div>
+
+          <div id="wAiTabConfigContent" style="display:none">
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">API 地址</label><input type="text" id="wAiEndpoint" placeholder="https://maas.hikvision.com.cn" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">App ID</label><input type="text" id="wAiAppId" placeholder="输入 App ID" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">API Key</label><input type="password" id="wAiApiKey" placeholder="sk-..." style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">用户标识</label><input type="text" id="wAiUser" placeholder="员工号" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">超时(秒)</label><input type="number" id="wAiTimeout" value="300" style="width:80px;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-ghost" style="font-size:12px;padding:6px 14px" onclick="App.AI.testConnection()">🔌 测试连接</button>
+              <button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="App.AI.saveConfig()">💾 保存配置</button>
+            </div>
+            <div id="wAiTestResult" style="margin-top:8px;font-size:12px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 3. 潜力产品 ===== -->
+    <div class="page" id="page-potential">
+      <div class="subtabs-inline">
+        <button class="subtab active" data-tab="p-overview">📊 总览分析</button>
+        <button class="subtab" data-tab="p-product">📦 产品维度</button>
+        <button class="subtab" data-tab="p-team">👥 团队维度</button>
+        <button class="subtab" data-tab="p-customer">🔑 客户维度</button>
+        <button class="subtab" data-tab="p-user">🏢 用户维度</button>
+        <button class="subtab" data-tab="p-import">📥 数据导入与管理</button>
+        <button class="subtab" data-tab="p-ai">🤖 AI建议与分析</button>
+      </div>
+
+      <!-- ===== 筛选: 时间 + 团队/组/个人 三维度 ===== -->
+      <div class="filter-bar">
+        <div class="filter-group" style="position:relative">
+          <label>日期</label>
+          <span id="p-date-range" onclick="App.toggleDatePicker('p', event)" style="display:flex;align-items:center;gap:4px;border:1px solid #d1d5db;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;background:#fff;white-space:nowrap;user-select:none">
+            <span id="p-date-text">2026-07-01 ~ 2026-07-16</span> 📅
+          </span>
+          <div id="p-date-panel" class="date-picker-panel" style="display:none;position:absolute;top:100%;left:0;z-index:200;background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px 18px;box-shadow:0 8px 32px rgba(0,0,0,.15);margin-top:6px;min-width:280px">
+            <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:12px">📅 选择日期范围</div>
+            <div style="margin-bottom:10px"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">开始日期</label><input type="date" id="p-date-start" value="2026-07-01" onchange="App.onDateChange('p')" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;cursor:pointer"></div>
+            <div style="margin-bottom:14px"><label style="font-size:11px;color:#64748b;display:block;margin-bottom:3px">结束日期</label><input type="date" id="p-date-end" value="2026-07-16" onchange="App.onDateChange('p')" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;cursor:pointer"></div>
+            <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"><button onclick="App.setQuickDatePanel('p','week')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近7天</button><button onclick="App.setQuickDatePanel('p','biweek')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近14天</button><button onclick="App.setQuickDatePanel('p','month')" style="flex:1;padding:5px 0;border:1px solid #d1d5db;border-radius:4px;background:#fff;font-size:11px;cursor:pointer">最近30天</button></div>
+            <button onclick="App.closeDatePicker('p')" style="width:100%;padding:8px 0;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">确定</button>
+          </div>
+        </div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>对比期</label><select onchange="App.updatePotential()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
+        <div class="filter-sep">|</div>
+        <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-potential')"><option value="all">全部部门</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-potential')"><option value="all">全部小组</option></select></div>
+        <span class="filter-sep">→</span>
+        <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-potential')"><option value="all">全部成员</option></select></div>
+        <button class="btn-ghost" onclick="App.resetFilters('page-potential')">🔄 重置</button>
+        <div class="right"><span style="font-size:11px;color:var(--text-sub)">基线: 2025年7月</span></div>
+      </div>
+
+      <!-- ===== 1. 总览分析 (整合自乔梦杰经营概览) ===== -->
+      <div data-tab-content="p-overview" style="display:none">
+        <!-- ===== KPI 卡片行 ===== -->
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);margin-bottom:16px">
+          <div class="kpi-card k-red"><div class="kpi-label">💰 总销售额</div><div class="kpi-value" id="p-kpi-sales">¥ 9,830万</div><div class="kpi-sub">万元 · 同期 <span id="p-kpi-sales-prev">7,650万</span></div></div>
+          <div class="kpi-card k-green"><div class="kpi-label">🚀 潜力产品数</div><div class="kpi-value" id="p-kpi-prodcount">12</div><div class="kpi-sub">共 12 个潜力产品</div></div>
+          <div class="kpi-card k-purple"><div class="kpi-label">👥 客户数</div><div class="kpi-value" id="p-kpi-custcount">386</div><div class="kpi-sub">个 · 同期 312 个</div></div>
+          <div class="kpi-card k-orange"><div class="kpi-label">💵 客单价</div><div class="kpi-value" id="p-kpi-avgprice">25.5</div><div class="kpi-sub">万元 / 客户</div></div>
+          <div class="kpi-card"><div class="kpi-label">👤 用户数</div><div class="kpi-value" id="p-kpi-usercount">285</div><div class="kpi-sub">个 · 同期 <span id="p-kpi-usercount-prev">268</span>个</div></div>
+        </div>
+
+        <!-- 潜力产品销售额 + 销售量构成 同行 -->
+        <div class="grid2">
+          <div class="card" style="overflow:hidden">
+            <div class="card-title">
+              <span class="left">潜力产品销售额</span>
+              <span class="right" style="display:flex;gap:4px">
+                <button class="subtab active" data-p-dim="dept" onclick="App.switchPotDim('dept')">部门</button>
+                <button class="subtab" data-p-dim="group" onclick="App.switchPotDim('group')">组</button>
+                <button class="subtab" data-p-dim="person" onclick="App.switchPotDim('person')">个人</button>
+              </span>
+            </div>
+            <div style="padding:0 4px 8px">
+              <table class="pot-sales-table" style="width:100%">
+                <thead><tr><th style="width:32px">#</th><th style="width:35%">名称</th><th style="width:35%;text-align:right">销售额</th><th style="width:30%;text-align:center">同比</th></tr></thead>
+                <tbody id="pOvDeptRank"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">📊 销售量构成 (按产品)</span><span class="tag" id="p-comp-tag">销售额 · 全部部门</span></div>
+            <div class="chart-wrap" style="height:380px"><canvas id="chart-p-composition"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 本期 vs 同期单独 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">📈 潜力产品本期销售额趋势</span>
+            <span class="right" style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:11px;color:#64748b;cursor:pointer;user-select:none" onclick="App.toggleProductSelect()">📦 产品线 ▾</span>
+              <span class="tag" id="p-yoy-tag">近12月 · 全部部门</span>
+            </span>
+          </div>
+          <div id="p-product-select" style="display:none;flex-wrap:wrap;gap:4px;padding:6px 0;margin-bottom:8px;border-bottom:1px solid #f1f5f9">
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-p-yoy"></canvas></div>
+        </div>
+
+        <!-- ===== 量价四象限诊断 ===== -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">🎯 量价四象限诊断</span><span class="tag" id="p-quad-tag">X=数量同比 Y=金额同比 · 全部部门</span></div>
+          <div class="chart-wrap tall"><canvas id="chart-p-quadrant"></canvas></div>
+        </div>
+
+      </div>
+
+      <!-- ===== 2. 产品维度 ===== -->
+      <div data-tab-content="p-product" style="display:none">
+
+
+        <!-- 产品覆盖率排名（规上客户 + 规上用户） -->
+        <div class="grid2" style="margin-top:16px">
+          <div class="card">
+            <div class="card-title"><span class="left">🏆 潜力产品覆盖率（客户）</span><span class="right" style="font-size:12px;color:#6b7280">客户 <strong style="color:#1a56db" id="p-cust-scale-count">888</strong> 个</span></div>
+            <div class="table-wrap-auto">
+              <table class="table">
+                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖客户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th></tr></thead>
+                <tbody id="pProdCovCustBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title"><span class="left">🏆 潜力产品覆盖率（用户）</span><span class="right" style="font-size:12px;color:#6b7280">用户 <strong style="color:#059669" id="p-user-scale-count">285</strong> 个</span></div>
+            <div class="table-wrap-auto">
+              <table class="table">
+                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖用户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th></tr></thead>
+                <tbody id="pProdCovUserBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 可视化图表区：四象限散点图 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">🎯 潜力四象限（覆盖率 × 增速）</span>
+            <span class="tag" id="p-quad2-tag">12品类·全部部门</span>
+          </div>
+          <div class="chart-wrap" style="height:450px"><canvas id="chart-p-quad2"></canvas></div>
+          <div style="display:flex;gap:12px;font-size:10px;color:#6b7280;padding:4px 12px 8px;flex-wrap:wrap">
+            <span>🟢 右上=成熟核心</span><span>🔵 左上=蓝海潜力</span><span>🟡 右下=增长见顶</span><span>🔴 左下=弱势品类</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ===== 3. 团队维度 ===== -->
+      <div data-tab-content="p-team" style="display:none">
+        <!-- ===== 第一行：差距看板 + 增长结构 并排 ===== -->
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">
+              <span class="left">🏆 差距看板 · 横向竞争</span>
+              <div class="right-meta" style="display:flex;align-items:center;gap:8px">
+                <div class="dim-btns" id="p-scorecard-dim-btns">
+                  <button class="dim-btn active" data-dim="dept" onclick="App.setScorecardDim('dept')">部门</button>
+                  <button class="dim-btn" data-dim="group" onclick="App.setScorecardDim('group')">组</button>
+                  <button class="dim-btn" data-dim="person" onclick="App.setScorecardDim('person')">个人</button>
+                </div>
+                <select id="p-scorecard-metric" onchange="App.refreshTeamScorecard()" style="font-size:11px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px">
+                  <option value="sales">整体营收排名</option>
+                  <option value="newProd">新品营收排名</option>
+                  <option value="coverage">客户覆盖率平均水平</option>
+                  <option value="newCust">新增客户数量</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap-auto">
+              <table class="table tight-table" style="width:100%">
+                <thead id="p-scorecard-thead"></thead>
+                <tbody id="p-scorecard-body"></tbody>
+              </table>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 0;font-size:11px;color:#6b7280">
+              <div>每页 <select id="p-scorecard-page-size" onchange="App.refreshTeamScorecard()" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px"><option value="10">10</option><option value="20" selected>20</option></select> 条 <span id="p-scorecard-total"></span></div>
+              <div id="p-scorecard-pager"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span class="left">📈 增长结构分析</span>
+              <div class="right-meta" style="display:flex;align-items:center;gap:8px">
+                <div class="dim-btns" id="p-growth-dim-btns">
+                  <button class="dim-btn active" data-dim="dept" onclick="App.setScorecardDim('dept')">部门</button>
+                  <button class="dim-btn" data-dim="group" onclick="App.setScorecardDim('group')">组</button>
+                  <button class="dim-btn" data-dim="person" onclick="App.setScorecardDim('person')">个人</button>
+                </div>
+                <span id="p-gap-deepdive-tag" class="tag">按小组</span>
+              </div>
+            </div>
+            <div class="table-wrap-auto">
+              <table class="table tight-table" style="width:100%">
+                <thead id="p-growth-struct-thead"></thead>
+                <tbody id="p-growth-struct-grid"></tbody>
+              </table>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 0;font-size:11px;color:#6b7280">
+              <div>每页 <select id="p-growth-page-size" onchange="App._growthPage=1;App.renderGapDeepDive(App.getFilterState('page-potential'))" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px"><option value="10">10</option><option value="20" selected>20</option></select> 条 <span id="p-growth-total"></span></div>
+              <div id="p-growth-pager"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 团队小组 × 潜力产品 · 本期 vs 同期对照表 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">🗂️ 潜力产品 · 本期 vs 同期对照表</span>
+            <div class="right-meta" style="display:flex;align-items:center;gap:8px">
+              <div class="dim-btns" id="p-cross-dim-btns">
+                <button class="dim-btn active" data-dim="dept" onclick="App.WidthTeamMatrix.setDim('dept')">部门</button>
+                <button class="dim-btn" data-dim="group" onclick="App.WidthTeamMatrix.setDim('group')">组</button>
+                <button class="dim-btn" data-dim="person" onclick="App.WidthTeamMatrix.setDim('person')">个人</button>
+              </div>
+            </div>
+          </div>
+          <div style="overflow-x:auto;max-height:520px;overflow-y:auto">
+            <table class="cross-table" id="p-team-cross-table" style="width:auto;white-space:nowrap">
+              <thead id="p-team-cross-thead"></thead>
+              <tbody id="p-team-cross-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 潜力产品覆盖排名 -->
+        <div class="card" style="margin-top:16px">
+          <div class="card-title">
+            <span class="left">👥 潜力产品覆盖排名</span>
+            <div class="right-meta" style="display:flex;align-items:center;gap:8px">
+              <div class="dim-btns" id="p-seller-dim-btns">
+                <button class="dim-btn active" data-dim="dept" onclick="App.setSellerDim('dept')">部门</button>
+                <button class="dim-btn" data-dim="group" onclick="App.setSellerDim('group')">组</button>
+                <button class="dim-btn" data-dim="person" onclick="App.setSellerDim('person')">个人</button>
+              </div>
+              <span class="tag" id="p-seller-scope-tag">按个人</span>
+            </div>
+          </div>
+          <div class="table-wrap-auto">
+            <table class="table tight-table" style="width:100%">
+              <thead id="p-seller-thead"></thead>
+              <tbody id="p-seller-rank-body"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:11px;color:#6b7280">
+            <div>
+              每页 <select id="p-seller-page-size" onchange="App.refreshSellerRank()" style="font-size:11px;padding:2px 4px;border:1px solid #d1d5db;border-radius:3px">
+                <option value="10">10</option>
+                <option value="20" selected>20</option>
+              </select> 条
+              <span id="p-seller-total" style="margin-left:8px"></span>
+            </div>
+            <div id="p-seller-pager"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 4. 客户维度 ===== -->
+      <div data-tab-content="p-customer" style="display:none">
+        <!-- 客户维度演示模块已移除 -->
+      </div>
+
+      <!-- ===== 5. 用户维度 ===== -->
+      <div data-tab-content="p-user" style="display:none">
+        <!-- 用户维度演示模块已移除 -->
+      </div>
+
+      <div data-tab-content="p-import" style="display:none">
+        <div class="info-banner">💡 上传 Excel 总表，系统自动识别客户/用户数据并更新全平台潜力产品数据源。模板：<a href="assets/reference/数据导入模版-0716-潜力产品.xlsx" download style="color:#2563eb;font-weight:700">📥 下载标准模板</a></div>
+
+        <!-- 历史数据管理 -->
+        <div class="card" style="border-left:4px solid #7c3aed">
+          <div class="card-title">
+            <span class="left">📜 数据源管理</span>
+            <div style="display:flex;gap:8px">
+              <button style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600" onclick="document.getElementById('pImportFileInput').click()">📤 上传文件导入</button>
+              <input type="file" id="pImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="App.ImportPotential.handleUpload(this)">
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.exportCurrent()">📥 导出当前数据</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.render()">🔄 刷新</button>
+            </div>
+          </div>
+          <div class="table-wrap" style="max-height:240px">
+            <table class="table">
+              <thead><tr>
+                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">潜力产品-客户</th><th style="text-align:center">潜力产品-用户</th><th style="text-align:center">总记录</th><th>操作人</th><th style="text-align:center">操作</th>
+              </tr></thead>
+              <tbody id="pImportHistoryTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 数据视图 -->
+        <div class="card" style="margin-top:16px;border-left:4px solid var(--primary)">
+          <div class="card-title">
+            <span class="left" id="p-import-ds-title">📋 潜力产品数据明细</span>
+            <div class="right" style="display:flex;gap:8px">
+              <span class="tag" id="p-import-cust-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer;opacity:1" onclick="App.ImportPotential.switchDS('cust')">👥 潜力产品-客户</span>
+              <span class="tag" id="p-import-user-tag" style="background:#dcfce7;color:#166534;cursor:pointer;opacity:0.5" onclick="App.ImportPotential.switchDS('user')">🏢 潜力产品-用户</span>
+              <span class="tag" id="p-import-ds-count">- 条记录</span>
+            </div>
+          </div>
+
+          <!-- 上传区 + 批量操作 -->
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <button style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600" onclick="document.getElementById('pImportFileInput').click()">📤 上传文件导入</button>
+            <input type="file" id="pImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="App.ImportPotential.handleUpload(this)">
+            <span style="font-size:11px;color:#94a3b8">支持 .xlsx / .xls，按模板格式导入</span>
+            <span style="color:#d5d7da">|</span>
+            <button class="btn-ghost" style="font-size:11px;color:#dc2626" onclick="App.ImportPotential.batchDelete()">🗑 批量删除</button>
+            <button class="btn-ghost" style="font-size:11px" onclick="App.ImportPotential.selectAll()">☑ 全选</button>
+            <button class="btn-ghost" style="font-size:11px" onclick="App.ImportPotential.deselectAll()">☐ 取消全选</button>
+            <button class="btn-ghost" style="font-size:11px" onclick="App.ImportPotential.render()">🔄 刷新</button>
+          </div>
+
+          <!-- 筛选条 -->
+          <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+            <span id="p-import-view-title" style="font-weight:700;font-size:13px;color:#374151">📋 潜力产品-客户明细</span>
+            <select id="pImportDeptFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;margin-left:8px">
+              <option value="">全部部门</option>
+            </select>
+            <select id="pImportProdFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+              <option value="">全部产品</option>
+            </select>
+            <input type="text" id="pImportSearch" placeholder="搜索名称..." oninput="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
+            <select id="pImportSort" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
+              <option value="sales_desc">销售额降序</option><option value="sales_asc">销售额升序</option><option value="name">按名称</option>
+            </select>
+          </div>
+
+          <!-- 数据表 -->
+          <div style="position:relative;background:#fff;border:1px solid #dde0e4;border-radius:8px;overflow:hidden">
+            <div id="pImportScroll" style="overflow-x:auto;overflow-y:auto;max-height:480px">
+            <table class="table import-table" style="min-width:2000px" id="pImportDataTable">
+              <thead id="pImportDataThead"></thead>
+              <tbody id="pImportDataTbody"></tbody>
+            </table>
+            </div>
+            <div id="pImportPager" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid #e0e2e5;font-size:13px;color:#888">
+              <span id="pImportPageInfo"></span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:12px;color:#888">每页</span>
+                <select id="pImportPageSize" onchange="App.ImportPotential.render()" style="padding:4px 8px;font-size:12px;border:1px solid #d5d7da;border-radius:4px">
+                  <option value="20">20</option><option value="50">50</option><option value="100">100</option><option value="0">全部</option>
+                </select>
+                <span style="font-size:12px;color:#888">条</span>
+                <div id="pImportPageBtns" style="display:flex;gap:4px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 7. AI建议与分析 ===== -->
+      <div data-tab-content="p-ai" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <span class="left">🤖 AI 智能分析</span>
+            <span class="right" style="display:flex;gap:6px">
+              <button class="subtab active" onclick="App.PotAI.switchTab('analyze')" id="pAiTabAnalyze">🔍 智能分析</button>
+              <button class="subtab" onclick="App.PotAI.switchTab('config')" id="pAiTabConfig">⚙️ API配置</button>
+            </span>
+          </div>
+
+          <div id="pAiTabAnalyzeContent">
+            <div id="pAiWelcome" style="padding:14px;background:linear-gradient(135deg,#eff6ff,#f0f4ff);border:1px solid #dbeafe;border-radius:8px;margin-bottom:14px">
+              <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">👋 潜力产品 AI 分析助手</div>
+              <div style="font-size:12px;color:#555;line-height:1.7">我会读取当前潜力产品数据，结合你的问题给出分析。快速提问：</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+                <span onclick="App.PotAI.quick('分析各潜力产品销售趋势，哪些产品增长最快')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">📊 产品趋势</span>
+                <span onclick="App.PotAI.quick('分析哪些团队潜力产品贡献最大，找出落后团队')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">👥 团队对比</span>
+                <span onclick="App.PotAI.quick('分析量价齐跌的产品，给出原因和提升策略')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">⚠️ 风险预警</span>
+                <span onclick="App.PotAI.quick('基于当前数据，给出下月潜力产品推广策略和重点客户')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">🎯 策略建议</span>
+                <span onclick="App.PotAI.quick('分析潜力产品中新业务的增长机会和推广路径')" style="cursor:pointer;padding:4px 10px;background:#eef2ff;color:#4338ca;border-radius:12px;font-size:11px;border:1px solid #d8dfff">🚀 增长机会</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:12px">
+              <textarea id="pAiPrompt" rows="3" placeholder="输入你的分析问题..." style="flex:1;padding:10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;outline:none;font-family:inherit"></textarea>
+              <button class="btn btn-primary" onclick="App.PotAI.analyze()" id="pAiAnalyzeBtn" style="padding:8px 20px;font-size:13px;white-space:nowrap;align-self:flex-end">🚀 开始分析</button>
+            </div>
+            <div id="pAiResult" style="display:none;padding:14px;background:#f8f9fb;border-radius:8px;border:1px solid #e5e7eb;font-size:13px;line-height:1.8;max-height:500px;overflow-y:auto;white-space:pre-wrap"></div>
+            <div id="pAiResultBar" style="display:none;align-items:center;gap:8px;margin-top:8px">
+              <span id="pAiElapsed" style="font-size:11px;color:#94a3b8"></span>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.PotAI.copyResult()">📋 复制结果</button>
+            </div>
+          </div>
+
+          <div id="pAiTabConfigContent" style="display:none">
+            <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">API 地址</label><input type="text" id="pAiEndpoint" placeholder="https://maas.hikvision.com.cn" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">App ID</label><input type="text" id="pAiAppId" placeholder="输入 App ID" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">API Key</label><input type="password" id="pAiApiKey" placeholder="sk-..." style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">用户标识</label><input type="text" id="pAiUser" placeholder="员工号" style="flex:1;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+              <div style="display:flex;align-items:center;gap:8px"><label style="width:80px;font-size:12px;font-weight:600;color:#64748b">超时(秒)</label><input type="number" id="pAiTimeout" value="300" style="width:80px;padding:6px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:4px"></div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn-ghost" style="font-size:12px;padding:6px 14px" onclick="App.PotAI.testConnection()">🔌 测试连接</button>
+              <button class="btn btn-primary" style="font-size:12px;padding:6px 14px" onclick="App.PotAI.saveConfig()">💾 保存配置</button>
+            </div>
+            <div id="pAiTestResult" style="margin-top:8px;font-size:12px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 4. 账号管理 ===== -->
+    <div class="page" id="page-admin">
+      <div class="subtabs-inline">
+        <button class="subtab active" data-tab="a-users">👥 用户管理</button>
+        <button class="subtab" data-tab="a-roles">🔐 角色权限</button>
+        <button class="subtab" data-tab="a-products">📦 产品字典</button>
+        <button class="subtab" data-tab="a-audit">📋 审计日志</button>
+        <button class="subtab" data-tab="a-backup">💾 数据备份与导出</button>
+      </div>
+
+      <!-- ===== Tab: 用户管理 ===== -->
+      <div data-tab-content="a-users">
+        <div class="filter-bar">
+          <div class="filter-group"><label>搜索</label><input type="text" placeholder="姓名/账号"></div>
+          <div class="filter-group"><label>角色</label><select><option>全部</option><option>部门负责人</option><option>团队主管</option><option>一线销售</option></select></div>
+          <div class="filter-group"><label>状态</label><select><option>全部</option><option>活跃</option><option>停用</option></select></div>
+          <button class="btn-ghost">重置</button>
+        </div>
+        <div class="card">
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span class="left">👥 用户管理</span>
+            <button onclick="App.showUserForm()" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">＋ 新增用户</button>
+          </div>
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>角色代码</th><th>部门</th><th>所属组</th><th style="width:200px">操作</th></tr></thead>
+              <tbody id="aUsersTableBody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:12px;font-size:11px;color:#94a3b8" id="aUsersCount"></div>
+        </div>
+      </div>
+
+      <!-- ===== Tab: 角色权限 ===== -->
+      <div data-tab-content="a-roles" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="left">🔐 角色权限管理</span><span class="tag">共 6 个角色</span></div>
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead><tr><th>角色</th><th>名称</th><th style="text-align:center">数据总览</th><th style="text-align:center">产品宽度</th><th style="text-align:center">潜力产品</th><th style="text-align:center">用户管理</th><th style="text-align:center">角色权限</th><th style="text-align:center">产品字典</th><th style="text-align:center">审计日志</th><th style="text-align:center">数据备份</th><th style="text-align:center">数据导出</th><th style="text-align:center">数据导入</th><th>数据范围</th></tr></thead>
+              <tbody id="aRolesTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Tab: 产品字典 ===== -->
+      <div data-tab-content="a-products" style="display:none">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title"><span class="left">🚀 潜力产品</span><div class="right" style="display:flex;gap:6px"><span class="tag" id="aProdPotCount">11 个</span><button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="App.showProductForm(null,1)">＋ 新增</button></div></div>
+            <div class="table-wrap" style="max-height:400px">
+              <table class="table">
+                <thead><tr><th style="width:30px">#</th><th>产品名称</th><th>别名</th><th style="width:80px">操作</th></tr></thead>
+                <tbody id="aProdPotBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">📊 产品宽度产品</span><div class="right" style="display:flex;gap:6px"><span class="tag" id="aProdWidthCount">20 个</span><button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="App.showProductForm(null,0)">＋ 新增</button></div></div>
+            <div class="table-wrap" style="max-height:400px">
+              <table class="table">
+                <thead><tr><th style="width:30px">#</th><th>产品名称</th><th>别名</th><th style="width:80px">操作</th></tr></thead>
+                <tbody id="aProdWidthBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Tab: 审计日志 ===== -->
+      <div data-tab-content="a-audit" style="display:none">
+        <div class="filter-bar">
+          <div class="filter-group"><label>操作用户</label><input type="text" id="aAuditUser" placeholder="用户名" oninput="App.renderAuditLog()"></div>
+          <div class="filter-group"><label>操作类型</label><select id="aAuditAction" onchange="App.renderAuditLog()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="查看页面">查看页面</option><option value="数据导出">数据导出</option><option value="数据导入">数据导入</option><option value="新增用户">新增用户</option><option value="修改用户">修改用户</option><option value="修改密码">修改密码</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="系统配置">系统配置</option></select></div>
+          <div class="filter-group"><label>开始日期</label><input type="date" id="aAuditDateStart" value="2026-07-01" onchange="App.renderAuditLog()"></div>
+          <span class="filter-sep">→</span>
+          <div class="filter-group"><label>结束日期</label><input type="date" id="aAuditDateEnd" value="2026-07-21" onchange="App.renderAuditLog()"></div>
+          <button class="btn-ghost" onclick="App.exportAuditLog()">📥 导出日志</button>
+          <span class="right" style="font-size:12px;color:var(--text-muted)" id="aAuditCount">20 条记录</span>
+        </div>
+        <div class="card">
+          <div class="table-wrap" style="max-height:520px">
+            <table class="table">
+              <thead><tr><th style="width:140px">时间</th><th>操作用户</th><th>操作类型</th><th>操作对象</th><th>详情</th><th style="width:110px">IP地址</th></tr></thead>
+              <tbody id="aAuditTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Tab: 数据备份与导出 ===== -->
+      <div data-tab-content="a-backup" style="display:none">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title"><span class="left">📥 数据导出</span></div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('width'), '_blank')" style="justify-content:flex-start;padding:10px 14px">📊 导出产品宽度数据 (Excel)</button>
+              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('potential'), '_blank')" style="justify-content:flex-start;padding:10px 14px">🚀 导出潜力产品数据 (Excel)</button>
+              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('audit'), '_blank')" style="justify-content:flex-start;padding:10px 14px">📋 导出审计日志 (Excel)</button>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">提示: 需要有管理员权限；后端服务需在运行中</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title"><span class="left">💾 数据备份</span></div>
+            <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
+              <button class="btn-ghost" onclick="App.createBackup()" style="justify-content:flex-start;padding:10px 14px;background:#f0fdf4">➕ 创建全量备份</button>
+              <button class="btn-ghost" onclick="App.loadBackupList()" style="justify-content:flex-start;padding:10px 14px">📋 查看备份列表</button>
+              <div id="backupListArea" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 客户/用户悬浮详情 Tooltip -->
+<div id="custTooltip"></div>
+
+<!-- 通用模态框 -->
+<div class="modal-overlay" id="appModal">
+  <div class="modal-box" id="appModalBox">
+    <div class="modal-header">
+      <h3 id="appModalTitle">详情</h3>
+      <button class="modal-close" onclick="App.closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="appModalBody"></div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="App.closeModal()" style="padding:6px 16px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px">关闭</button>
+    </div>
+  </div>
+
+  <!-- ===== 帮助说明页 ===== -->
+  <div class="page" id="page-help">
+  <div class="main full">
+    <div class="page-header"><div class="page-title">❓ 帮助说明</div><div class="page-subtitle">产品分析一体化平台 · 使用指南</div></div>
+
+    <div class="card"><div class="card-title"><span class="left">🎯 平台背景</span></div>
+      <p style="line-height:2;font-size:14px">产品分析一体化平台是面向销售管理团队的经营数据分析工具，覆盖 <b>数据总览、产品宽度、潜力产品</b> 三大核心分析模块。支持从部门→小组→个人的三级数据下钻，帮助管理者快速定位销售短板、挖掘增长机会、评估产品覆盖率。</p>
+    </div>
+
+    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">📊 模块说明</span></div>
+      <table class="table" style="width:100%">
+        <thead><tr><th style="width:120px">模块</th><th>应用场景</th><th>核心指标</th></tr></thead>
+        <tbody>
+          <tr><td><b>数据总览</b></td><td>快速掌握全局经营态势，查看销售额排名、产品构成、同比变化</td><td>总销售额、同比%、量价四象限分类</td></tr>
+          <tr><td><b>产品宽度分析</b></td><td>分析客户/用户覆盖了多少产品品类，识别覆盖率短板</td><td>客户宽度（品类数）、覆盖率%、人均宽度</td></tr>
+          <tr><td><b>潜力产品分析</b></td><td>聚焦11个核心潜力品类的深度分析，多维度对比</td><td>销售额、覆盖率、四象限、增长类型</td></tr>
+          <tr><td><b>账号管理</b></td><td>管理用户权限、角色、产品字典</td><td>角色权限矩阵、数据范围</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🔍 使用方法</span></div>
+      <table class="table" style="width:100%">
+        <thead><tr><th style="width:180px">操作</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><b>筛选下钻</b></td><td>顶部导航栏：部门→小组→个人，逐级筛选，下级自动清空；选择后全页面图表/表格同步刷新</td></tr>
+          <tr><td><b>维度切换</b></td><td>团队维度 Tab 中，右上角「部门」「组」「个人」按钮可切换聚合粒度</td></tr>
+          <tr><td><b>数据下钻</b></td><td>表格中蓝色文字/数字可点击，弹出明细弹窗（如客户清单、产品清单、用户明细）</td></tr>
+          <tr><td><b>数据导入</b></td><td>下载标准模板 → 填写数据 → 上传Excel → 自动解析并更新全平台数据源</td></tr>
+          <tr><td><b>产品字典</b></td><td>账号管理→产品字典，管理潜力产品和产品宽度产品品类清单</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">📖 字段名词说明</span></div>
+      <table class="table" style="width:100%">
+        <thead><tr><th style="width:130px">名词</th><th>定义</th></tr></thead>
+        <tbody>
+          <tr><td><b>产品宽度</b></td><td>客户/用户购买的产品品类数量（覆盖了多少种产品）</td></tr>
+          <tr><td><b>覆盖率</b></td><td>已覆盖产品数 ÷ 总可覆盖产品数 × 100%</td></tr>
+          <tr><td><b>客单价</b></td><td>客户总销售额 ÷ 客户数</td></tr>
+          <tr><td><b>同比(YoY)</b></td><td>（本期 - 同期）÷ 同期 × 100%</td></tr>
+          <tr><td><b>量价四象限</b></td><td>X轴=数量同比，Y轴=金额同比；右上=量价齐升/左上=量跌价增/左下=量价齐跌</td></tr>
+          <tr><td><b>潜力产品</b></td><td>平台定义的11个核心品类，作为重点分析对象</td></tr>
+          <tr><td><b>售达方(客户)</b></td><td>合同签订方/付款方，一个客户可对应多个最终用户</td></tr>
+          <tr><td><b>最终用户</b></td><td>产品实际使用方</td></tr>
+          <tr><td><b>规上客户</b></td><td>年销售额达到一定规模以上的重点客户</td></tr>
+          <tr><td><b>集中度</b></td><td>TOP N客户销售额 ÷ 总销售额，衡量业绩依赖程度</td></tr>
+          <tr><td><b>归因分析</b></td><td>量增价增=需求驱动；量跌价增=结构升级；量增价跌=以价换量；量价双跌=市场萎缩</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">👥 角色与权限</span></div>
+      <table class="table" style="width:100%">
+        <thead><tr><th style="width:80px">角色</th><th style="width:80px">数据范围</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>管理员</td><td>全部数据</td><td>所有功能+用户管理+系统配置</td></tr>
+          <tr><td>总经理</td><td>全部数据</td><td>全局查看+导出备份，不可修改权限</td></tr>
+          <tr><td>运营</td><td>全部数据</td><td>全局查看+导出</td></tr>
+          <tr><td>总监</td><td>本部门</td><td>仅查看所属部门数据</td></tr>
+          <tr><td>主管</td><td>本小组</td><td>仅查看所属小组数据</td></tr>
+          <tr><td>接口人</td><td>本部门</td><td>部门数据对接查看</td></tr>
+          <tr><td>销售</td><td>本人</td><td>仅查看个人名下数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="js/core/config.js"></script>
+<script src="js/data/models.js"></script>
+<script src="js/data/import.js"></script>
+<script src="js/ui/ai.js"></script>
+<script src="js/ui/sidebar.js"></script>
+<script src="js/core/api.js"></script>
+<script src="js/views/charts.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>

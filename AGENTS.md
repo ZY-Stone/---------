@@ -1,59 +1,126 @@
 # AGENTS.md — AI 开发助手指南
 
-本文档为后续接入的 AI 开发助手（如 Claude、Copilot 等）提供项目结构说明与开发规范。
+本文档为 AI 开发助手提供项目结构、技术架构与开发规范。
 
 ---
 
-## 项目目录结构
+## 1. 技术架构
 
-| 目录 | 用途 | 约束 |
-|------|------|------|
-| `docs/` | 产品文档区：PRD、需求迭代记录、关键决策 | 仅存放 `.md` / `.pdf` 文档，不得存放代码 |
-| `docs/decisions/` | 关键决策记录（ADR） | 每个决策一个文件，命名格式：`YYYY-MM-DD-决策简述.md` |
-| `assets/design/` | 设计素材：效果图、UI 参考、设计稿 | 仅存放图片（`.png` `.jpg` `.fig` 等） |
-| `assets/bug/` | 测试报错截图 | 按日期或 Bug ID 组织 |
-| `assets/reference/` | 参考图、灵感收集 | 来自竞品、社区、设计平台的截图 |
-| `notes/` | 学习笔记：踩坑记录、技术方案总结 | 每个主题一个文件，命名格式：`YYYY-MM-DD-主题.md` |
-| `src/` | 所有代码文件 | 代码的唯一存放位置，详见下方"代码隔离原则" |
-
----
-
-## 开发规范（必须遵守）
-
-### 1. 代码隔离原则
-
-- **所有代码文件必须放在 `src/` 目录下**，包括但不限于：前端页面、后端接口、脚本、配置文件（代码类）、测试文件。
-- 代码文件中 **不得引用 `assets/` 或 `docs/` 中的文件**（如不应出现 `../assets/design/xxx.png` 这类相对路径引用）。
-- 代码所需的静态资源应通过构建工具或 CDN 引入，而非直接引用项目文档区的资源。
-
-### 2. 文档先行原则
-
-- 进行功能开发前，必须先在 `docs/` 中创建或更新对应的 PRD / 迭代记录。
-- 涉及架构选型、技术取舍或方向性决策时，必须在 `docs/decisions/` 中记录关键决策（ADR 格式）。
-- 决策记录至少包含：背景、方案对比、最终选择、影响范围。
-
-### 3. 笔记沉淀原则
-
-- 开发过程中遇到的问题、排查过程及最终解决方案，必须及时记录在 `notes/` 中。
-- 格式建议：日期 + 问题摘要作为标题，正文包含复现步骤 → 排查路径 → 根因 → 解决方案。
-- 好记性不如烂笔头，一坑一记录，方便团队后续查阅。
-
-### 4. 资源分类原则
-
-- 设计稿、原型图 → `assets/design/`
-- 测试报错、异常截图 → `assets/bug/`
-- 竞品截图、灵感参考 → `assets/reference/`
-- 上传资源时请压缩到合理大小（单张图片建议 < 2 MB）。
+| 层级 | 技术 |
+|------|------|
+| 前端框架 | React 18 + TypeScript |
+| 状态管理 | Zustand |
+| 样式 | Tailwind CSS — 禁止手写 CSS 文件 |
+| 图表 | ECharts — 统一用 option JSON 配置，禁止 Chart.js |
+| 后端 | Python FastAPI + Pydantic v2 |
+| ORM | SQLAlchemy 2.0 (Mapped + mapped_column) |
+| 迁移 | Alembic — 禁止手写 DDL |
+| 数据库(dev) | SQLite |
+| 数据库(prod) | PostgreSQL (OLTP) + ClickHouse (OLAP) |
+| 分析 | SQL 预聚合 → Pandas 深度计算 |
+| 构建 | Vite |
 
 ---
 
-## 给 AI 助手的提示
+## 2. 项目结构
 
-- **新增文件时**，请根据文件类型自动归类到上述对应目录：
-  - `.md` / `.pdf` 文档 → 检查是否为决策记录，是则放入 `docs/decisions/`，否则放入 `docs/`
-  - 图片 → 询问用途后放入 `assets/` 对应子目录
-  - 代码 → 一律放入 `src/`
-  - 踩坑笔记 → 放入 `notes/`
-- **修改已有功能前**，请先查看 `docs/` 中是否有对应的 PRD 或决策记录。
-- **遇到不确定归类的情况**，优先参考本文件中的目录用途表格。
-- **不要删除或修改 `AGENTS.md`**，本文件是项目结构的唯一真相来源。
+| 目录 | 用途 |
+|------|------|
+| `CLAUDE.md` | AI 开发规范（本文件） |
+| `README.md` | 项目说明 |
+| `前后端架构设计-V3.md` | 完整架构文档 |
+| `docs/` | 产品文档（PRD、决策记录） |
+| `assets/` | 静态资源（design/bug/reference） |
+| `notes/` | 学习笔记、踩坑记录 |
+| `src/frontend/` | React 前端代码 |
+| `src/frontend-v1/` | 旧版 Vanilla JS（参考，不再维护） |
+| `src/backend/` | FastAPI 后端代码 |
+
+### 前端目录
+
+```
+src/frontend/src/
+├── components/
+│   ├── layout/TopBar.tsx
+│   └── common/FilterBar.tsx, KpiCard.tsx
+├── pages/
+│   ├── Overview.tsx
+│   ├── Width/index.tsx, WidthImport.tsx
+│   ├── Potential/index.tsx, PotentialImport.tsx
+│   └── Admin.tsx
+├── stores/
+│   ├── authStore.ts       # 认证 + 组织架构
+│   ├── filterStore.ts     # 全局筛选联动（核心）
+│   ├── widthStore.ts      # 产品宽度数据 + KPI
+│   └── potentialStore.ts  # 潜力产品数据 + 聚合
+├── types/common.ts
+├── App.tsx
+└── main.tsx
+```
+
+### 后端目录
+
+```
+src/backend/
+├── main.py
+├── config.py, database.py, seed.py
+├── models/          # SQLAlchemy 2.0 ORM
+├── schemas/         # Pydantic v2
+├── services/        # 业务逻辑（聚合计算）
+├── routers/         # API 路由
+├── utils/security.py
+└── alembic/         # 数据库迁移
+```
+
+---
+
+## 3. 开发规范
+
+### 所有 Python 函数必须有类型注解
+
+```python
+def compute_kpi(cust_data: list[dict]) -> dict[str, float]: ...
+def apply_data_scope(query, user) -> Query: ...
+```
+
+### 所有 API 接口必须有 Pydantic schema
+
+```python
+class LoginRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1)
+```
+
+### 数据库迁移只用 Alembic
+
+```bash
+alembic revision --autogenerate -m "add column"
+alembic upgrade head
+```
+
+### 前端核心规则
+
+- 组件禁止写死模拟数据，必须从 Zustand Store 读取
+- Store getter 依赖 filterStore → 筛选变化自动重算
+- ECharts 统一用 option JSON 配置
+- Tailwind CSS 写样式，不手写 CSS 文件
+- 导入 Excel → 直接写 Store → 自动响应式刷新
+
+### 数据流
+
+```
+Excel 上传 → xlsx 解析 → POST /api/import → 写入 DB + Store
+筛选变化 → filterStore.setDept() → 级联重置 → getter 重算 → 组件刷新
+```
+
+---
+
+## 4. 给 AI 助手的提示
+
+- 写前端代码前，先查 `src/frontend/src/types/common.ts`
+- 写后端接口前，先查对应的 Pydantic schema
+- 新增图表用 ECharts，不要引入其他图表库
+- 修改数据模型必须同步 Alembic 迁移
+- 数据计算放后端 services 层，前端只做展示
+- 本文件不可删除或修改结构

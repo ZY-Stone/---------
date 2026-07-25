@@ -1,15 +1,14 @@
-"""
-backend/models/tenant.py
-"""
-from sqlalchemy import Column, Integer, String, DateTime, func
+"""SQLAlchemy 2.0 — Tenant model"""
+from datetime import datetime
+from sqlalchemy import Integer, String, DateTime, func
+from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
-
 
 class Tenant(Base):
     __tablename__ = "tenants"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100), nullable=False, comment="租户名称")
-    code = Column(String(50), unique=True, nullable=False, comment="租户编码")
-    status = Column(String(20), default="active", comment="active/disabled")
-    created_at = Column(DateTime, server_default=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), comment="租户名称")
+    code: Mapped[str] = mapped_column(String(50), unique=True, comment="租户编码")
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())

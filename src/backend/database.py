@@ -1,6 +1,4 @@
-"""
-backend/database.py — SQLAlchemy 引擎 + Session
-"""
+"""SQLAlchemy 2.0 engine + session factory"""
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from config import DATABASE_URL
@@ -12,14 +10,14 @@ class Base(DeclarativeBase):
     pass
 
 def get_db():
-    """FastAPI 依赖注入：获取数据库会话"""
+    """FastAPI dependency injection: yield a DB session."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-def init_db():
-    """创建所有表"""
-    import models  # noqa: F401 — 确保所有模型被导入
+def init_db() -> None:
+    """Create all tables from ORM metadata."""
+    from models import tenant, department, group, user, product_dict, sales_data, import_record, audit_log  # noqa: F401
     Base.metadata.create_all(bind=engine)
