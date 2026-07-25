@@ -48,7 +48,7 @@
 1. **一目了然的数据总览** — 通过 KPI 卡片和可视化图表，快速掌握全平台产品宽度和潜力产品的经营现状
 2. **全维度分析能力** — 支持从部门 → 小组 → 个人 → 客户 → 用户的任意维度下钻分析
 3. **低宽度预警** — 自动识别产品覆盖不足的客户和用户，给出提升建议
-4. **潜力产品洞察** — 16 个核心潜力产品的销售趋势、覆盖率排名、四象限诊断
+4. **潜力产品洞察** — 11 个核心潜力产品的销售趋势、覆盖率排名、四象限诊断
 5. **数据驱动决策** — 交叉销售推荐、产品套包组合、量价四象限等高级分析能力
 
 ---
@@ -317,35 +317,84 @@
 
 #### 3.5.1 导入类型
 
-| 类型 | API | 数据表 |
-|------|-----|--------|
-| 产品宽度数据 | `POST /api/import/width` | sales_width |
-| 潜力产品数据 | `POST /api/import/potential` | sales_potential |
+| 类型 | 模板Sheet | API | 数据表 |
+|------|----------|-----|--------|
+| 产品宽度-用户 | 规上用户-产品宽度(36列) | `POST /api/import/width-records` | width_records |
+| 产品宽度-客户 | 规上客户-产品宽度(35列) | `POST /api/import/width-records` | width_records |
+| 潜力产品-客户 | 潜力产品-客户(21列) | `POST /api/import/potential-cust` | potential_cust |
+| 潜力产品-用户 | 潜力产品-用户(23列) | `POST /api/import/potential-user` | potential_user |
 
 #### 3.5.2 导入字段 (产品宽度)
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| period | string | 期间，如 2026-07 |
-| customer_name | string | 客户名称（售达方） |
-| user_name | string | 最终用户名称 |
-| dept_id | integer | 部门ID |
-| group_id | integer | 小组ID |
-| owner_id | integer | 负责人ID |
-| product_id | integer | 产品ID |
-| amount | float | 销售额（万元） |
-| amount_prev | float | 同期销售额（万元） |
-| qty | float | 数量 |
-| qty_prev | float | 同期数量 |
-| is_regulated | boolean | 是否规上客户 |
+| 模板列 | 字段 | 类型 | 说明 |
+|------|------|------|------|
+| 最终用户-行业 | industry | VARCHAR | 用户Sheet独有 → 用户行业 |
+| siebel编码 | siebel | VARCHAR | CRM账号 |
+| 最终用户 / 售达方描述 | name | VARCHAR | 用户/客户名称 |
+| 销售 | sales | VARCHAR | 销售员 |
+| 销售部门 | dept | VARCHAR | 实际存小组名 → 自动推导部门 |
+| 是否规上 | guishang | VARCHAR | 是/否 |
+| 产品线合计 | width | INTEGER | 27产品覆盖总数 |
+| 7-33列 | prods_json | TEXT | 27个产品 0/1 JSON |
+| 接口人 | contact | VARCHAR | 对接人 |
+| 用户/客户等级 | level | VARCHAR | 等级 |
 
-#### 3.5.3 导入字段 (潜力产品)
+#### 3.5.3 导入字段 (潜力产品-客户)
 
-与产品宽度相同，额外包含：
+| 模板列 | 字段 | 类型 | 说明 |
+|------|------|------|------|
+| 二级部门 | dept2 | VARCHAR | 业务中心 |
+| 三级部门/大部门 | dept3 | VARCHAR | → 部门 |
+| 四级部门/团队小组 | dept4 | VARCHAR | 备用组 |
+| 五级部门 | dept5 | VARCHAR | → 组（优先） |
+| — | group_name | VARCHAR | 解析后组名 |
+| — | dept_name | VARCHAR | 解析后部门名 |
+| 销售雇员 | sales | VARCHAR | 销售员 |
+| 对接人 | contact | VARCHAR | → 接口人 |
+| 潜力产品 | product | VARCHAR | 11个产品之一 |
+| — | product_id | INTEGER | FK→products(可选) |
+| 售达方名称 | cust_name | VARCHAR | → 客户名称 |
+| 最终用户 | user_name | VARCHAR | 可为空 |
+| 销售额(万) | amount | FLOAT | 本期 |
+| 同期销售额(万) | amount_prev | FLOAT | 同期 |
+| 同比 | yoy | VARCHAR | |
+| 销售数量 | qty | INTEGER | |
+| 同期销售数量 | qty_prev | INTEGER | |
+| 销售数量同比 | qty_yoy | VARCHAR | |
+| 交易商机数 | opps | INTEGER | |
+| 交易商机数同期 | opps_prev | INTEGER | |
+| 交易商机数同比 | opps_yoy | VARCHAR | |
+| 交易用户数 | users | INTEGER | |
+| 交易用户数-同期 | users_prev | INTEGER | |
+| 用户数同比 | users_yoy | VARCHAR | |
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| source_type | string | 数据来源类型（customer/user） |
+#### 3.5.4 导入字段 (潜力产品-用户)
+
+| 模板列 | 字段 | 类型 | 说明 |
+|------|------|------|------|
+| 业务中心 | center | VARCHAR | |
+| 部门/大部门 | dept3 | VARCHAR | → 部门 |
+| 团队小组 | dept4 | VARCHAR | |
+| 四级部门 | dept5 | VARCHAR | |
+| 对接人 | contact | VARCHAR | → 接口人 |
+| 最终用户名称 | user_name | VARCHAR | → 用户名称 |
+| 行业 | industry | VARCHAR | |
+| 潜力产品 | product | VARCHAR | |
+| 产品出库额 | out_amt | FLOAT | |
+| 产品出库额同期 | out_amt_prev | FLOAT | |
+| 产品出库额同比 | out_yoy | FLOAT | |
+| 销售数量 | out_qty | INTEGER | |
+| 销售数量同期 | out_qty_prev | INTEGER | |
+| 销售数量同比 | out_qty_yoy | FLOAT | |
+| 交易商机数 | opps | INTEGER | |
+| 交易商机数同期 | opps_prev | INTEGER | |
+| 交易商机数同比 | opps_yoy | FLOAT | |
+| 交易用户数 | users | INTEGER | |
+| 交易用户数同期 | users_prev | INTEGER | |
+| 交易用户数同比 | users_yoy | FLOAT | |
+| 交易客户数 | custs | INTEGER | |
+| 交易客户数同期 | custs_prev | INTEGER | |
+| 交易客户数同比 | custs_yoy | FLOAT | |
 
 #### 3.5.4 导入规则
 
@@ -452,24 +501,23 @@ Tenant (租户)
   │     └── Group (小组)
   │           └── User (用户)
   ├── ProductDict (产品字典)
-  ├── SalesWidth (产品宽度销售数据)
+  ├── WidthRecord (产品宽度-模板对齐)
   │     ├── FK → Tenant
-  │     ├── FK → Department
-  │     ├── FK → Group
-  │     ├── FK → User (owner)
-  │     └── FK → ProductDict
-  ├── SalesPotential (潜力产品销售数据)
+  │     ├── FK → ProductDict
+  │     └── 27产品存JSON
+  ├── PotentialCust (潜力产品-客户维度)
   │     ├── FK → Tenant
-  │     ├── FK → Department
-  │     ├── FK → Group
-  │     ├── FK → User (owner)
-  │     └── FK → ProductDict
+  │     └── FK → ProductDict (可选)
+  ├── PotentialUser (潜力产品-用户维度)
+  │     ├── FK → Tenant
+  │     └── FK → ProductDict (可选)
+  ├── SalesWidth (产品宽度旧表-保留兼容)
+  ├── SalesPotential (潜力产品旧表-保留兼容)
   ├── ImportRecord (导入记录)
-  │     ├── FK → Tenant
-  │     └── FK → User
-  └── AuditLog (审计日志)
-        ├── FK → Tenant
-        └── FK → User
+  ├── RolePermission (角色权限配置)
+  ├── OperationLog (操作日志)
+  ├── Period (期间管理)
+  └── AuditLog (审计日志-保留兼容)
 ```
 
 ### 4.2 核心表结构
@@ -508,6 +556,7 @@ Tenant (租户)
 | tenant_id | INTEGER FK | 所属租户 |
 | name | VARCHAR(100) | 部门名称 |
 | leader | VARCHAR(50) | 负责人 |
+| visible | BOOLEAN | 是否在前端筛选显示（管理部/深圳业务中心/运营部=false） |
 | sort_order | INTEGER | 排序序号 |
 | created_at | DATETIME | 创建时间 |
 
@@ -536,34 +585,98 @@ Tenant (租户)
 | sort_order | INTEGER | 排序序号 |
 | created_at | DATETIME | 创建时间 |
 
-#### sales_width (产品宽度销售数据表)
+#### width_records (产品宽度 - 模板对齐)
 
-| 字段 | 类型 | 说明 |
+对应导入模板「规上用户-产品宽度」(36列) / 「规上客户-产品宽度」(35列)
+
+| 字段 | 类型 | 模板列映射 |
 |------|------|------|
-| id | INTEGER PK | 自增主键 |
-| tenant_id | INTEGER FK | 所属租户 |
-| period | VARCHAR(7) | 期间（如 2026-07） |
-| customer_name | VARCHAR(200) | 客户名称（售达方） |
-| user_name | VARCHAR(200) | 最终用户名称 |
-| dept_id | INTEGER FK | 所属部门 |
-| group_id | INTEGER FK | 所属小组 |
-| owner_id | INTEGER FK | 负责销售人员 |
-| product_id | INTEGER FK | 产品 |
-| amount | FLOAT | 销售额（万元） |
-| amount_prev | FLOAT | 同期销售额（万元） |
-| qty | FLOAT | 数量 |
-| qty_prev | FLOAT | 同期数量 |
-| is_regulated | BOOLEAN | 是否规上客户 |
+| id | INTEGER PK | — |
+| tenant_id | INTEGER FK | — |
+| record_type | VARCHAR(10) | 'user' / 'cust' |
+| siebel | VARCHAR(50) | siebel编码 |
+| industry | VARCHAR(100) | 最终用户-行业 → 用户行业 |
+| name | VARCHAR(200) | 最终用户(user) / 售达方描述(客户)(cust) |
+| sales | VARCHAR(50) | 销售 |
+| dept | VARCHAR(100) | 销售部门 → 组名 → 自动推导部门 |
+| guishang | VARCHAR(5) | 是否规上（是/否） |
+| width | INTEGER | 产品线合计 |
+| prods_json | TEXT | 27产品 0/1 JSON |
+| contact | VARCHAR(50) | 接口人 |
+| level | VARCHAR(50) | 用户/客户等级 |
 | created_at | DATETIME | 创建时间 |
 
-#### sales_potential (潜力产品销售数据表)
+#### potential_cust (潜力产品-客户维度)
 
-与 `sales_width` 结构一致，额外包含：
+对应导入模板 Sheet「潜力产品-客户」(21列)，30字段（含解析列）
 
-| 字段 | 类型 | 说明 |
+| 字段 | 类型 | 模板列映射 |
 |------|------|------|
-| opps | INTEGER | 商机数 |
-| opps_prev | INTEGER | 同期商机数 |
+| id | INTEGER PK | — |
+| tenant_id | INTEGER FK | — |
+| period | VARCHAR(7) | 期间 |
+| dept2 | VARCHAR(100) | 二级部门/业务中心 |
+| dept3 | VARCHAR(100) | 三级部门/大部门 → **部门** |
+| dept4 | VARCHAR(100) | 四级部门/团队小组 |
+| dept5 | VARCHAR(100) | 五级部门 → **组** |
+| group_name | VARCHAR(100) | 解析后组名（五级→四级→部门） |
+| dept_name | VARCHAR(100) | 解析后部门名 |
+| sales | VARCHAR(50) | 销售雇员 |
+| contact | VARCHAR(50) | 对接人 → **接口人** |
+| product | VARCHAR(100) | 潜力产品 |
+| product_id | INTEGER FK | FK→products(可选) |
+| cust_name | VARCHAR(200) | 售达方名称 → **客户名称** |
+| user_name | VARCHAR(200) | 最终用户 |
+| amount | FLOAT | 销售额(万) |
+| amount_prev | FLOAT | 同期销售额(万) |
+| yoy | VARCHAR(20) | 同比 |
+| qty | INTEGER | 销售数量 |
+| qty_prev | INTEGER | 同期销售数量 |
+| qty_yoy | VARCHAR(20) | 销售数量同比 |
+| opps | INTEGER | 交易商机数 |
+| opps_prev | INTEGER | 交易商机数同期 |
+| opps_yoy | VARCHAR(20) | 交易商机数同比 |
+| users | INTEGER | 交易用户数 |
+| users_prev | INTEGER | 交易用户数-同期 |
+| users_yoy | VARCHAR(20) | 用户数同比 |
+| created_at | DATETIME | 创建时间 |
+
+#### potential_user (潜力产品-用户维度)
+
+对应导入模板 Sheet「潜力产品-用户」(23列)，30字段
+
+| 字段 | 类型 | 模板列映射 |
+|------|------|------|
+| id | INTEGER PK | — |
+| tenant_id | INTEGER FK | — |
+| period | VARCHAR(7) | 期间 |
+| center | VARCHAR(100) | 业务中心 |
+| dept3 | VARCHAR(100) | 部门/大部门 → **部门** |
+| dept4 | VARCHAR(100) | 团队小组 |
+| dept5 | VARCHAR(100) | 四级部门 |
+| group_name | VARCHAR(100) | 解析后组名 |
+| dept_name | VARCHAR(100) | 解析后部门名 |
+| contact | VARCHAR(50) | 对接人 → 接口人 |
+| user_name | VARCHAR(200) | 最终用户名称 → **用户名称** |
+| industry | VARCHAR(50) | 行业 |
+| product | VARCHAR(100) | 潜力产品 |
+| product_id | INTEGER FK | FK→products(可选) |
+| out_amt | FLOAT | 产品出库额(万) |
+| out_amt_prev | FLOAT | 产品出库额同期 |
+| out_yoy | FLOAT | 产品出库额同比 |
+| out_qty | INTEGER | 销售数量 |
+| out_qty_prev | INTEGER | 销售数量同期 |
+| out_qty_yoy | FLOAT | 销售数量同比 |
+| opps | INTEGER | 交易商机数 |
+| opps_prev | INTEGER | 交易商机数同期 |
+| opps_yoy | FLOAT | 交易商机数同比 |
+| users | INTEGER | 交易用户数 |
+| users_prev | INTEGER | 交易用户数同期 |
+| users_yoy | FLOAT | 交易用户数同比 |
+| custs | INTEGER | 交易客户数 |
+| custs_prev | INTEGER | 交易客户数同期 |
+| custs_yoy | FLOAT | 交易客户数同比 |
+| created_at | DATETIME | 创建时间 |
 
 #### import_records (导入记录表)
 
@@ -573,13 +686,51 @@ Tenant (租户)
 | tenant_id | INTEGER FK | 所属租户 |
 | user_id | INTEGER FK | 导入操作人 |
 | file_name | VARCHAR(200) | 文件名 |
-| data_type | VARCHAR(50) | 数据类型 (width_user/width_cust/potential_user/potential_cust) |
+| data_type | VARCHAR(50) | width_user / width_cust / potential_cust / potential_user |
 | data_source | VARCHAR(50) | 数据源名称 |
+| target_table | VARCHAR(50) | 写入目标表 |
 | row_count | INTEGER | 导入行数 |
 | status | VARCHAR(20) | success/failed |
 | created_at | DATETIME | 导入时间 |
 
-#### audit_logs (审计日志表)
+#### role_permissions (角色权限配置表)
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | 自增主键 |
+| tenant_id | INTEGER FK | 所属租户 |
+| role | VARCHAR(30) UNIQUE | 角色编码 |
+| role_name | VARCHAR(50) | 角色名称 |
+| overview | BOOLEAN | 数据总览 |
+| width | BOOLEAN | 产品宽度分析 |
+| potential | BOOLEAN | 潜力产品分析 |
+| users_mgmt | BOOLEAN | 用户管理 |
+| roles_mgmt | BOOLEAN | 角色权限管理 |
+| products_mgmt | BOOLEAN | 产品字典管理 |
+| audit_log | BOOLEAN | 审计日志查看 |
+| backup | BOOLEAN | 备份导出 |
+| import_data | BOOLEAN | 数据导入 |
+| export_data | BOOLEAN | 数据导出 |
+| data_scope | VARCHAR(20) | 数据范围: all/dept/group/self |
+| created_at | DATETIME | 创建时间 |
+
+#### operation_logs (操作日志表)
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | INTEGER PK | 自增主键 |
+| tenant_id | INTEGER FK | 所属租户 |
+| user_id | INTEGER FK | 操作用户 |
+| username | VARCHAR(50) | 用户名 |
+| action | VARCHAR(50) | login/import/query/export/update/delete/create |
+| module | VARCHAR(50) | width/potential/admin/auth |
+| target | VARCHAR(200) | 操作目标 |
+| detail | VARCHAR(500) | 详情 |
+| ip | VARCHAR(50) | IP地址 |
+| status | VARCHAR(20) | success/failed |
+| created_at | DATETIME | 操作时间 |
+
+#### audit_logs (审计日志表) — 保留兼容
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -611,8 +762,8 @@ $$覆盖率 = 购买该产品的客户数 ÷ 总客户数 × 100\%$$
 
 ### 5.4 潜力产品 (Potential Products)
 
-被标记为重点推广的 **16 个核心产品品类**：
-平台软件、NVR、智能计算、IPC、门禁、智能交通、存储、LCD与解码、行业软件、网络产品、服务器、专网摄像机、通用软件、新业务、出入口停车、音频产品
+被标记为重点推广的 **11 个核心产品品类**：
+观澜编码产品（非大模型）、出入口停车、前端大模型、网络产品、后端大模型（文搜&多模态）、人员通道、会议平板与视频会议、国密产品、执法记录仪、物联安全、音频产品
 
 ### 5.5 产品品类体系 (27个常规品类)
 
@@ -772,35 +923,55 @@ $$Lift(A→B) = P(B|A) ÷ P(B)$$
 
 ### A. 产品字典（完整清单）
 
-| ID | 产品名称 | 分类 | 潜力产品 |
-|----|----------|------|----------|
-| — | IPC | 前端 | ✅ |
-| — | NVR | 后端 | ✅ |
-| — | 门禁 | 前端 | ✅ |
-| — | 球机 | 前端 | ❌ |
-| — | LCD与解码 | 显示 | ✅ |
-| — | 新业务 | 创新 | ✅ |
-| — | 通用软件 | 软件 | ✅ |
-| — | 网络产品 | 网络 | ✅ |
-| — | 存储 | 后端 | ✅ |
-| — | 专用摄像机 | 前端 | ✅ |
-| — | 服务器 | 后端 | ✅ |
-| — | 行业软件 | 软件 | ✅ |
-| — | 智能计算 | 后端 | ✅ |
-| — | 对讲 | 前端 | ❌ |
-| — | 报警 | 前端 | ❌ |
-| — | 出入口停车 | 前端 | ✅ |
-| — | 人员通道 | 前端 | ❌ |
-| — | 音频产品 | 前端 | ✅ |
-| — | PCP产品 | 后端 | ❌ |
-| — | LED与拼控 | 显示 | ❌ |
-| — | 移动终端产品 | 前端 | ❌ |
-| — | 智能交通 | 前端 | ✅ |
-| — | 智慧屏与视频会议 | 显示 | ❌ |
-| — | 综合布线与机柜 | 网络 | ❌ |
-| — | 基础软件 | 软件 | ❌ |
-| — | 网络安全 | 网络 | ❌ |
-| — | 传感产品 | 前端 | ❌ |
+#### 产品宽度品类（27个，来源：导入模板 cols 7-33）
+
+| 序号 | 品类 | 分类 |
+|:--:|------|------|
+| 1 | IPC | 前端 |
+| 2 | 球机 | 前端 |
+| 3 | 专用摄像机 | 前端 |
+| 4 | 服务器 | 后端 |
+| 5 | 网络产品 | 网络 |
+| 6 | PC产品 | 后端 |
+| 7 | NVR | 后端 |
+| 8 | 存储 | 后端 |
+| 9 | LED拼控 | 显示 |
+| 10 | LCD解码 | 显示 |
+| 11 | 智能交通 | 前端 |
+| 12 | 移动终端产品 | 前端 |
+| 13 | 出入口停车 | 前端 |
+| 14 | 门禁 | 前端 |
+| 15 | 对讲 | 前端 |
+| 16 | 人员通道 | 前端 |
+| 17 | 报警 | 前端 |
+| 18 | 音频产品 | 前端 |
+| 19 | 传感产品 | 前端 |
+| 20 | 智慧屏与视频会议 | 显示 |
+| 21 | 通用软件 | 软件 |
+| 22 | 行业软件 | 软件 |
+| 23 | 基础软件 | 软件 |
+| 24 | 新业务(热成像/睿影/消防等) | 创新 |
+| 25 | 网络安全 | 网络 |
+| 26 | 综合布线与机柜机房 | 网络 |
+| 27 | 智能计算 | 后端 |
+
+#### 潜力产品品类（11个，来源：导入模板「潜力产品」列）
+
+| 序号 | 品类 | 分类 |
+|:--:|------|------|
+| 1 | 观澜编码产品（非大模型） | 软件 |
+| 2 | 出入口停车 | 前端 |
+| 3 | 前端大模型 | 软件 |
+| 4 | 网络产品 | 网络 |
+| 5 | 后端大模型（文搜&多模态） | 软件 |
+| 6 | 人员通道 | 前端 |
+| 7 | 会议平板与视频会议 | 显示 |
+| 8 | 国密产品 | 网络 |
+| 9 | 执法记录仪 | 前端 |
+| 10 | 物联安全 | 网络 |
+| 11 | 音频产品 | 前端 |
+
+> 注：出入口停车、网络产品、人员通道、音频产品 同时出现在产品宽度和潜力产品中，属于共享产品。
 
 ### B. 版本历史
 
