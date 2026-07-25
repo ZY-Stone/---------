@@ -308,6 +308,8 @@ App.ImportData.handleUpload = function(input) {
         try { App.updateOverview(); } catch(e) {}
       }
       App.ImportData.saveToHistory(file.name);
+      // 重建派生数据（团队矩阵、产品列表等从导入数据动态生成）
+      try { App.Data.rebuildDerived(); } catch(e) { console.warn('rebuildDerived failed:', e); }
       // 持久化数据到 localStorage
       try { localStorage.setItem('pa_width_cust', JSON.stringify(App.ImportData.CustGS)); } catch(e) { console.warn('localStorage 保存 CustGS 失败 (可能配额已满):', e.message); }
       try { localStorage.setItem('pa_width_user', JSON.stringify(App.ImportData.UserGS)); } catch(e) { console.warn('localStorage 保存 UserGS 失败 (可能配额已满):', e.message); }

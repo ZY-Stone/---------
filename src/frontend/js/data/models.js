@@ -857,3 +857,36 @@ App.ImportPotential.getProducts = function() {
   data.forEach(function(r) { set[r.product] = true; });
   return Object.keys(set).sort();
 };
+
+// ===== 导入后动态重建派生数据（所有硬编码 → 导入数据驱动）=====
+App.Data.rebuildDerived = function() {
+  var raw = App.ImportPotential.CustRAW || [];
+  if (raw.length > 0) {
+    // 重建 WidthTeamMatrix.RAW
+    var agg = {};
+    raw.forEach(function(r) {
+      var team = r.dept4 || r.dept3 || '';
+      var prod = r.product || '';
+      if (!team || !prod) return;
+      var key = team + '|' + prod;
+      if (!agg[key]) agg[key] = { team: team, product: prod, amount: 0, amountPrev: 0 };
+      agg[key].amount += r.amount || 0;
+      agg[key].amountPrev += r.amountPrev || 0;
+    });
+    var result = Object.values(agg);
+    if (result.length > 0) {
+      App.WidthTeamMatrix.RAW = result;
+      var ps = {}; result.forEach(function(r) { ps[r.product] = true; });
+      App.WidthTeamMatrix.PRODUCTS = Object.keys(ps);
+      App.ImportPotential.PRODUCTS = App.WidthTeamMatrix.PRODUCTS;
+    }
+    // 更新 ALL_POT_PRODUCTS
+    var potSet = {};
+    raw.forEach(function(r) { if (r.product) potSet[r.product] = true; });
+    App.ALL_POT_PRODUCTS = Object.keys(potSet);
+  }
+  // 触发全平台刷新
+  try { App.updateWidth(); } catch(e) {}
+  try { App.updatePotential(); } catch(e) {}
+  try { App.updateOverview(); } catch(e) {}
+};

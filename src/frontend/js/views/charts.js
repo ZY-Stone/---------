@@ -861,7 +861,7 @@ var pcCanvas=document.getElementById('chart-p-composition'); App.charts.potCompo
       });
     }
   }]
-});
+}) : null;
 
 // ===== 14. 潜力产品本期销售额趋势 (12月×12产品线) =====
 (function() {
@@ -932,7 +932,7 @@ var pqCanvas=document.getElementById('chart-p-quadrant'); App.charts.potQuadrant
       ctx.restore();
     }
   }]
-});
+}) : null;
 
 // ===== 16. 潜力产品: 二级部门销售排名 (水平柱图) =====
 (function() {
@@ -1107,7 +1107,7 @@ App.charts.pGapCombined = gapCombinedCanvas ? new Chart(gapCombinedCanvas, {
         ctx.restore();
       }
     }]
-  });
+  }) : null;
 
   // ===== 19. 潜力产品·产品维度 — 多品类趋势对比折线图 =====
   var ptcCanvas=document.getElementById('chart-p-trend-compare'); App.charts.potTrendCompare = ptcCanvas ? new Chart(ptcCanvas, {

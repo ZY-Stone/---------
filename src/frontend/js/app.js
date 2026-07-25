@@ -4943,6 +4943,8 @@ App.ImportPotential.handleUpload = function(input) {
         }
       }
       App.ImportPotential.render();
+      // 导入后重建派生数据并全链路刷新
+      try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
       alert('✅ 导入成功！客户 ' + (App.ImportPotential.CustRAW.length) + ' 条，用户 ' + (App.ImportPotential.UserRAW.length) + ' 条');
     } catch(err) {
       alert('❌ 文件解析失败：' + err.message);
