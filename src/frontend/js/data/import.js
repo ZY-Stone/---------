@@ -6,27 +6,64 @@ App.ImportData.shortProds = App.ImportData.PRODS.map(function(p) { return p.leng
 
 App.ImportData.history = [];
 App.ImportData.init = function() {
-  App.ImportData.syncFromRaw();
-  App.ImportData.updateTags();
-  App.ImportData.renderHistory();
-  App.ImportData.render();
+  App.ImportData.loadHistory();
+  // 从后端 API 拉取已导入数据
+  fetch('/api/import/width-records?type=user').then(function(r) { return r.json(); }).then(function(data) {
+    if (data.rows && data.rows.length > 0) {
+      App.ImportData.UserGS = data.rows.map(function(r) {
+        return { user: r.name, siebel: r.siebel, industry: r.industry, sales: r.sales, dept: r.dept, guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level };
+      });
+    }
+  }).catch(function(){}).finally(function() {
+    return fetch('/api/import/width-records?type=cust').then(function(r) { return r.json(); }).then(function(data) {
+      if (data.rows && data.rows.length > 0) {
+        App.ImportData.CustGS = data.rows.map(function(r) {
+          return { name: r.name, siebel: r.siebel, sales: r.sales, dept: r.dept, guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level };
+        });
+      }
+    }).catch(function(){});
+  }).finally(function() {
+    App.ImportData.syncToRaw();
+    App.ImportData.updateTags();
+    App.ImportData.renderHistory();
+    App.ImportData.render();
+    try { App.updateWidth(); } catch(e) {}
+    try { App.updatePotential(); } catch(e) {}
+    try { App.updateOverview(); } catch(e) {}
+  });
 };
 
-// 保存快照到历史
+// 保存快照到历史（元数据存 localStorage，数据在后端 DB）
 App.ImportData.saveToHistory = function(fileName) {
   var now = new Date();
   var ds = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2) + ' ' + ('0'+now.getHours()).slice(-2) + ':' + ('0'+now.getMinutes()).slice(-2);
-  App.ImportData.history.unshift({
+  var entry = {
     id: Date.now(), file: fileName || '手动快照', time: ds,
     userCount: (App.ImportData.UserGS || []).length,
     custCount: (App.ImportData.CustGS || []).length,
     total: (App.ImportData.UserGS || []).length + (App.ImportData.CustGS || []).length,
-    person: '当前用户',
-    userSnap: JSON.parse(JSON.stringify(App.ImportData.UserGS || [])),
-    custSnap: JSON.parse(JSON.stringify(App.ImportData.CustGS || []))
-  });
+    person: '当前用户'
+  };
+  App.ImportData.history.unshift(entry);
   if (App.ImportData.history.length > 20) App.ImportData.history = App.ImportData.history.slice(0, 20);
+  // 持久化历史元数据（只有文件名、时间、条数，无销售数据）
+  try {
+    var meta = App.ImportData.history.map(function(h) {
+      return {id:h.id, file:h.file, time:h.time, userCount:h.userCount, custCount:h.custCount, total:h.total, person:h.person};
+    });
+    localStorage.setItem('pa_width_history', JSON.stringify(meta));
+  } catch(e) {}
   App.ImportData.renderHistory();
+};
+
+// 从 localStorage 恢复历史元数据
+App.ImportData.loadHistory = function() {
+  try {
+    var saved = localStorage.getItem('pa_width_history');
+    if (saved) {
+      App.ImportData.history = JSON.parse(saved);
+    }
+  } catch(e) {}
 };
 
 // 渲染历史列表
@@ -220,26 +257,33 @@ App.ImportData.handleUpload = function(input) {
 
         if (hasUser && !foundUser) {
           foundUser = true;
-          // Schema探测：自动匹配表头→逻辑字段
           try { App.Field.detectSchema(hd, 'width.user'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'user');
-          var em = {}; App.ImportData.UserGS.forEach(function(r) { em[r.user] = r; });
+          // 按 siebel编码 去重（唯一标识）
+          var em = {}; App.ImportData.UserGS.forEach(function(r) { em[r.siebel] = r; });
           j.slice(1).forEach(function(row) {
-            var nm = String(row[col.user] || '').trim(); if (!nm) return;
-            var e = { user: nm, siebel: String(row[col.siebel] || '').trim(), industry: String(row[col.industry] || '').trim(), sales: String(row[col.sales] || '').trim(), dept: String(row[col.dept] || '').trim(), guishang: String(row[col.guishang] || '').indexOf('是') >= 0 ? '是' : '否', width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
+            var siebel = String(row[col.siebel] || '').trim();
+            var nm = String(row[col.user] || '').trim();
+            if (!siebel && !nm) return;
+            var key = siebel || nm;
+            var e = { user: nm, siebel: siebel, industry: String(row[col.industry] || '').trim(), sales: String(row[col.sales] || '').trim(), dept: String(row[col.dept] || '').trim(), guishang: String(row[col.guishang] || '').indexOf('是') >= 0 ? '是' : '否', width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
-            if (em[nm]) { uu++; Object.assign(em[nm], e); } else { nu++; App.ImportData.UserGS.push(e); }
+            if (em[key]) { uu++; Object.assign(em[key], e); } else { nu++; App.ImportData.UserGS.push(e); em[key] = e; }
           });
         } else if (hasCust && !foundCust) {
           foundCust = true;
           try { App.Field.detectSchema(hd, 'width.cust'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'cust');
-          var em = {}; App.ImportData.CustGS.forEach(function(r) { em[r.name] = r; });
+          // 按 siebel编码 去重（唯一标识）
+          var em = {}; App.ImportData.CustGS.forEach(function(r) { em[r.siebel] = r; });
           j.slice(1).forEach(function(row) {
-            var nm = String(row[col.name] || '').trim(); if (!nm) return;
-            var e = { name: nm, siebel: String(row[col.siebel] || '').trim(), sales: String(row[col.sales] || '').trim(), dept: String(row[col.dept] || '').trim(), guishang: String(row[col.guishang] || '').indexOf('是') >= 0 ? '是' : '否', width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
+            var siebel = String(row[col.siebel] || '').trim();
+            var nm = String(row[col.name] || '').trim();
+            if (!siebel && !nm) return;
+            var key = siebel || nm;
+            var e = { name: nm, siebel: siebel, sales: String(row[col.sales] || '').trim(), dept: String(row[col.dept] || '').trim(), guishang: String(row[col.guishang] || '').indexOf('是') >= 0 ? '是' : '否', width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
-            if (em[nm]) { uc++; Object.assign(em[nm], e); } else { nc++; App.ImportData.CustGS.push(e); }
+            if (em[key]) { uc++; Object.assign(em[key], e); } else { nc++; App.ImportData.CustGS.push(e); em[key] = e; }
           });
         }
       });

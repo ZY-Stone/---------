@@ -4893,18 +4893,29 @@ App.API.sendPotUser = async function(rows) {
 App.ImportPotential = App.ImportPotential || {};
 
 App.ImportPotential.init = function() {
-  var deptSel = document.getElementById('pImportDeptFilter');
-  if (deptSel) {
-    var depts = App.ImportPotential.getDepts();
-    deptSel.innerHTML = '<option value="">全部部门</option>' + depts.map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join('');
-  }
-  var prodSel = document.getElementById('pImportProdFilter');
-  if (prodSel) {
-    var prods = App.ImportPotential.getProducts();
-    prodSel.innerHTML = '<option value="">全部产品</option>' + prods.map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
-  }
-  App.ImportPotential.render();
-  App.ImportPotential.renderHistory();
+  App.ImportPotential.loadHistory();
+  // 从后端 API 拉取已导入数据
+  fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
+    if (d.rows && d.rows.length > 0) App.ImportPotential.CustRAW = d.rows;
+  }).catch(function(){}).finally(function(){
+    return fetch('/api/import/potential-user').then(function(r){return r.json();}).then(function(d){
+      if (d.rows && d.rows.length > 0) App.ImportPotential.UserRAW = d.rows;
+    }).catch(function(){});
+  }).finally(function(){
+    var deptSel = document.getElementById('pImportDeptFilter');
+    if (deptSel) {
+      var depts = App.ImportPotential.getDepts();
+      deptSel.innerHTML = '<option value=\"\">全部部门</option>' + depts.map(function(d) { return '<option value=\"' + d + '\">' + d + '</option>'; }).join('');
+    }
+    var prodSel = document.getElementById('pImportProdFilter');
+    if (prodSel) {
+      var prods = App.ImportPotential.getProducts();
+      prodSel.innerHTML = '<option value=\"\">全部产品</option>' + prods.map(function(p) { return '<option value=\"' + p + '\">' + p + '</option>'; }).join('');
+    }
+    App.ImportPotential.render();
+    App.ImportPotential.renderHistory();
+    try { App.Data.rebuildDerived(); } catch(e) {}
+  });
 };
 
 App.ImportPotential.switchDS = function(ds) {
@@ -5042,25 +5053,60 @@ App.ImportPotential.handleUpload = function(input) {
         }
       }
       console.log('[潜力导入] 解析完成: 客户', App.ImportPotential.CustRAW.length, '条, 用户', App.ImportPotential.UserRAW.length, '条');
+
+      // ── 合并去重：按 客户名+产品 / 用户名+产品 去重更新 ──
+      var custIdx = {}, custN = 0, custU = 0;
+      var prevCust = App.ImportPotential.CustRAW || [];
+      prevCust.forEach(function(r, i) { custIdx[(r.custName||'') + '|' + (r.product||'')] = i; });
+      var newCustRows = App.ImportPotential.CustRAW;
+      var mergedCust = prevCust.slice();
+      newCustRows.forEach(function(r) {
+        var key = (r.custName||'') + '|' + (r.product||'');
+        if (custIdx[key] !== undefined) { mergedCust[custIdx[key]] = r; custU++; }
+        else { mergedCust.push(r); custN++; custIdx[key] = mergedCust.length - 1; }
+      });
+      App.ImportPotential.CustRAW = mergedCust;
+
+      var userIdx = {}, userN = 0, userU = 0;
+      var prevUser = App.ImportPotential.UserRAW || [];
+      prevUser.forEach(function(r, i) { userIdx[(r.userName||'') + '|' + (r.product||'')] = i; });
+      var newUserRows = App.ImportPotential.UserRAW;
+      var mergedUser = prevUser.slice();
+      newUserRows.forEach(function(r) {
+        var key = (r.userName||'') + '|' + (r.product||'');
+        if (userIdx[key] !== undefined) { mergedUser[userIdx[key]] = r; userU++; }
+        else { mergedUser.push(r); userN++; userIdx[key] = mergedUser.length - 1; }
+      });
+      App.ImportPotential.UserRAW = mergedUser;
+
       // 发送到后端数据库
-      var custRows = App.ImportPotential.CustRAW, userRows = App.ImportPotential.UserRAW;
       Promise.all([
-        custRows.length > 0 ? App.API.sendPotCust(custRows) : Promise.resolve(null),
-        userRows.length > 0 ? App.API.sendPotUser(userRows) : Promise.resolve(null)
+        newCustRows.length > 0 ? App.API.sendPotCust(newCustRows) : Promise.resolve(null),
+        newUserRows.length > 0 ? App.API.sendPotUser(newUserRows) : Promise.resolve(null)
       ]).then(function() {
         console.log('[潜力导入] 后端保存成功');
-        // 数据已存入后端 DB，清空前端内存
-        App.ImportPotential.CustRAW = custRows;
-        App.ImportPotential.UserRAW = userRows;
         App.ImportPotential.render();
         App.ImportPotential.saveToHistory(file.name);
         try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
-        alert('✅ 导入成功！客户 ' + custRows.length + ' 条，用户 ' + userRows.length + ' 条（已同步后端数据库）');
+        var msg = '导入完成! 文件: ' + file.name;
+        msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
+        if (!custSheet) msg += '\n  ⚠ 未找到客户sheet';
+        msg += '\n潜力产品-用户: 新增' + userN + ' / 更新' + userU + '（共' + mergedUser.length + '）';
+        if (!userSheet) msg += '\n  ⚠ 未找到用户sheet';
+        msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
+        msg += '\n\n✅ 已同步后端数据库';
+        alert(msg);
       }).catch(function(err) {
         console.error('[潜力导入] 后端保存失败:', err);
-        // 后端失败时仍保留前端内存数据供临时查看
         App.ImportPotential.render();
-        alert('⚠️ 后端保存失败：' + err.message + '\n\n数据仅在前端内存中，刷新后消失。');
+        var msg = '导入完成! 文件: ' + file.name;
+        msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
+        if (!custSheet) msg += '\n  ⚠ 未找到客户sheet';
+        msg += '\n潜力产品-用户: 新增' + userN + ' / 更新' + userU + '（共' + mergedUser.length + '）';
+        if (!userSheet) msg += '\n  ⚠ 未找到用户sheet';
+        msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
+        msg += '\n\n⚠️ 后端保存失败：' + err.message + '\n数据仅在前端内存中，刷新后消失。';
+        alert(msg);
       });
     } catch(err) {
       console.error('[潜力导入] 解析失败:', err);
@@ -5076,17 +5122,29 @@ App.ImportPotential.history = [];
 App.ImportPotential.saveToHistory = function(fileName) {
   var now = new Date();
   var ds = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2) + ' ' + ('0'+now.getHours()).slice(-2) + ':' + ('0'+now.getMinutes()).slice(-2);
-  App.ImportPotential.history.unshift({
+  var entry = {
     id: Date.now(), file: fileName || '手动快照', time: ds,
     custCount: (App.ImportPotential.CustRAW || []).length,
     userCount: (App.ImportPotential.UserRAW || []).length,
     total: (App.ImportPotential.CustRAW || []).length + (App.ImportPotential.UserRAW || []).length,
-    person: '当前用户',
-    custSnap: JSON.parse(JSON.stringify(App.ImportPotential.CustRAW || [])),
-    userSnap: JSON.parse(JSON.stringify(App.ImportPotential.UserRAW || []))
-  });
+    person: '当前用户'
+  };
+  App.ImportPotential.history.unshift(entry);
   if (App.ImportPotential.history.length > 20) App.ImportPotential.history = App.ImportPotential.history.slice(0, 20);
+  // 持久化历史元数据
+  try {
+    var meta = App.ImportPotential.history.map(function(h) {
+      return {id:h.id, file:h.file, time:h.time, custCount:h.custCount, userCount:h.userCount, total:h.total, person:h.person};
+    });
+    localStorage.setItem('pa_potential_history', JSON.stringify(meta));
+  } catch(e) {}
   App.ImportPotential.renderHistory();
+};
+App.ImportPotential.loadHistory = function() {
+  try {
+    var saved = localStorage.getItem('pa_potential_history');
+    if (saved) App.ImportPotential.history = JSON.parse(saved);
+  } catch(e) {}
 };
 App.ImportPotential.renderHistory = function() {
   var tbody = document.getElementById('pImportHistoryTable');

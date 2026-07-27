@@ -73,6 +73,7 @@ class PotentialUser(Base):
     dept5: Mapped[str] = mapped_column(String(100), default="", comment="四级部门(五级等效)")
     group_name: Mapped[str] = mapped_column(String(100), default="", comment="解析后的组名")
     dept_name: Mapped[str] = mapped_column(String(100), default="", comment="解析后的部门名")
+    sales: Mapped[str] = mapped_column(String(50), default="", comment="负责销售")
     contact: Mapped[str] = mapped_column(String(50), default="", comment="对接人")
     user_name: Mapped[str] = mapped_column(String(200), comment="最终用户名称")
     industry: Mapped[str] = mapped_column(String(50), default="", comment="行业")
