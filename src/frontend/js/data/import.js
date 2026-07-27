@@ -6,12 +6,7 @@ App.ImportData.shortProds = App.ImportData.PRODS.map(function(p) { return p.leng
 
 App.ImportData.history = [];
 App.ImportData.init = function() {
-  var savedCust = localStorage.getItem('pa_width_cust');
-  var savedUser = localStorage.getItem('pa_width_user');
-  var hasRestored = false;
-  if (savedCust) { try { App.ImportData.CustGS = JSON.parse(savedCust); hasRestored = true; } catch(e) {} }
-  if (savedUser) { try { App.ImportData.UserGS = JSON.parse(savedUser); hasRestored = true; } catch(e) {} }
-  if (!hasRestored) { App.ImportData.syncFromRaw(); }
+  App.ImportData.syncFromRaw();
   App.ImportData.updateTags();
   App.ImportData.renderHistory();
   App.ImportData.render();
@@ -100,9 +95,6 @@ App.ImportData.resetAll = function() {
     App.ImportPotential.CustRAW = [];
     App.ImportPotential.UserRAW = [];
   }
-  // 清空 localStorage
-  var keys = ['pa_width_cust', 'pa_width_user', 'pa_import_cust', 'pa_import_user'];
-  keys.forEach(function(k) { try { localStorage.removeItem(k); } catch(e) {} });
   // 刷新所有视图
   App.ImportData.renderHistory();
   App.ImportData.updateTags();
@@ -302,17 +294,23 @@ App.ImportData.handleUpload = function(input) {
       try { App.updateOverview(); } catch(e) {}
       try { App.renderWidthUserTab(); } catch(e) {}
       try { App.renderWidthProblemDiag(); } catch(e) {}
-      // 同步触发潜力产品刷新
       if (potMatrix.length > 0) {
         try { App.updatePotential(); } catch(e) {}
         try { App.updateOverview(); } catch(e) {}
       }
       App.ImportData.saveToHistory(file.name);
-      // 重建派生数据（团队矩阵、产品列表等从导入数据动态生成）
       try { App.Data.rebuildDerived(); } catch(e) { console.warn('rebuildDerived failed:', e); }
-      // 持久化数据到 localStorage
-      try { localStorage.setItem('pa_width_cust', JSON.stringify(App.ImportData.CustGS)); } catch(e) { console.warn('localStorage 保存 CustGS 失败 (可能配额已满):', e.message); }
-      try { localStorage.setItem('pa_width_user', JSON.stringify(App.ImportData.UserGS)); } catch(e) { console.warn('localStorage 保存 UserGS 失败 (可能配额已满):', e.message); }
+
+      // 发送到后端数据库
+      var userApiRows = App.ImportData.UserGS.map(function(r) {
+        return {user: r.user, siebel: r.siebel||'', industry: r.industry||'', sales: r.sales||'', dept: r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
+      });
+      var custApiRows = App.ImportData.CustGS.map(function(r) {
+        return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
+      });
+      var apiCalls = [];
+      if (userApiRows.length > 0) apiCalls.push(App.API.sendWidth(userApiRows, 'user'));
+      if (custApiRows.length > 0) apiCalls.push(App.API.sendWidth(custApiRows, 'cust'));
       var msg = '导入完成! 文件: ' + file.name;
       msg += '\n\n规上用户: 新增' + nu + ' / 更新' + uu + '（共' + App.ImportData.UserGS.length + '）';
       if (!foundUser) msg += '\n  ⚠ 未找到用户sheet';
@@ -320,7 +318,15 @@ App.ImportData.handleUpload = function(input) {
       if (potMatrix.length > 0) msg += '\n\n潜力产品: ' + potMatrix.length + ' 条（团队×产品矩阵）';
       if (!foundCust) msg += '\n  ⚠ 未找到客户sheet';
       msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
-      alert(msg);
+      if (apiCalls.length > 0) {
+        Promise.all(apiCalls).then(function() {
+          alert(msg + '\n\n✅ 已同步后端数据库');
+        }).catch(function(err) {
+          alert(msg + '\n\n⚠️ 后端保存失败：' + err.message + '\n数据仅在前端内存中，刷新后消失。');
+        });
+      } else {
+        alert(msg);
+      }
     } catch(err) { alert('解析失败: ' + err.message); }
   };
   reader.readAsArrayBuffer(file);

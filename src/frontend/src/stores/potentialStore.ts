@@ -349,7 +349,6 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
         const h = { id: Date.now(), file: file.name, time: now.toLocaleString('zh-CN'), custCount: prevC.length, userCount: prevU.length, custSnap: JSON.parse(JSON.stringify(get().custRAW)), userSnap: JSON.parse(JSON.stringify(get().userRAW)) };
 
         set({ custRAW: prevC, userRAW: prevU, ...computed, history: [h, ...prevH].slice(0, 20), loading: false });
-        try { localStorage.setItem('pa_import_pot_cust', JSON.stringify(prevC)); localStorage.setItem('pa_import_pot_user', JSON.stringify(prevU)); } catch { /* quota */ }
         resolve({ custN, userN: userRows.length });
       } catch (err) { set({ loading: false }); reject(err); }
     };
@@ -359,19 +358,9 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
   resetAll: () => {
     const empty = recompute([], []);
     set({ custRAW: [], userRAW: [], history: [], ...empty });
-    ['pa_import_pot_cust', 'pa_import_pot_user'].forEach(k => { try { localStorage.removeItem(k); } catch { /* */ } });
   },
 
-  restoreLS: () => {
-    try {
-      const c = localStorage.getItem('pa_import_pot_cust'), u = localStorage.getItem('pa_import_pot_user');
-      if (c || u) {
-        const custRAW: PotCustRow[] = c ? JSON.parse(c) : [];
-        const userRAW: PotUserRow[] = u ? JSON.parse(u) : [];
-        set({ custRAW, userRAW, ...recompute(custRAW, userRAW) });
-      }
-    } catch { /* corrupted */ }
-  },
+  restoreLS: () => {},
 
   restoreHistory: (idx) => {
     const h = get().history[idx];

@@ -15,6 +15,16 @@ NO_GROUP_DEPTS = {'场景数字化销售部', '大客户销售部'}
 # 运营部门：不参与任何数据统计
 EXCLUDED_DEPTS = {'管理部', '深圳业务中心', '运营部'}
 
+def parse_yoy(val) -> float:
+    """解析同比字符串: '+25%' → 25.0, '-8.5%' → -8.5, '新增' → 0, 0.15 → 0.15"""
+    if val is None: return 0.0
+    if isinstance(val, (int, float)): return float(val)
+    s = str(val).strip()
+    if s == '新增' or s == '': return 0.0
+    s = s.replace('%', '')
+    try: return float(s)
+    except ValueError: return 0.0
+
 def resolve_dept_group(db: Session, dept3: str, dept4: str, dept5: str) -> tuple[str, str]:
     """从部门层级推导 部门名 和 组名"""
     # 1. 先用五级/四级查找 GROUPS 表
@@ -85,7 +95,7 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
 
 @router.post("/potential-user")
 async def import_potential_user(request: Request, db: Session = Depends(get_db)):
-    """批量导入用户维度数据"""
+    """批量导入用户维度数据 v2 — parse_yoy 版本"""
     body = await request.json()
     rows = body.get("rows", [])
     if not rows:
@@ -116,19 +126,19 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
             product_id=products.get(r.get("product", ""), None),
             out_amt=float(r.get("outAmt", 0)),
             out_amt_prev=float(r.get("outAmtPrev", 0)),
-            out_yoy=float(r.get("outYoy", 0)),
+            out_yoy=parse_yoy(r.get("outYoy")),
             out_qty=int(r.get("outQty", 0)),
             out_qty_prev=int(r.get("outQtyPrev", 0)),
-            out_qty_yoy=float(r.get("outQtyYoy", 0)),
+            out_qty_yoy=parse_yoy(r.get("outQtyYoy")),
             opps=int(r.get("opps", 0)),
             opps_prev=int(r.get("oppsPrev", 0)),
-            opps_yoy=float(r.get("oppsYoy", 0)),
+            opps_yoy=parse_yoy(r.get("oppsYoy")),
             users=int(r.get("users", 0)),
             users_prev=int(r.get("usersPrev", 0)),
-            users_yoy=float(r.get("usersYoy", 0)),
+            users_yoy=parse_yoy(r.get("usersYoy")),
             custs=int(r.get("custs", 0)),
             custs_prev=int(r.get("custsPrev", 0)),
-            custs_yoy=float(r.get("custsYoy", 0)),
+            custs_yoy=parse_yoy(r.get("custsYoy")),
         )
         db.add(rec)
         count += 1

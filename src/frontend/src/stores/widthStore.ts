@@ -231,15 +231,14 @@ export const useWidthStore = create<WidthState>((set, get) => ({
         const computed = compute(pc, pu);
         const now = new Date(); const ts = now.toLocaleString('zh-CN');
         set({ userGS: pu, custGS: pc, ...computed, history: [{ id: Date.now(), file: file.name, time: ts, userCount: pu.length, custCount: pc.length, userSnap: JSON.parse(JSON.stringify(pu)), custSnap: JSON.parse(JSON.stringify(pc)) }, ...ph].slice(0, 20), loading: false });
-        try { localStorage.setItem('pa_width_cust', JSON.stringify(pc)); localStorage.setItem('pa_width_user', JSON.stringify(pu)); } catch { /* */ }
         resolve({ nu, nc });
       } catch (err) { set({ loading: false }); reject(err); }
     };
     reader.readAsArrayBuffer(file);
   }),
 
-  resetAll: () => { set({ userGS: [], custGS: [], history: [], ...compute([], []) }); ['pa_width_cust', 'pa_width_user'].forEach(k => { try { localStorage.removeItem(k); } catch { /* */ } }); },
-  restoreLS: () => { try { const c = localStorage.getItem('pa_width_cust'), u = localStorage.getItem('pa_width_user'); if (c || u) { const custGS = c ? JSON.parse(c) : []; const userGS = u ? JSON.parse(u) : []; set({ custGS, userGS, ...compute(custGS, userGS) }); } } catch { /* */ } },
+  resetAll: () => { set({ userGS: [], custGS: [], history: [], ...compute([], []) }); },
+  restoreLS: () => {},
   restoreHistory: (idx) => { const h = get().history[idx]; if (!h) return; const userGS = JSON.parse(JSON.stringify(h.userSnap || [])); const custGS = JSON.parse(JSON.stringify(h.custSnap || [])); set({ userGS, custGS, ...compute(custGS, userGS) }); },
   deleteHistory: (idx) => { const h = [...get().history]; h.splice(idx, 1); set({ history: h }); },
 }));

@@ -4852,6 +4852,43 @@ App.renderSellerPotentialRank = function(state) {
 
 
 
+// ===== 后端 API 通信层 — 数据导入到后端数据库 =====
+App.API = App.API || {};
+App.API.BASE = '/api/import';
+
+// 产品宽度数据 → 后端
+App.API.sendWidth = async function(rows, type) {
+  var resp = await fetch(App.API.BASE + '/width-records', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({rows: rows, type: type})
+  });
+  var data = await resp.json();
+  if (!data.ok) throw new Error(data.message || '导入失败');
+  return data;
+};
+
+// 潜力产品-客户 → 后端
+App.API.sendPotCust = async function(rows) {
+  var resp = await fetch(App.API.BASE + '/potential-cust', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({rows: rows})
+  });
+  var data = await resp.json();
+  if (!data.ok) throw new Error(data.message || '导入失败');
+  return data;
+};
+
+// 潜力产品-用户 → 后端
+App.API.sendPotUser = async function(rows) {
+  var resp = await fetch(App.API.BASE + '/potential-user', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({rows: rows})
+  });
+  var data = await resp.json();
+  if (!data.ok) throw new Error(data.message || '导入失败');
+  return data;
+};
+
 // ===== 潜力产品 — 数据导入与管理 =====
 App.ImportPotential = App.ImportPotential || {};
 
@@ -5005,13 +5042,26 @@ App.ImportPotential.handleUpload = function(input) {
         }
       }
       console.log('[潜力导入] 解析完成: 客户', App.ImportPotential.CustRAW.length, '条, 用户', App.ImportPotential.UserRAW.length, '条');
-      App.ImportPotential.render();
-      App.ImportPotential.saveToHistory(file.name);
-      // 同步到 localStorage，供 React 前端读取
-      try { localStorage.setItem('pa_import_pot_cust', JSON.stringify(App.ImportPotential.CustRAW)); } catch(e) {}
-      try { localStorage.setItem('pa_import_pot_user', JSON.stringify(App.ImportPotential.UserRAW)); } catch(e) {}
-      try { App.Data.rebuildDerived(); } catch(e) { console.warn('[潜力导入] rebuildDerived失败:', e); }
-      alert('✅ 导入成功！客户 ' + (App.ImportPotential.CustRAW.length) + ' 条，用户 ' + (App.ImportPotential.UserRAW.length) + ' 条');
+      // 发送到后端数据库
+      var custRows = App.ImportPotential.CustRAW, userRows = App.ImportPotential.UserRAW;
+      Promise.all([
+        custRows.length > 0 ? App.API.sendPotCust(custRows) : Promise.resolve(null),
+        userRows.length > 0 ? App.API.sendPotUser(userRows) : Promise.resolve(null)
+      ]).then(function() {
+        console.log('[潜力导入] 后端保存成功');
+        // 数据已存入后端 DB，清空前端内存
+        App.ImportPotential.CustRAW = custRows;
+        App.ImportPotential.UserRAW = userRows;
+        App.ImportPotential.render();
+        App.ImportPotential.saveToHistory(file.name);
+        try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
+        alert('✅ 导入成功！客户 ' + custRows.length + ' 条，用户 ' + userRows.length + ' 条（已同步后端数据库）');
+      }).catch(function(err) {
+        console.error('[潜力导入] 后端保存失败:', err);
+        // 后端失败时仍保留前端内存数据供临时查看
+        App.ImportPotential.render();
+        alert('⚠️ 后端保存失败：' + err.message + '\n\n数据仅在前端内存中，刷新后消失。');
+      });
     } catch(err) {
       console.error('[潜力导入] 解析失败:', err);
       alert('❌ 文件解析失败：' + err.message);
