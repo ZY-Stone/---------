@@ -869,11 +869,11 @@ App.updateWidth = function() {
   var kpi = data.kpi;
   App.setText('w-kpi-avgwidth',        (parseFloat(kpi.avgWidth) * (sf > 0.5 ? 1 : 0.9 + sf)).toFixed(2));
   App.setText('w-kpi-yoy',             kpi.widthYoY);
-  App.setText('w-kpi-scale-users',     s(parseInt(kpi.scaleUsers) || 285));
-  App.setText('w-user-scale-count',     s(parseInt(kpi.scaleUsers) || 285));
-  App.setText('w-kpi-scale-customers', s(parseInt(kpi.scaleUp) || 888));
-  App.setText('w-cust-scale-count', s(parseInt(kpi.scaleUp) || 888));
-  App.setText('w-kpi-cust-mom',        '+' + s(62));
+  App.setText('w-kpi-scale-users',     s(parseInt(kpi.scaleUsers) || 0));
+  App.setText('w-user-scale-count',     s(parseInt(kpi.scaleUsers) || 0));
+  App.setText('w-kpi-scale-customers', s(parseInt(kpi.scaleUp) || 0));
+  App.setText('w-cust-scale-count', s(parseInt(kpi.scaleUp) || 0));
+  App.setText('w-kpi-cust-mom',        '0');
   App.setText('w-kpi-coverage',        (parseFloat(kpi.coverage) * (sf > 0.5 ? 1 : 0.85 + sf * 0.5)).toFixed(1) + '%');
   App.setText('w-kpi-cov-yoy',         kpi.coverageYoY);
 
@@ -4893,7 +4893,6 @@ App.API.sendPotUser = async function(rows) {
 App.ImportPotential = App.ImportPotential || {};
 
 App.ImportPotential.init = function() {
-  App.ImportPotential.loadHistory();
   // 从后端 API 拉取已导入数据
   fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
     if (d.rows && d.rows.length > 0) App.ImportPotential.CustRAW = d.rows;
@@ -5127,24 +5126,13 @@ App.ImportPotential.saveToHistory = function(fileName) {
     custCount: (App.ImportPotential.CustRAW || []).length,
     userCount: (App.ImportPotential.UserRAW || []).length,
     total: (App.ImportPotential.CustRAW || []).length + (App.ImportPotential.UserRAW || []).length,
-    person: '当前用户'
+    person: '当前用户',
+    custSnap: JSON.parse(JSON.stringify(App.ImportPotential.CustRAW || [])),
+    userSnap: JSON.parse(JSON.stringify(App.ImportPotential.UserRAW || []))
   };
   App.ImportPotential.history.unshift(entry);
   if (App.ImportPotential.history.length > 20) App.ImportPotential.history = App.ImportPotential.history.slice(0, 20);
-  // 持久化历史元数据
-  try {
-    var meta = App.ImportPotential.history.map(function(h) {
-      return {id:h.id, file:h.file, time:h.time, custCount:h.custCount, userCount:h.userCount, total:h.total, person:h.person};
-    });
-    localStorage.setItem('pa_potential_history', JSON.stringify(meta));
-  } catch(e) {}
   App.ImportPotential.renderHistory();
-};
-App.ImportPotential.loadHistory = function() {
-  try {
-    var saved = localStorage.getItem('pa_potential_history');
-    if (saved) App.ImportPotential.history = JSON.parse(saved);
-  } catch(e) {}
 };
 App.ImportPotential.renderHistory = function() {
   var tbody = document.getElementById('pImportHistoryTable');
@@ -5313,10 +5301,10 @@ App.ImportPotential.render = function() {
       html += '<td><strong>' + (r.product || '-') + '</strong></td>';
       html += '<td>' + (r.custName || '-') + '</td>';
       html += '<td>' + (r.userName || '-') + '</td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:right;font-weight:700">' + (r.amount || 0).toFixed(2) + '</td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:right;color:#6b7280">' + (r.amountPrev || 0).toFixed(2) + '</td>';
+      html += '<td style="text-align:right;font-weight:700">' + (r.amount || 0).toFixed(2) + '</td>';
+      html += '<td style="text-align:right;color:#6b7280">' + (r.amountPrev || 0).toFixed(2) + '</td>';
       html += '<td style="text-align:center">' + yoyBadge + '</td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:center">' + (r.qty || 0) + '</td>';
+      html += '<td style="text-align:center">' + (r.qty || 0) + '</td>';
       html += '<td style="text-align:center;color:#6b7280">' + (r.qtyPrev || 0) + '</td>';
       html += '<td style="text-align:center">' + fmtYoy(r.qtyYoy) + '</td>';
       html += '<td style="text-align:center">' + (r.opps || 0) + '</td>';
@@ -5336,7 +5324,7 @@ App.ImportPotential.render = function() {
       html += '<td>' + (r.userName || '-') + '</td>';
       html += '<td>' + (r.industry || '-') + '</td>';
       html += '<td><strong>' + (r.product || '-') + '</strong></td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:right;font-weight:700">' + (r.outAmt || 0).toFixed(2) + '</td>';
+      html += '<td style="text-align:right;font-weight:700">' + (r.outAmt || 0).toFixed(2) + '</td>';
       html += '<td style="text-align:right;color:#6b7280">' + (r.outAmtPrev || 0).toFixed(2) + '</td>';
       html += '<td style="text-align:center">' + yoyBadge + '</td>';
       html += '<td style="text-align:center">' + (r.outQty || 0) + '</td>';

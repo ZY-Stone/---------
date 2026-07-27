@@ -46,7 +46,7 @@ export default function WidthPage() {
 
       {/* ===== 总览分析 ===== */}
       {tab === 'overview' && <div>
-        <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+        <div className="kpi-row" style={{gridTemplateColumns:'repeat(4,1fr)'}} key={`kpi-${width.kpi.avgWidth}-${width.kpi.scaleUsers}-${width.kpi.scaleCustomers}-${width.kpi.coverage}`}>
           <div className="kpi-card k-green"><div className="kpi-label">📐 产品宽度</div><div className="kpi-value">{width.kpi.avgWidth}</div><div className="kpi-sub">同比 <span className="delta-up">{width.kpi.widthYoY}</span></div></div>
           <div className="kpi-card k-purple"><div className="kpi-label">🏢 规上用户数</div><div className="kpi-value">{width.kpi.scaleUsers}</div><div className="kpi-sub">使用方</div></div>
           <div className="kpi-card k-orange"><div className="kpi-label">👥 规上客户数</div><div className="kpi-value">{width.kpi.scaleCustomers}</div><div className="kpi-sub">环比 <span className="delta-up">+{width.kpi.customersMoM}</span></div></div>
