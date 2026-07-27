@@ -878,17 +878,34 @@ App.updateWidth = function() {
   App.setText('w-kpi-cov-yoy',         kpi.coverageYoY);
 
   // 缩放图表数据
-  // 销售人员人均宽度区间分布（跟随部门→组级联筛选）
+  // 销售人员人均宽度区间分布（从导入数据聚合，跟随部门→组级联筛选）
   if (App.charts.wDist) {
-    var distPersons;
+    var userGS = (App.ImportData.UserGS || []);
+    var custGS = (App.ImportData.CustGS || []);
+    var allImported = userGS.concat(custGS);
+    // 按 sales 字段聚合每个销售的人均宽度
+    var salesMap = {};
+    allImported.forEach(function(r) {
+      var sl = r.sales;
+      if (!sl) return;
+      if (!salesMap[sl]) salesMap[sl] = { total: 0, count: 0 };
+      salesMap[sl].total += (r.width || 0);
+      salesMap[sl].count++;
+    });
+    var distPersons = Object.keys(salesMap).map(function(sl) {
+      return { n: sl, aw: salesMap[sl].total / salesMap[sl].count };
+    });
+    // 按筛选器过滤
     if (person !== 'all') {
-      distPersons = App.PERSONS.filter(function(p) { return p.n === person; });
+      distPersons = distPersons.filter(function(p) { return p.n === person; });
     } else if (group !== 'all') {
-      distPersons = App.PERSONS.filter(function(p) { return p.grp === group; });
+      var groupSales = new Set();
+      allImported.forEach(function(r) { if (r.dept === group && r.sales) groupSales.add(r.sales); });
+      distPersons = distPersons.filter(function(p) { return groupSales.has(p.n); });
     } else if (team !== 'all') {
-      distPersons = App.PERSONS.filter(function(p) { return p.dept === team; });
-    } else {
-      distPersons = App.PERSONS.slice();
+      var teamSales = new Set();
+      allImported.forEach(function(r) { if (r.dept === team && r.sales) teamSales.add(r.sales); });
+      distPersons = distPersons.filter(function(p) { return teamSales.has(p.n); });
     }
     var distBuckets = [0, 0, 0, 0, 0, 0]; // 0-2, 2-3, 3-4, 4-5, 5-6, 6+
     var bucketPersons = [[], [], [], [], [], []]; // 各区间的销售人员明细

@@ -4,13 +4,37 @@ App.ImportData.currentView = 'user';
 App.ImportData.PRODS = App.WidthCustomer.PRODUCTS || [];
 App.ImportData.shortProds = App.ImportData.PRODS.map(function(p) { return p.length > 5 ? p.substring(0, 5) + '…' : p; });
 
+// 组名→部门名 映射（从 App.GROUPS 构建）
+App.ImportData.groupDeptMap = {};
+(function() {
+  var groups = App.GROUPS || [];
+  groups.forEach(function(g) { App.ImportData.groupDeptMap[g.n] = g.dept; });
+  // 无下属组的部门：部门=组
+  var noGroupDepts = ['场景数字化销售部','大客户销售部'];
+  noGroupDepts.forEach(function(d) { App.ImportData.groupDeptMap[d] = d; });
+})();
+
+// 从组名推导部门名
+App.ImportData.resolveDept = function(groupName) {
+  if (!groupName) return '';
+  return App.ImportData.groupDeptMap[groupName] || groupName;
+};
+
+// 统一规上识别：是/y/yes/true/1/√/✓/对 → '是'，其他 → '否'
+App.ImportData.parseGuishang = function(v) {
+  var s = String(v || '').toLowerCase().trim();
+  return (s.indexOf('是') >= 0 || s === 'y' || s === 'yes' || s === 'true' || s === '1' || s === '√' || s === '✓' || s === '对') ? '是' : '否';
+};
+
 App.ImportData.history = [];
 App.ImportData.init = function() {
+  // 恢复历史记录
+  try { var sh = localStorage.getItem('pa_w_history'); if (sh) App.ImportData.history = JSON.parse(sh); } catch(e) {}
   // 从后端 API 拉取已导入数据
   fetch('/api/import/width-records?type=user').then(function(r) { return r.json(); }).then(function(data) {
     if (data.rows && data.rows.length > 0) {
       App.ImportData.UserGS = data.rows.map(function(r) {
-        return { user: r.name, siebel: r.siebel, industry: r.industry, sales: r.sales, dept: r.dept, guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level };
+        return { user: r.name, siebel: r.siebel, industry: r.industry, sales: r.sales, group: r.dept, dept: App.ImportData.resolveDept(r.dept), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level };
       });
     }
   }).catch(function(){}).finally(function() {
@@ -48,6 +72,13 @@ App.ImportData.saveToHistory = function(fileName) {
   App.ImportData.history.unshift(entry);
   if (App.ImportData.history.length > 20) App.ImportData.history = App.ImportData.history.slice(0, 20);
   App.ImportData.renderHistory();
+  // 持久化到 localStorage（仅元数据，不含销售数据快照）
+  try {
+    var meta = App.ImportData.history.map(function(h) {
+      return {id:h.id, file:h.file, time:h.time, userCount:h.userCount, custCount:h.custCount, total:h.total, person:h.person};
+    });
+    localStorage.setItem('pa_w_history', JSON.stringify(meta));
+  } catch(e) {}
 };
 
 // 渲染历史列表
@@ -88,6 +119,7 @@ App.ImportData.restoreHistory = function(idx) {
   App.ImportData.render();
   App.WidthDetail.clearCache();
   App.updateWidth();
+  try { localStorage.setItem('pa_w_history', JSON.stringify(App.ImportData.history)); } catch(e) {}
 };
 
 // 删除历史记录
@@ -95,6 +127,7 @@ App.ImportData.deleteHistory = function(idx) {
   if (!confirm('确定删除此历史记录吗？')) return;
   App.ImportData.history.splice(idx, 1);
   App.ImportData.renderHistory();
+  try { localStorage.setItem('pa_w_history', JSON.stringify(App.ImportData.history)); } catch(e) {}
 };
 
 // 清空所有历史记录
@@ -107,6 +140,8 @@ App.ImportData.clearAll = function() {
 // 清空全部导入数据并重置平台
 App.ImportData.resetAll = function() {
   if (!confirm('确定清空所有导入数据吗？\n\n此操作将清除：\n- 产品宽度导入数据\n- 潜力产品导入数据\n- 所有历史记录\n- 本地缓存\n\n此操作不可撤销！')) return;
+  // 清空 localStorage
+  try { localStorage.removeItem('pa_w_history'); } catch(e) {}
   // 清空内存
   App.ImportData.UserGS = [];
   App.ImportData.CustGS = [];
@@ -222,12 +257,12 @@ App.ImportData.refresh = function() {
   // 从后端 API 重新拉取数据
   fetch('/api/import/width-records?type=user').then(function(r){return r.json();}).then(function(d){
     if (d.rows && d.rows.length > 0) {
-      App.ImportData.UserGS = d.rows.map(function(r){return {user:r.name,siebel:r.siebel,industry:r.industry,sales:r.sales,dept:r.dept,guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level};});
+      App.ImportData.UserGS = d.rows.map(function(r){return {user:r.name,siebel:r.siebel,industry:r.industry,sales:r.sales,group:r.dept,dept:App.ImportData.resolveDept(r.dept),guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level};});
     }
   }).catch(function(){}).finally(function(){
     return fetch('/api/import/width-records?type=cust').then(function(r){return r.json();}).then(function(d){
       if (d.rows && d.rows.length > 0) {
-        App.ImportData.CustGS = d.rows.map(function(r){return {name:r.name,siebel:r.siebel,sales:r.sales,dept:r.dept,guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level};});
+        App.ImportData.CustGS = d.rows.map(function(r){return {name:r.name,siebel:r.siebel,group:r.dept,dept:App.ImportData.resolveDept(r.dept),sales:r.sales,guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level};});
       }
     }).catch(function(){});
   }).finally(function(){
@@ -269,7 +304,8 @@ App.ImportData.handleUpload = function(input) {
             var nm = String(row[col.user] || '').trim();
             if (!siebel && !nm) return;
             var key = siebel || nm;
-            var e = { user: nm, siebel: siebel, industry: String(row[col.industry] || '').trim(), sales: String(row[col.sales] || '').trim(), dept: String(row[col.dept] || '').trim(), guishang: String(row[col.guishang] || '').indexOf('是') >= 0 ? '是' : '否', width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
+            var rawGroup = String(row[col.dept] || '').trim();
+            var e = { user: nm, siebel: siebel, industry: String(row[col.industry] || '').trim(), sales: String(row[col.sales] || '').trim(), group: rawGroup, dept: App.ImportData.resolveDept(rawGroup), guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
             if (em[key]) { uu++; Object.assign(em[key], e); } else { nu++; App.ImportData.UserGS.push(e); em[key] = e; }
           });
@@ -284,7 +320,8 @@ App.ImportData.handleUpload = function(input) {
             var nm = String(row[col.name] || '').trim();
             if (!siebel && !nm) return;
             var key = siebel || nm;
-            var e = { name: nm, siebel: siebel, sales: String(row[col.sales] || '').trim(), dept: String(row[col.dept] || '').trim(), guishang: String(row[col.guishang] || '').indexOf('是') >= 0 ? '是' : '否', width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
+            var rawGroup = String(row[col.dept] || '').trim();
+            var e = { name: nm, siebel: siebel, sales: String(row[col.sales] || '').trim(), group: rawGroup, dept: App.ImportData.resolveDept(rawGroup), guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
             if (em[key]) { uc++; Object.assign(em[key], e); } else { nc++; App.ImportData.CustGS.push(e); em[key] = e; }
           });
@@ -449,8 +486,10 @@ App.ImportData.render = function() {
     if (isU) { h += '<td>' + (r.industry || '-') + '</td><td style="font-size:11px">' + (r.siebel || '-') + '</td><td class="name-cell"><strong>' + App.escapeHtml(r.user) + '</strong></td>'; }
     else { h += '<td style="font-size:11px">' + (r.siebel || '-') + '</td><td class="name-cell"><strong>' + App.escapeHtml(r.name) + '</strong></td>'; }
     h += '<td>' + App.escapeHtml(r.sales || '-') + '</td>';
-    h += '<td>' + App.escapeHtml(r.dept || '-') + '</td>';
-    h += '<td style="text-align:center"><span class="badge badge-on">' + (r.guishang || '是') + '</span></td>';
+    h += '<td>' + App.escapeHtml(r.group || r.dept || '-') + '</td>';
+    var gs = r.guishang || '否';
+    var escaped = (isU ? r.user : r.name).replace(/'/g,"\\'").replace(/"/g,"&quot;");
+    h += '<td style="text-align:center"><span class="badge ' + (gs==='是'?'badge-on':'badge-off') + '" style="cursor:pointer" title="点击切换规上状态" onclick="var t=this;var v=t.textContent===\'是\'?\'否\':\'是\';t.textContent=v;t.className=\'badge \'+(v===\'是\'?\'badge-on\':\'badge-off\');var key=\'' + escaped + '\';var arr=' + (isU?'App.ImportData.UserGS':'App.ImportData.CustGS') + ';var r=arr.find(function(x){return x.' + (isU?'user':'name') + '===key;});if(r){r.guishang=v;App.ImportData.syncToRaw();try{App.updateWidth()}catch(e){}}">' + gs + '</span></td>';
     h += '<td style="text-align:center"><div style="display:flex;align-items:center;gap:4px;justify-content:center"><div style="width:50px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:3px"></div></div><span style="font-weight:700;color:#2563eb;min-width:22px">' + r.width + '</span></div></td>';
     prods.forEach(function(p) { h += '<td style="text-align:center;color:' + ((r.prods[p] || 0) > 0 ? '#059669' : '#d1d5db') + '">' + ((r.prods[p] || 0) > 0 ? '✓' : '-') + '</td>'; });
     h += '<td>' + (r.contact || '-') + '</td>';

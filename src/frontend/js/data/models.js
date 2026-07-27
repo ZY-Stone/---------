@@ -430,7 +430,13 @@ App.Data.getWidth = function(team) {
       data = data.filter(function(r) { return matchesTeam(r, team); });
     }
     var totalCust = data.length;
-    var guishang = data.filter(function(r) { return r.guishang === '是'; }).length;
+    var guishang = data.filter(function(r) { var g = (r.guishang || '').toString().trim(); return g === '是' || g === '1'; }).length;
+    // 规上用户数：从用户数据中独立统计
+    var userGuishang = 0;
+    if (importedUser) {
+      userGuishang = importedUser.filter(function(r) { var g = (r.guishang || '').toString().trim(); return g === '是' || g === '1'; }).length;
+    }
+    var scaleUsersCount = userGuishang || Math.round(guishang * 0.32);
     var totalWidth = data.reduce(function(s, r) { return s + (r.width || 0); }, 0);
     var avgW = totalCust > 0 ? (totalWidth / totalCust).toFixed(2) : '0';
     var allProds = App.ImportData.PRODS || [];
@@ -448,7 +454,7 @@ App.Data.getWidth = function(team) {
     var userSorted = userData.slice().sort(function(a,b) { return (b.width||0) - (a.width||0); });
     var crossMatrix = allProds.slice(0, 10).map(function(pi, i) { return allProds.slice(0, 10).map(function(pj, j) { if (j <= i) return 0; var both = data.filter(function(r) { return r.prods && r.prods[pi] && r.prods[pj]; }).length; var base = data.filter(function(r) { return r.prods && r.prods[pi]; }).length; return base > 0 ? parseFloat((both / base).toFixed(1)) : 0; }); });
     return {
-      kpi: { customers: totalCust, scaleUp: guishang, scaleUsers: Math.round(guishang * 0.32), nonScale: totalCust - guishang, avgWidth: avgW, coverage: totalCust > 0 ? (guishang / totalCust * 100).toFixed(1) + '%' : '0%', widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
+      kpi: { customers: totalCust, scaleUp: guishang, scaleCustomers: guishang, scaleUsers: scaleUsersCount, nonScale: totalCust - guishang, avgWidth: avgW, coverage: totalCust > 0 ? (guishang / totalCust * 100).toFixed(1) + '%' : '0%', widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
       missing: prodCoverage.slice().sort(function(a,b) { return a.rate - b.rate; }).slice(0, 10).map(function(p) { return { product: p.name, covered: p.count, missing: totalCust - p.count, rate: p.rate.toFixed(1) + '%', bar: Math.min(100, Math.round(p.rate)) }; }),
       chartDist: { labels: ['0','1-3','4-6','7-10','11-15','16+'], data: distBuckets },
       chartTeam: { labels: teamEntries.map(function(e) { return e[0]; }), data: teamEntries.map(function(e) { return parseFloat((e[1].total / e[1].count).toFixed(1)); }) },
@@ -468,7 +474,7 @@ App.Data.getWidth = function(team) {
 
   // 无导入数据时返回空状态
   return {
-    kpi: { customers: 0, scaleUp: 0, scaleUsers: 0, nonScale: 0, avgWidth: '0', coverage: '0%', widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
+    kpi: { customers: 0, scaleUp: 0, scaleCustomers: 0, scaleUsers: 0, nonScale: 0, avgWidth: '0', coverage: '0%', widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
     missing: [],
     chartDist: { labels: ['0','1-3','4-6','7-10','11-15','16+'], data: [0,0,0,0,0,0] },
     chartTeam: { labels: [], data: [] },
