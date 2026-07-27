@@ -7,6 +7,7 @@ from database import get_db
 from models.sales_data import PotentialCust, PotentialUser
 from models.product_dict import ProductDict
 from models.group import Group
+from models.audit_log import AuditLog
 
 router = APIRouter(prefix="/api/import", tags=["潜力产品导入"])
 
@@ -15,6 +16,18 @@ NO_GROUP_DEPTS = {'场景数字化销售部', '大客户销售部'}
 
 # 运营部门：不参与任何数据统计
 EXCLUDED_DEPTS = {'管理部', '深圳业务中心', '运营部'}
+
+def _write_audit(db: Session, action: str, target: str, detail: str, user_id: int = 1, tenant_id: int = 1):
+    """写入审计日志"""
+    try:
+        db.add(AuditLog(
+            tenant_id=tenant_id, user_id=user_id,
+            action=action, target=target, detail=detail, ip="127.0.0.1"
+        ))
+        db.commit()
+    except Exception:
+        pass  # 审计日志写入失败不影响主流程
+
 
 def parse_yoy(val) -> float:
     """解析同比字符串: '+25%' → 25.0, '-8.5%' → -8.5, '新增' → 0, 0.15 → 0.15"""
@@ -113,6 +126,9 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
             count += 1
 
     db.commit()
+    total = count + updated
+    if total > 0:
+        _write_audit(db, "数据导入", "潜力产品-客户", f"新增 {count} / 更新 {updated} 条客户维度数据")
     return {"ok": True, "count": count, "updated": updated,
             "message": f"新增 {count} / 更新 {updated} 条客户维度数据"}
 
@@ -192,6 +208,9 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
             count += 1
 
     db.commit()
+    total = count + updated
+    if total > 0:
+        _write_audit(db, "数据导入", "潜力产品-用户", f"新增 {count} / 更新 {updated} 条用户维度数据")
     return {"ok": True, "count": count, "updated": updated,
             "message": f"新增 {count} / 更新 {updated} 条用户维度数据"}
 
@@ -266,6 +285,9 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
             count += 1
 
     db.commit()
+    total = count + updated
+    if total > 0:
+        _write_audit(db, "数据导入", "产品宽度", f"新增 {count} / 更新 {updated} 条产品宽度数据 ({record_type})")
     return {"ok": True, "count": count, "updated": updated,
             "message": f"新增 {count} / 更新 {updated} 条产品宽度数据"}
 
@@ -327,3 +349,35 @@ def get_potential_user(db: Session = Depends(get_db)):
             "custs": r.custs or 0, "custsPrev": r.custs_prev or 0, "custsYoy": r.custs_yoy or 0,
         })
     return {"rows": result}
+
+
+# ── 数据清空：resetAll 调用，清空后端数据库 ──
+
+@router.delete("/width-records")
+def delete_width_records(type: str = "", db: Session = Depends(get_db)):
+    q = db.query(WidthRecord).filter(WidthRecord.tenant_id == 1)
+    if type:
+        q = q.filter(WidthRecord.record_type == type)
+    deleted = q.delete()
+    db.commit()
+    if deleted > 0:
+        _write_audit(db, "数据删除", "产品宽度", f"删除 {deleted} 条产品宽度数据 ({type or '全部'})")
+    return {"ok": True, "deleted": deleted}
+
+
+@router.delete("/potential-cust")
+def delete_potential_cust(db: Session = Depends(get_db)):
+    deleted = db.query(PotentialCust).filter(PotentialCust.tenant_id == 1).delete()
+    db.commit()
+    if deleted > 0:
+        _write_audit(db, "数据删除", "潜力产品-客户", f"删除 {deleted} 条客户维度数据")
+    return {"ok": True, "deleted": deleted}
+
+
+@router.delete("/potential-user")
+def delete_potential_user(db: Session = Depends(get_db)):
+    deleted = db.query(PotentialUser).filter(PotentialUser.tenant_id == 1).delete()
+    db.commit()
+    if deleted > 0:
+        _write_audit(db, "数据删除", "潜力产品-用户", f"删除 {deleted} 条用户维度数据")
+    return {"ok": True, "deleted": deleted}

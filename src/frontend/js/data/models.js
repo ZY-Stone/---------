@@ -854,18 +854,21 @@ App.GAP_DATA = {
 };
 
 App.ImportPotential.getDepts = function() {
-  var data = App.ImportPotential.currentDS === 'cust' ? App.ImportPotential.CustRAW : App.ImportPotential.UserRAW;
-  var set = {};
+  // 从静态 BUSINESS_DEPTS 读取（确保下拉永远显示所有业务部门）
   var EXCLUDE = ['管理部','深圳业务中心','运营部'];
-  data.forEach(function(r) { var d = r.dept4 || r.dept3; if (d && EXCLUDE.indexOf(d) < 0) set[d] = true; });
-  return Object.keys(set).sort();
+  return (App.BUSINESS_DEPTS || [])
+    .filter(function(d) { return EXCLUDE.indexOf(d.n) < 0; })
+    .map(function(d) { return d.n; });
 };
 
 App.ImportPotential.getProducts = function() {
+  // 优先静态产品字典，再补充导入数据中出现的新产品
+  var staticProds = (App.ImportPotential.PRODUCTS || []).slice();
+  var staticSet = {};
+  staticProds.forEach(function(p) { staticSet[p] = true; });
   var data = App.ImportPotential.currentDS === 'cust' ? App.ImportPotential.CustRAW : App.ImportPotential.UserRAW;
-  var set = {};
-  data.forEach(function(r) { set[r.product] = true; });
-  return Object.keys(set).sort();
+  (data || []).forEach(function(r) { if (r.product && !staticSet[r.product]) { staticProds.push(r.product); staticSet[r.product] = true; } });
+  return staticProds;
 };
 
 // ===== 导入后动态重建派生数据（所有硬编码 → 导入数据驱动）=====

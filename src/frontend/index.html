@@ -190,7 +190,7 @@
                 <button class="subtab" data-w-dim="group" onclick="App.switchWidthDim('group')">组</button>
               </span>
             </div>
-            <div class="chart-wrap short"><canvas id="chart-w-width-bar"></canvas></div>
+            <div class="chart-wrap short"><canvas id="chart-w-team-avg"></canvas></div>
           </div>
         </div>
         <div class="card" style="margin-top:16px">
@@ -598,6 +598,17 @@
           <!-- 数据明细表 -->
           <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
             <span id="w-import-view-title" style="font-weight:700;font-size:13px;color:#374151">📋 规上用户产品宽度</span>
+            <div class="filter-group"><label>👥 部门</label>
+              <select class="filter-dept" id="wImportDeptFilter" onchange="App.ImportData.onDeptChange(this.value)">
+                <option value="all">全部部门</option>
+              </select>
+            </div>
+            <span class="filter-sep">→</span>
+            <div class="filter-group"><label>小组</label>
+              <select class="filter-group-sel" id="wImportGroupFilter" onchange="App.ImportData.onGrpChange(this.value)">
+                <option value="all">全部小组</option>
+              </select>
+            </div>
             <input type="text" id="wImportSearch" placeholder="搜索名称..." oninput="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
             <select id="wImportSort" onchange="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
               <option value="width_desc">宽度降序</option><option value="width_asc">宽度升序</option><option value="name">按名称</option>
@@ -1104,12 +1115,22 @@
           <!-- 筛选条 -->
           <div class="controls-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
             <span id="p-import-view-title" style="font-weight:700;font-size:13px;color:#374151">📋 潜力产品-客户明细</span>
-            <select id="pImportDeptFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;margin-left:8px">
-              <option value="">全部部门</option>
-            </select>
-            <select id="pImportProdFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
-              <option value="">全部产品</option>
-            </select>
+            <div class="filter-group"><label>👥 部门</label>
+              <select id="pImportDeptFilter" onchange="App.ImportPotential.onDeptChange(this.value)" class="filter-dept">
+                <option value="all">全部部门</option>
+              </select>
+            </div>
+            <span class="filter-sep">→</span>
+            <div class="filter-group"><label>小组</label>
+              <select id="pImportGroupFilter" onchange="App.ImportPotential.render()" class="filter-group-sel">
+                <option value="all">全部小组</option>
+              </select>
+            </div>
+            <div class="filter-group"><label>产品</label>
+              <select id="pImportProdFilter" onchange="App.ImportPotential.render()" class="filter-prod">
+                <option value="all">全部产品</option>
+              </select>
+            </div>
             <input type="text" id="pImportSearch" placeholder="搜索名称..." oninput="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
             <select id="pImportSort" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
               <option value="sales_desc">销售额降序</option><option value="sales_asc">销售额升序</option><option value="name">按名称</option>

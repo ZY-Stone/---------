@@ -830,7 +830,7 @@ App.switchWidthDim = function(type) {
   document.querySelectorAll('#page-width [data-w-dim]').forEach(function(b) {
     b.classList.toggle('active', b.getAttribute('data-w-dim') === type);
   });
-  App._updateDimBarChart('page-width', 'wWidthBar');
+  App._updateDimBarChart('page-width', 'wTeamAvg');
 };
 
 // ===== 产品覆盖率切换：客户 / 用户 =====
@@ -854,28 +854,57 @@ App.updateWidth = function() {
   var state = App.getFilterState('page-width');
   var label = App.getFilterLabel(state);
 
-  // 级联缩放因子
   var team = state.team, group = state.group, person = state.person;
-  var sf = 1;
-  if (person !== 'all') sf = 0.03;
-  else if (group !== 'all') sf = 0.10;
-  else if (team !== 'all') sf = 0.28;
 
   var data = App.Data.getWidth(state.team);
   if (!data) return;
 
-  var s = function(v) { return Math.round(v * sf); };
+  // ---- KPI 卡片：从导入数据直接计算筛选后的真实值（不再使用缩放因子近似） ----
+  var userGS = (App.ImportData.UserGS || []);
+  var custGS = (App.ImportData.CustGS || []);
+  var fUser = userGS.slice();
+  var fCust = custGS.slice();
+  if (person !== 'all') {
+    fUser = fUser.filter(function(r) { return r.sales === person; });
+    fCust = fCust.filter(function(r) { return r.sales === person; });
+  } else if (group !== 'all') {
+    fUser = fUser.filter(function(r) { return r.group === group; });
+    fCust = fCust.filter(function(r) { return r.group === group; });
+  } else if (team !== 'all') {
+    fUser = fUser.filter(function(r) { return r.dept === team; });
+    fCust = fCust.filter(function(r) { return r.dept === team; });
+  }
+  var fAll = fCust.concat(fUser);
+  var fCount = fAll.length;
+  var actualAvgWidth = 0;
+  if (fCount > 0) {
+    var totalW = fAll.reduce(function(s, r) { return s + (r.width || 0); }, 0);
+    actualAvgWidth = totalW / fCount;
+  }
+  var isGuishang = function(r) { var g = (r.guishang || '').toString().trim(); return g === '是' || g === '1'; };
+  var actualGuishangUsers = fUser.filter(isGuishang).length;
+  var actualGuishangCusts = fCust.filter(isGuishang).length;
+  var actualCoverage = fCust.length > 0 ? (actualGuishangCusts / fCust.length * 100) : 0;
 
+  App.setText('w-kpi-avgwidth',        actualAvgWidth.toFixed(2));
+  App.setText('w-kpi-scale-users',     actualGuishangUsers);
+  App.setText('w-user-scale-count',    actualGuishangUsers);
+  App.setText('w-kpi-scale-customers', actualGuishangCusts);
+  App.setText('w-cust-scale-count',    actualGuishangCusts);
+  App.setText('w-kpi-coverage',        actualCoverage.toFixed(1) + '%');
+
+  // 同比/环比暂时保留 data.kpi 的值
   var kpi = data.kpi;
-  App.setText('w-kpi-avgwidth',        (parseFloat(kpi.avgWidth) * (sf > 0.5 ? 1 : 0.9 + sf)).toFixed(2));
-  App.setText('w-kpi-yoy',             kpi.widthYoY);
-  App.setText('w-kpi-scale-users',     s(parseInt(kpi.scaleUsers) || 0));
-  App.setText('w-user-scale-count',     s(parseInt(kpi.scaleUsers) || 0));
-  App.setText('w-kpi-scale-customers', s(parseInt(kpi.scaleUp) || 0));
-  App.setText('w-cust-scale-count', s(parseInt(kpi.scaleUp) || 0));
-  App.setText('w-kpi-cust-mom',        '0');
-  App.setText('w-kpi-coverage',        (parseFloat(kpi.coverage) * (sf > 0.5 ? 1 : 0.85 + sf * 0.5)).toFixed(1) + '%');
-  App.setText('w-kpi-cov-yoy',         kpi.coverageYoY);
+  App.setText('w-kpi-yoy',      kpi.widthYoY);
+  App.setText('w-kpi-cov-yoy',  kpi.coverageYoY);
+  App.setText('w-kpi-cust-mom', '0');
+
+  // 级联缩放因子（保留给图表缩放用）
+  var sf = 1;
+  if (person !== 'all') sf = 0.03;
+  else if (group !== 'all') sf = 0.10;
+  else if (team !== 'all') sf = 0.28;
+  var s = function(v) { return Math.round(v * sf); };
 
   // 缩放图表数据
   // 销售人员人均宽度区间分布（从导入数据聚合，跟随部门→组级联筛选）
@@ -941,7 +970,7 @@ App.updateWidth = function() {
     App.charts.wCov.update();
   }
   // 按筛选维度的产品宽度柱状图（复用总览页同款逻辑）
-  App._updateDimBarChart('page-width', 'wWidthBar');
+  App._updateDimBarChart('page-width', 'wTeamAvg');
   // 产品宽度历史趋势 — 跟随筛选维度（严格三层级联）
   if (App.charts.wWidthTrend) {
     var twl, twSets;
@@ -1022,6 +1051,8 @@ App.updateWidth = function() {
   // 刷新低宽度客户统计（跟随筛选联动）
   try { App.filterLowWidth(); } catch(e) {}
   try { App.filterLowWidthUser(); } catch(e) {}
+  // 刷新产品宽度后端图表（跟随筛选）
+  try { App.reloadWidthCharts(); } catch(e) {}
 };
 
 // ===== 潜力产品 - 筛选联动 =====
@@ -1207,6 +1238,9 @@ App._refreshPotentialCharts = function(state) {
 
   // 6. 产品维度四象限散点图 chart-p-quad2
   try { App._updateQuad2Chart(); } catch(e) {}
+
+  // 7. 从后端 API 刷新潜力产品图表（composition / trend / quadrant）
+  try { App.reloadPotentialCharts(); } catch(e) {}
 };
 
 // ===== 产品线 & 组织范围数据引擎 =====
@@ -4910,6 +4944,13 @@ App.API.sendPotUser = async function(rows) {
 App.ImportPotential = App.ImportPotential || {};
 
 App.ImportPotential.init = function() {
+  // 先从 localStorage 恢复历史元数据（不含数据快照）
+  try {
+    var sh = localStorage.getItem('pa_p_history');
+    if (sh) {
+      App.ImportPotential.history = JSON.parse(sh);
+    }
+  } catch(e) { App.ImportPotential.history = []; }
   // 从后端 API 拉取已导入数据
   fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
     if (d.rows && d.rows.length > 0) App.ImportPotential.CustRAW = d.rows;
@@ -5150,6 +5191,13 @@ App.ImportPotential.saveToHistory = function(fileName) {
   App.ImportPotential.history.unshift(entry);
   if (App.ImportPotential.history.length > 20) App.ImportPotential.history = App.ImportPotential.history.slice(0, 20);
   App.ImportPotential.renderHistory();
+  // 持久化到 localStorage（只存元数据，不存数据快照）
+  try {
+    var meta = App.ImportPotential.history.map(function(h) {
+      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person };
+    });
+    localStorage.setItem('pa_p_history', JSON.stringify(meta));
+  } catch(e) {}
 };
 App.ImportPotential.renderHistory = function() {
   var tbody = document.getElementById('pImportHistoryTable');
@@ -5187,33 +5235,86 @@ App.ImportPotential.deleteHistory = function(idx) {
   if (!confirm('确定删除此历史记录吗？')) return;
   App.ImportPotential.history.splice(idx, 1);
   App.ImportPotential.renderHistory();
+  // 同步 localStorage
+  try {
+    var meta = App.ImportPotential.history.map(function(h) {
+      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person };
+    });
+    localStorage.setItem('pa_p_history', JSON.stringify(meta));
+  } catch(e) {}
+};
+
+// ===== 小组列表（从当前数据源提取 dept5 字段） =====
+App.ImportPotential.getGroups = function() {
+  // 从静态 GROUPS 读取全部小组
+  return (App.GROUPS || []).map(function(g) { return g.n; });
+};
+
+// ===== 部门变更 → 级联刷新小组下拉 + 重渲 + 双向联动顶部 FilterBar =====
+App.ImportPotential.onDeptChange = function(deptVal) {
+  var grpSel = document.getElementById('pImportGroupFilter');
+  if (!grpSel) return;
+  var allGrps = (App.GROUPS || []);
+  var grps = deptVal === 'all' ? allGrps : allGrps.filter(function(g) { return g.dept === deptVal; });
+  grpSel.innerHTML = '<option value="all">全部小组</option>' +
+    grps.map(function(g) { return '<option value="' + g.n + '">' + g.n + '</option>'; }).join('');
+  grpSel.value = 'all';
+  // 双向联动：同步顶部 FilterBar
+  try {
+    var topSel = document.querySelector('#page-potential .filter-dept');
+    if (topSel && topSel.value !== deptVal) topSel.value = deptVal;
+    App.onDeptChange('page-potential');
+  } catch(e) {}
+  App.ImportPotential.render();
 };
 
 App.ImportPotential.render = function() {
   var isCust = App.ImportPotential.currentDS === 'cust';
   var data = (isCust ? (App.ImportPotential.CustRAW || []) : (App.ImportPotential.UserRAW || [])).slice();
-  // 刷新筛选下拉
-  var deptSel2 = document.getElementById('pImportDeptFilter');
-  if (deptSel2 && deptSel2.options.length <= 1) {
-    var depts = App.ImportPotential.getDepts ? App.ImportPotential.getDepts() : [];
-    deptSel2.innerHTML = '<option value="">全部部门</option>' + depts.map(function(d) { return '<option>' + d + '</option>'; }).join('');
-  }
-  var prodSel2 = document.getElementById('pImportProdFilter');
-  if (prodSel2 && prodSel2.options.length <= 1) {
-    var prods = App.ImportPotential.getProducts ? App.ImportPotential.getProducts() : App.ALL_POT_PRODUCTS;
-    prodSel2.innerHTML = '<option value="">全部产品</option>' + prods.map(function(p) { return '<option>' + p + '</option>'; }).join('');
-  }
-  var deptFilter = (document.getElementById('pImportDeptFilter') || {}).value || '';
-  var prodFilter = (document.getElementById('pImportProdFilter') || {}).value || '';
-  var search = ((document.getElementById('pImportSearch') || {}).value || '').trim().toLowerCase();
-  var sort = (document.getElementById('pImportSort') || {}).value || 'sales_desc';
 
-  if (deptFilter) data = data.filter(function(r) { return (r.dept4 || r.dept3) === deptFilter; });
-  if (prodFilter) data = data.filter(function(r) { return r.product === prodFilter; });
+  // 初始填充下拉（首次 options.length <= 1 时填充）
+  var deptSel = document.getElementById('pImportDeptFilter');
+  if (deptSel && deptSel.options.length <= 1) {
+    deptSel.innerHTML = '<option value="all">全部部门</option>' +
+      App.ImportPotential.getDepts().map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join('');
+    // 同步顶部筛选状态（首次渲染时）
+    var topState = (typeof App.getFilterState === 'function') ? App.getFilterState('page-potential') : { team: 'all', group: 'all' };
+    if (topState.team !== 'all' && deptSel.querySelector('option[value="' + topState.team + '"]')) {
+      deptSel.value = topState.team;
+      // 触发级联刷新小组
+      App.ImportPotential.onDeptChange(topState.team);
+      if (topState.group !== 'all') {
+        var grpSel2 = document.getElementById('pImportGroupFilter');
+        if (grpSel2 && grpSel2.querySelector('option[value="' + topState.group + '"]')) {
+          grpSel2.value = topState.group;
+        }
+      }
+    }
+  }
+  var grpSel = document.getElementById('pImportGroupFilter');
+  if (grpSel && grpSel.options.length <= 1) {
+    grpSel.innerHTML = '<option value="all">全部小组</option>' +
+      App.ImportPotential.getGroups().map(function(g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
+  }
+  var prodSel = document.getElementById('pImportProdFilter');
+  if (prodSel && prodSel.options.length <= 1) {
+    prodSel.innerHTML = '<option value="all">全部产品</option>' +
+      App.ImportPotential.getProducts().map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+  }
+
+  var deptFilter = (deptSel || {}).value || 'all';
+  var grpFilter = (grpSel || {}).value || 'all';
+  var prodFilter = (prodSel || {}).value || 'all';
+  var search = ((document.getElementById('pImportSearch') || {}).value || '').trim().toLowerCase();
+  var sort = ((document.getElementById('pImportSort') || {}).value || 'sales_desc');
+
+  // 应用筛选
+  if (deptFilter !== 'all') data = data.filter(function(r) { return (r.dept4 || r.dept3) === deptFilter; });
+  if (grpFilter !== 'all') data = data.filter(function(r) { return r.dept5 === grpFilter; });
+  if (prodFilter !== 'all') data = data.filter(function(r) { return r.product === prodFilter; });
   if (search) data = data.filter(function(r) {
-    return (r.custName || r.userName || '').toLowerCase().indexOf(search) >= 0 ||
-           (r.sales || '').toLowerCase().indexOf(search) >= 0 ||
-           (r.product || '').toLowerCase().indexOf(search) >= 0;
+    return (r.custName || r.userName || r.product || '').toLowerCase().indexOf(search) >= 0 ||
+           (r.sales || '').toLowerCase().indexOf(search) >= 0;
   });
 
   // 冻结前7列（复选框+#+部门层级+销售），其余横向滚动
@@ -5258,6 +5359,12 @@ App.ImportPotential.render = function() {
     }
   }
 
+  // 排序
+  var sortField = isCust ? 'amount' : 'outAmt';
+  if (sort === 'sales_desc') data.sort(function(a,b) { return (b[sortField]||0) - (a[sortField]||0); });
+  else if (sort === 'sales_asc') data.sort(function(a,b) { return (a[sortField]||0) - (b[sortField]||0); });
+  else if (sort === 'name') data.sort(function(a,b) { return (a.custName||a.userName||'').localeCompare(b.custName||b.userName||''); });
+
   // 分页
   var pSize = parseInt((document.getElementById('pImportPageSize')||{}).value) || 20;
   if (pSize === 0) pSize = data.length;
@@ -5266,11 +5373,6 @@ App.ImportPotential.render = function() {
   if (!App._pImportPage || App._pImportPage > pPages) App._pImportPage = pPages || 1;
   var pStart = (App._pImportPage - 1) * pSize;
   var pData = data.slice(pStart, pStart + pSize);
-
-  var sortField = isCust ? 'amount' : 'outAmt';
-  if (sort === 'sales_desc') data.sort(function(a,b) { return (b[sortField]||0) - (a[sortField]||0); });
-  else if (sort === 'sales_asc') data.sort(function(a,b) { return (a[sortField]||0) - (b[sortField]||0); });
-  else if (sort === 'name') data.sort(function(a,b) { return (a.custName||a.userName).localeCompare(b.custName||b.userName); });
 
   var countEl = document.getElementById('p-import-ds-count');
   if (countEl) countEl.textContent = data.length + ' 条记录';
@@ -6161,7 +6263,30 @@ App.saveBusinessParams = function() {
   App.renderBusinessParams();
 };
 
-// ===== 审计日志渲染 =====
+// ===== 审计日志 =====
+App.fetchAuditLogs = function() {
+  fetch('/api/audit/logs?size=200').then(function(r) { return r.json(); }).then(function(data) {
+    if (Array.isArray(data) && data.length > 0) {
+      // 合并后端日志到前端（按时间倒序，去重）
+      var seen = new Set();
+      App.AUDIT_LOGS.forEach(function(l) { seen.add(l.time + l.user + l.action); });
+      data.forEach(function(l) {
+        var key = l.time + l.user + l.action;
+        if (!seen.has(key)) {
+          App.AUDIT_LOGS.unshift(l);
+          seen.add(key);
+        }
+      });
+      // 按时间倒序排列
+      App.AUDIT_LOGS.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+      // 最多保留 500 条
+      if (App.AUDIT_LOGS.length > 500) App.AUDIT_LOGS = App.AUDIT_LOGS.slice(0, 500);
+    }
+  }).catch(function() {}).finally(function() {
+    App.renderAuditLog();
+  });
+};
+
 App.renderAuditLog = function() {
   var tbody = document.getElementById('aAuditTableBody');
   if (!tbody || !App.AUDIT_LOGS) return;
@@ -7693,6 +7818,9 @@ App.initAll = function() {
   App.ImportPotential.init();
   // 初始化 Admin 子Tab
   App.initAdminTabs();
+
+  // 从后端拉取审计日志
+  App.fetchAuditLogs();
 
   // 初始化所有子Tab动态表格
   App.refreshAllSubTabs();

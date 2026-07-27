@@ -195,116 +195,203 @@ function makeHBar(labels, data, color, id, opts) {
   }
 })();
 
-// ===== 3. 产品宽度: 销售人员人均宽度分布 (统计销售人员在各宽度区间的分布) =====
-(function() {
+// ===== 产品宽度图表公共参数 =====
+App._widthApiQs = function() {
+  var state = (typeof App.getFilterState === 'function') ? App.getFilterState('page-width') : { team: 'all' };
+  return '?dept=' + encodeURIComponent(state.team || 'all');
+};
+
+// 筛选变更时重新拉取产品宽度图表数据
+App.reloadWidthCharts = function() {
+  var hdrs = { 'Authorization': 'Bearer ' + (App.token || '') };
+  var qs = App._widthApiQs();
+  // 宽度分布
+  if (App.charts.wDist) {
+    fetch('/api/width/dist' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.labels && d.values) {
+        App.charts.wDist.data.labels = d.labels;
+        App.charts.wDist.data.datasets[0].data = d.values;
+        App.charts.wDist.update();
+      }
+    }).catch(function() {});
+  }
+  // 团队平均
+  if (App.charts.wTeamAvg) {
+    fetch('/api/width/team-avg' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(list) {
+      if (Array.isArray(list) && list.length) {
+        App.charts.wTeamAvg.data.labels = list.map(function(t) { return t.team; });
+        App.charts.wTeamAvg.data.datasets[0].data = list.map(function(t) { return t.avg; });
+        App.charts.wTeamAvg.update();
+      }
+    }).catch(function() {});
+  }
+  // 产品覆盖率
+  if (App.charts.wCov) {
+    fetch('/api/width/heatmap' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.products) {
+        App.charts.wCov.data.labels = data.products.map(function(p) { return p.name; });
+        App.charts.wCov.data.datasets[0].data = data.products.map(function(p) { return p.rate; });
+        App.charts.wCov.update();
+        if (typeof App.renderHeatmap === 'function') {
+          App.renderHeatmap('w-heatmap', data);
+        }
+      }
+    }).catch(function() {});
+  }
+  // 历史趋势
+  if (App.charts.wWidthTrend) {
+    fetch('/api/width/trend' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.labels && d.values) {
+        App.charts.wWidthTrend.data.labels = d.labels;
+        App.charts.wWidthTrend.data.datasets = [{
+          label: d.label || '平均产品宽度', data: d.values,
+          borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.1)',
+          tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#1a56db'
+        }];
+        App.charts.wWidthTrend.update();
+      }
+    }).catch(function() {});
+  }
+};
+
+// 潜力产品图表：筛选变更时重新拉取
+App.reloadPotentialCharts = function() {
+  var hdrs = { 'Authorization': 'Bearer ' + (App.token || '') };
+  var state = (typeof App.getFilterState === 'function') ? App.getFilterState('page-potential') : { team: 'all' };
+  var qs = '?dept=' + encodeURIComponent(state.team || 'all');
+  // 销售额构成
+  if (App.charts.pComposition) {
+    fetch('/api/potential/composition' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.labels && d.values) {
+        App.charts.pComposition.data.labels = d.labels;
+        App.charts.pComposition.data.datasets[0].data = d.values;
+        App.charts.pComposition.update();
+      }
+    }).catch(function() {});
+  }
+  // 销售额趋势
+  if (App.charts.pYoy) {
+    fetch('/api/potential/trend' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+      if (d.labels && d.values) {
+        App.charts.pYoy.data.labels = d.labels;
+        App.charts.pYoy.data.datasets[0].data = d.values;
+        App.charts.pYoy.update();
+      }
+    }).catch(function() {});
+  }
+  // 四象限
+  if (App.charts.pQuadrant) {
+    fetch('/api/potential/quadrant' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(data) {
+      if (Array.isArray(data) && data.length) {
+        App.charts.pQuadrant.data.datasets[0].data = data.map(function(d) { return { x: d.x, y: d.y, label: d.product }; });
+        App.charts.pQuadrant.update();
+      }
+    }).catch(function() {});
+  }
+};
+
+// ===== 3. 产品宽度分布 (后端 /api/width/dist?dept=...) =====
+(async function() {
   var canvas = document.getElementById('chart-w-dist');
   if (!canvas) return;
-  var buckets = ['0-2', '2-3', '3-4', '4-5', '5-6', '6+'];
-  App.charts.wDist = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: buckets,
-      datasets: [{
-        data: [],
-        backgroundColor: '#1a56db',
-        borderRadius: 4,
-        barPercentage: .7
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      onClick: function(evt, elements) {
-        if (elements && elements.length > 0) {
-          var idx = elements[0].index;
-          var buckets = ['0-2', '2-3', '3-4', '4-5', '5-6', '6+'];
-          App.showWidthDrill(buckets[idx], idx);
+  try {
+    var qs = App._widthApiQs();
+    var r = await fetch('/api/width/dist' + qs, { headers: { 'Authorization': 'Bearer ' + (App.token || '') } });
+    if (!r.ok) return;
+    var d = await r.json();
+    App.charts.wDist = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: d.labels,
+        datasets: [{
+          label: '客户数', data: d.values,
+          backgroundColor: ['#93c5fd','#60a5fa','#3b82f6','#2563eb','#1d4ed8','#1e40af'],
+          borderRadius: 6, barPercentage: .7
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        onClick: function(evt, elements) {
+          if (elements && elements.length > 0) {
+            var idx = elements[0].index;
+            var bucket = d.labels[idx];
+            var drillQs = '?bucket=' + encodeURIComponent(bucket) + '&dept=' + encodeURIComponent((App._widthApiQs().match(/dept=([^&]*)/)||['','all'])[1]);
+            fetch('/api/width/dist/drill' + drillQs)
+              .then(function(r2) { return r2.json(); })
+              .then(function(j) { if (typeof App.showDrillModal === 'function') App.showDrillModal(j.rows); });
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(ctx) { return '客户数: ' + ctx.parsed.y; } } }
+        },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '客户数' } },
+          x: { grid: { display: false }, ticks: { font: { size: 11 } } }
         }
       },
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx) { return '销售人数: ' + ctx.parsed.y; } } }
+      plugins: [{
+        id: 'wDistValueLabels',
+        afterDatasetsDraw: function(chart) {
+          var ctx2 = chart.ctx; ctx2.save();
+          ctx2.font = 'bold 12px sans-serif'; ctx2.fillStyle = '#1e293b';
+          ctx2.textAlign = 'center'; ctx2.textBaseline = 'bottom';
+          var meta = chart.getDatasetMeta(0);
+          meta.data.forEach(function(bar, i) {
+            var v = chart.data.datasets[0].data[i];
+            if (v != null) ctx2.fillText(v, bar.x, bar.y - 4);
+          });
+          ctx2.restore();
+        }
+      }]
+    });
+  } catch(e) { console.warn('chart-w-dist fetch failed:', e); }
+})();
+
+// ===== 4. 各团队平均产品宽度 (后端 /api/width/team-avg?dept=...) =====
+(async function() {
+  var canvas = document.getElementById('chart-w-team-avg');
+  if (!canvas) return;
+  try {
+    var r = await fetch('/api/width/team-avg' + App._widthApiQs(), { headers: { 'Authorization': 'Bearer ' + (App.token || '') } });
+    if (!r.ok) return;
+    var list = await r.json();
+    if (!list || list.length === 0) return;
+    var labels = list.map(function(t) { return t.team; });
+    var data = list.map(function(t) { return t.avg; });
+    App.charts.wTeamAvg = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{ label: '平均宽度', data: data, backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: .5 }]
       },
-      scales: {
-        y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '人数' } },
-        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
-      }
-    },
-    plugins: [{
-      id: 'wDistValueLabels',
-      afterDatasetsDraw: function(chart) {
-        var ctx = chart.ctx;
-        ctx.save();
-        ctx.font = 'bold 12px sans-serif';
-        ctx.fillStyle = '#1e293b';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        var meta = chart.getDatasetMeta(0);
-        meta.data.forEach(function(bar, i) {
-          var v = chart.data.datasets[0].data[i];
-          if (v != null) ctx.fillText(v, bar.x, bar.y - 4);
-        });
-        ctx.restore();
-      }
-    }]
-  });
-})();
-
-// ===== 4. 产品宽度: 各团队平均 (凯玲版: 11 个完整团队名) =====
-(function() {
-  var canvas = document.getElementById('chart-w-team');
-  if (!canvas) return;
-  App.charts.wTeam = makeBar(
-    ['政府组', '罗湖组', '陈天6', '高峰10', '沙头', '王鹏组', '彭城12', '招商17', '熊佳豪', '陈思源', '段金春'],
-    [10.5, 7, 6, 5.4, 5.2, 4.8, 4, 4, 3.9, 3.4, 1.5],
-    '#1a56db',
-    'chart-w-team',
-    { scales: { x: { ticks: { maxRotation: 45, font: { size: 10 } } } } }
-  );
-})();
-
-// ===== 3b. 产品宽度: 按部门柱状图 (替换各团队平均宽度) =====
-(function() {
-  var canvas = document.getElementById('chart-w-width-bar');
-  if (!canvas) return;
-  App.charts.wWidthBar = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: ['客户销售一部','客户销售二部','大客户销售部','场景数字化销售部','行业二部','行业一部'],
-      datasets: [{ data: [3.52, 3.28, 3.14, 3.42, 4.28, 3.85], backgroundColor: '#3b82f6', borderRadius: 6, barPercentage: .5 }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '客均宽度: ' + ctx.raw; } } } },
-      scales: {
-        y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度' } },
-        x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-      }
-    },
-    plugins: [{
-      id: 'wBarValues',
-      afterDraw: function(chart) {
-        var ctx = chart.ctx;
-        chart.data.datasets.forEach(function(ds, i) {
-          var meta = chart.getDatasetMeta(i);
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '客均宽度: ' + ctx.raw; } } } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } }
+        }
+      },
+      plugins: [{
+        id: 'wTeamAvgValues',
+        afterDraw: function(chart) {
+          var ctx2 = chart.ctx; ctx2.save();
+          ctx2.fillStyle = '#1e293b'; ctx2.font = '600 11px sans-serif';
+          ctx2.textAlign = 'center'; ctx2.textBaseline = 'bottom';
+          var meta = chart.getDatasetMeta(0);
           if (!meta || !meta.data) return;
           meta.data.forEach(function(bar, j) {
             if (!bar || typeof bar.x === 'undefined') return;
-            var val = ds.data[j];
-            if (val == null) return;
-            ctx.save();
-            ctx.fillStyle = '#1e293b';
-            ctx.font = 'bold 11px system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'bottom';
-            ctx.fillText(val, bar.x, bar.y - 4);
-            ctx.restore();
+            var val = data[j];
+            if (val != null) ctx2.fillText(val, bar.x, bar.y - 4);
           });
-        });
-      }
-    }]
-  });
+          ctx2.restore();
+        }
+      }]
+    });
+  } catch(e) { console.warn('chart-w-team-avg fetch failed:', e); }
 })();
-
 (function() {
   var canvas = document.getElementById('chart-w-team');
   if (canvas && App.charts.wTeam) {
@@ -398,62 +485,52 @@ function makeHBar(labels, data, color, id, opts) {
   }
 })();
 
-// ===== 5. 产品宽度: 产品覆盖率 (27品类全部展示 · 客户/用户覆盖率切换) =====
-(function() {
+// ===== 5. 产品宽度: 产品覆盖率 (后端 /api/width/heatmap?dept=...) =====
+(async function() {
   var canvas = document.getElementById('chart-w-cov');
   if (!canvas) return;
-  var prods = ['IPC','NVR','门禁','球机','LCD与解码','新业务','通用软件','网络产品','存储','专用摄像机','服务器','行业软件','智能计算','对讲','报警','出入口停车','人员通道','音频产品','PCP产品','LED与拼控','移动终端产品','智能交通','智慧屏与视频会议','综合布线与机柜','基础软件','网络安全','传感产品'];
-  var custRates = [53.1, 36.7, 27.8, 24.6, 17.6, 17.4, 16.3, 14.6, 11.5, 9.3, 8.9, 8.5, 7.9, 7.6, 7.4, 7.4, 6.4, 5.9, 4.5, 4.5, 4.2, 4.0, 3.6, 3.6, 1.9, 1.7, 0.8];
-  var userRates = [80.3, 69.4, 47.9, 54.4, 31.1, 22.1, 35.2, 28.5, 36.8, 19.8, 17.3, 15.6, 14.2, 13.0, 11.5, 18.7, 10.8, 9.4, 8.2, 7.8, 7.1, 24.6, 6.5, 5.8, 4.3, 3.6, 2.1];
-  App.charts.wCov = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: prods,
-      datasets: [
-        { label: '客户覆盖率', data: custRates, backgroundColor: '#22c55e', borderRadius: 4, barPercentage: .7 },
-        { label: '用户覆盖率', data: userRates, backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: .7, hidden: true }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: function(ctx) { return (ctx.dataset.label || '覆盖率') + ': ' + ctx.parsed.y + '%'; } } }
+  try {
+    var r = await fetch('/api/width/heatmap' + App._widthApiQs(), { headers: { 'Authorization': 'Bearer ' + (App.token || '') } });
+    if (!r.ok) return;
+    var data = await r.json();
+    var prods = (data.products || []).map(function(p) { return p.name; });
+    var rates = (data.products || []).map(function(p) { return p.rate; });
+    App.charts.wCov = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: prods,
+        datasets: [{ label: '客户覆盖率', data: rates, backgroundColor: '#22c55e', borderRadius: 4, barPercentage: .7 }]
       },
-      scales: {
-        y: { beginAtZero: true, max: 100, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '覆盖率 (%)' } },
-        x: { grid: { display: false }, ticks: { font: { size: 12, weight: 'bold' }, color: '#000', maxRotation: 60, minRotation: 60 } }
-      }
-    },
-    plugins: [{
-      id: 'covValueLabels',
-      afterDatasetsDraw: function(chart) {
-        var ctx2 = chart.ctx;
-        ctx2.save();
-        chart.data.datasets.forEach(function(ds, dsIdx) {
-          var meta = chart.getDatasetMeta(dsIdx);
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(ctx) { return '客户覆盖率: ' + ctx.parsed.y + '%'; } } }
+        },
+        scales: {
+          y: { beginAtZero: true, max: 100, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '覆盖率 (%)' } },
+          x: { grid: { display: false }, ticks: { font: { size: 12, weight: 'bold' }, color: '#000', maxRotation: 60, minRotation: 60 } }
+        }
+      },
+      plugins: [{
+        id: 'covValueLabels',
+        afterDatasetsDraw: function(chart) {
+          var ctx2 = chart.ctx; ctx2.save();
+          var meta = chart.getDatasetMeta(0);
           if (!meta || meta.hidden) return;
-          ds.data.forEach(function(v, i) {
+          chart.data.datasets[0].data.forEach(function(v, i) {
             var bar = meta.data[i];
-            if (!bar || typeof bar.x === 'undefined') return;
-            ctx2.fillStyle = dsIdx === 0 ? '#16a34a' : '#2563eb';
+            if (!bar) return;
+            ctx2.fillStyle = '#16a34a';
             ctx2.font = '600 10px -apple-system, sans-serif';
-            ctx2.textAlign = 'center';
-            ctx2.textBaseline = 'bottom';
+            ctx2.textAlign = 'center'; ctx2.textBaseline = 'bottom';
             ctx2.fillText(v + '%', bar.x, bar.y - 2);
           });
-        });
-        ctx2.restore();
-      }
-    }]
-  });
-  // 存储覆盖率数据引用，方便切换
-  App.charts.wCov._custData = custRates;
-  App.charts.wCov._userData = userRates;
-  // 强制默认只展示客户覆盖率
-  App.charts.wCov.setDatasetVisibility(0, true);
-  App.charts.wCov.setDatasetVisibility(1, false);
-  App.charts.wCov.update();
+          ctx2.restore();
+        }
+      }]
+    });
+  } catch(e) { console.warn('chart-w-cov fetch failed:', e); }
 })();
 
 // ===== 6. 产品宽度: 规上 vs 非规上（双轴混合图）- 已从页面移除，保留安全初始化 =====
@@ -498,34 +575,32 @@ function makeHBar(labels, data, color, id, opts) {
   }
 })();
 
-// ===== 6b. 产品宽度: 历史趋势（折线图） =====
-(function() {
-var trendCanvas = document.getElementById('chart-w-width-trend');
-if (trendCanvas) {
-App.charts.wWidthTrend = new Chart(trendCanvas, {
-  type: 'line',
-  data: {
-    labels: ['08','09','10','11','12','01','02','03','04','05','06','07'],
-    datasets: [
-      { label: '客户销售一部', data: [2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.45,3.52], borderColor: '#3b82f6', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#3b82f6' },
-      { label: '客户销售二部', data: [2.3,2.4,2.5,2.55,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.28], borderColor: '#10b981', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#10b981' },
-      { label: '大客户销售部', data: [2.2,2.3,2.35,2.4,2.5,2.6,2.7,2.8,2.9,3.0,3.05,3.14], borderColor: '#f59e0b', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#f59e0b' },
-      { label: '场景数字化销售部', data: [2.4,2.5,2.55,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.42], borderColor: '#ef4444', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#ef4444' },
-      { label: '行业二部', data: [3.2,3.3,3.4,3.5,3.6,3.7,3.8,3.9,4.0,4.1,4.2,4.28], borderColor: '#7c3aed', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#7c3aed' },
-      { label: '行业一部', data: [2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.78,3.85], borderColor: '#0891b2', tension:.3, fill:false, pointRadius:4, pointBackgroundColor:'#0891b2' },
-      { label: '平均宽度', data: [3.2,3.3,3.3,3.4,3.5,3.5,3.6,3.7,3.8,3.8,3.9,3.96], borderColor: '#94a3b8', borderDash:[6,4], tension:.3, fill:false, pointRadius:3, pointBackgroundColor:'#94a3b8' }
-    ]
-  },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
-    scales: {
-      y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
-      x: { grid: { display: false } }
-    }
-  }
-});
-}
+// ===== 6b. 产品宽度: 历史趋势 (后端 /api/width/trend?dept=...) =====
+(async function() {
+  var canvas = document.getElementById('chart-w-width-trend');
+  if (!canvas) return;
+  try {
+    var r = await fetch('/api/width/trend' + (App._widthApiQs ? App._widthApiQs() : ''), { headers: { 'Authorization': 'Bearer ' + (App.token || '') } });
+    if (!r.ok) return;
+    var d = await r.json();
+    var datasets = [{
+      label: d.label || '平均产品宽度', data: d.values || [0],
+      borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.1)',
+      tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#1a56db'
+    }];
+    App.charts.wWidthTrend = new Chart(canvas, {
+      type: 'line',
+      data: { labels: d.labels || ['01'], datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+        scales: {
+          y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
+          x: { grid: { display: false } }
+        }
+      }
+    });
+  } catch(e) { console.warn('chart-w-width-trend fetch failed:', e); }
 })();
 
 // Keep old chart for compatibility (wrapped in null check — canvas may not exist)

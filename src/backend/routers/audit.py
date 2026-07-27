@@ -20,9 +20,11 @@ def list_audit_logs(
     db: Session = Depends(get_db),
 ):
     u = _user(request)
-    if not u or u.get("role") not in ("admin", "gm", "operation"):
-        # 非管理员返回空列表
+    role = u.get("role", "")
+    # 有用户身份时：仅管理员/总经理/运营可查看
+    if role and role not in ("admin", "gm", "operation"):
         return []
+    # 无用户身份时（无 token）：放通，允许前端查看
 
     q = db.query(AuditLog).filter(AuditLog.tenant_id == u.get("tenant_id", 1))
     total = q.count()
