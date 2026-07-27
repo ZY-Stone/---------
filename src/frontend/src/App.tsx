@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from './stores/authStore';
-import { useWidthStore } from './stores/widthStore';
-import { usePotentialStore } from './stores/potentialStore';
 import TopBar from './components/layout/TopBar';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
@@ -13,20 +11,16 @@ type Page = 'overview' | 'width' | 'potential' | 'admin';
 
 export default function App() {
   const auth = useAuthStore();
-  const width = useWidthStore();
-  const potential = usePotentialStore();
   const [page, setPage] = useState<Page>('overview');
   const [showLogin, setShowLogin] = useState(true);
 
   useEffect(() => {
     if (auth.restoreSession()) {
       setShowLogin(false);
-      width.restoreLS();
-      potential.restoreLS();
     }
   }, []);
 
-  function onLoginSuccess() { setShowLogin(false); width.restoreLS(); potential.restoreLS(); }
+  function onLoginSuccess() { setShowLogin(false); }
   function onLogout() { setShowLogin(true); auth.logout(); }
 
   if (showLogin) return <Login onSuccess={onLoginSuccess} />;

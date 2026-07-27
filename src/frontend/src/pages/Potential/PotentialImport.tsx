@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { usePotentialStore } from '../../stores/potentialStore';
 
 export default function PotentialImport() {
   const pot = usePotentialStore();
-  const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -16,18 +15,10 @@ export default function PotentialImport() {
   filtered.sort((a,b)=>(b.amount||0)-(a.amount||0));
   const paged = filtered.slice((page-1)*pageSize, page*pageSize);
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f) return;
-    setMsg('解析中...');
-    try { const r = await pot.importExcel(f); setMsg(`✅ 导入完成 — 新增${r.n} / 更新${r.u}`); setPage(1); } catch (err: unknown) { setMsg('❌ ' + (err as Error).message); }
-    if (fileRef.current) fileRef.current.value = '';
-  }
 
   return (
     <div>
       <div style={{display:'flex',gap:12,alignItems:'center',marginBottom:16,flexWrap:'wrap'}}>
-        <input type="file" ref={fileRef} accept=".xlsx,.xls" onChange={handleUpload} style={{display:'none'}} />
-        <button className="btn-primary" onClick={()=>fileRef.current?.click()} disabled={pot.loading}>{pot.loading?'⏳ 解析中...':'📤 上传潜力产品 Excel'}</button>
         <button className="btn-ghost" style={{color:'#dc2626'}} onClick={()=>{if(confirm('确定清空？'))pot.resetAll();}}>⚠️ 重置全部数据</button>
         <div style={{display:'flex',gap:4,marginLeft:'auto'}}>
           <span className="badge" style={{opacity:view==='cust'?1:.5,background:view==='cust'?'#1a56db':'#dbeafe',color:view==='cust'?'#fff':'#1e40af',cursor:'pointer'}} onClick={()=>setView('cust')}>👥 客户: {pot.custRAW.length}</span>

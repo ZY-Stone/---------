@@ -330,7 +330,7 @@ App.ImportData.mapCols = function(hd, tp) {
   var m = {}; hd.forEach(function(h, i) { var s = String(h || '').trim();
     if (s.indexOf('siebel') >= 0) m.siebel = i;
     if (tp === 'user') { if (s.indexOf('最终用户') >= 0 && s.indexOf('行业') < 0) m.user = i; if (s.indexOf('行业') >= 0 && s.indexOf('用户') >= 0) m.industry = i; }
-    else { if (s.indexOf('售达方') >= 0 || s.indexOf('客户') >= 0) m.name = i; }
+    else { if ((s.indexOf('售达方') >= 0 || s.indexOf('客户') >= 0) && s.indexOf('等级') < 0) m.name = i; }
     if (s.indexOf('销售') >= 0 && s.indexOf('部门') < 0) m.sales = i;
     if (s.indexOf('部门') >= 0) m.dept = i;
     if (s.indexOf('规上') >= 0 || s.indexOf('是否') >= 0) m.guishang = i;

@@ -1011,8 +1011,6 @@
           <div class="card-title">
             <span class="left">📜 数据源管理</span>
             <div style="display:flex;gap:8px">
-              <button style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600" onclick="document.getElementById('pImportFileInput').click()">📤 上传文件导入</button>
-              <input type="file" id="pImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="App.ImportPotential.handleUpload(this)">
               <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.exportCurrent()">📥 导出当前数据</button>
               <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.render()">🔄 刷新</button>
             </div>

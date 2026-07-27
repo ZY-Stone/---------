@@ -55,6 +55,9 @@ const USER_HEADERS: Record<string, string> = {
 
 // ===== 组→部门 推断逻辑 =====
 const NO_GROUP_DEPS = new Set(['场景数字化销售部', '大客户销售部']);
+
+// 运营部门：不参与任何数据统计
+const EXCLUDED_DEPTS = new Set(['管理部', '深圳业务中心', '运营部']);
 function resolvePotGroup(row: Record<string, string>): { group: string; dept: string } {
   // 部门 = dept3（三级部门/大部门）
   const dept = row.dept3 || row.dept2 || '';
@@ -66,11 +69,25 @@ function resolvePotGroup(row: Record<string, string>): { group: string; dept: st
   return { group, dept };
 }
 
+// 规范化表头：全角标点 → 半角，去除空白差异
+function normalizeHdr(h: string): string {
+  return h
+    .replace(/（/g, '(').replace(/）/g, ')')   // 全角括号 → 半角
+    .replace(/：/g, ':').replace(/，/g, ',')   // 全角冒号/逗号
+    .replace(/\s+/g, '')                        // 去除所有空白
+    .trim();
+}
+
 // 按表头名称匹配列索引
 function buildColMap(headers: string[], mapping: Record<string, string>): Record<string, number> {
+  const normKeys: Record<string, string> = {};
+  Object.entries(mapping).forEach(([k, v]) => { normKeys[normalizeHdr(k)] = v; });
+
   const map: Record<string, number> = {};
   headers.forEach((h, i) => {
-    const key = mapping[String(h || '').trim()];
+    const raw = String(h || '').trim();
+    // 优先精确匹配，再尝试规范化匹配
+    const key = mapping[raw] || normKeys[normalizeHdr(raw)];
     if (key) map[key] = i;
   });
   return map;
@@ -232,6 +249,7 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
                 groupRaw: String(row[cm.groupRaw] || ''),
               };
               const { group, dept } = resolvePotGroup(raw);
+              if (EXCLUDED_DEPTS.has(dept)) return;
               custRows.push({
                 dept2: raw.dept2,
                 dept3: raw.dept3,
@@ -247,16 +265,16 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
                 userName: String(row[cm.userName] || ''),
                 amount: parseNum(row[cm.amount]),
                 amountPrev: parseNum(row[cm.amountPrev]),
-                yoy: row[cm.yoy] ?? '',
+                yoy: String(row[cm.yoy] ?? ''),
                 qty: parseNum(row[cm.qty]),
                 qtyPrev: parseNum(row[cm.qtyPrev]),
-                qtyYoy: row[cm.qtyYoy] ?? '',
+                qtyYoy: String(row[cm.qtyYoy] ?? ''),
                 opps: parseNum(row[cm.opps]),
                 oppsPrev: parseNum(row[cm.oppsPrev]),
-                oppsYoy: row[cm.oppsYoy] ?? '',
+                oppsYoy: String(row[cm.oppsYoy] ?? ''),
                 users: parseNum(row[cm.users]),
                 usersPrev: parseNum(row[cm.usersPrev]),
-                usersYoy: row[cm.usersYoy] ?? '',
+                usersYoy: String(row[cm.usersYoy] ?? ''),
               });
             });
           }
@@ -266,9 +284,11 @@ export const usePotentialStore = create<PotentialState>((set, get) => ({
             rows.slice(1).forEach(row => {
               const product = String(row[cm.product] || '').trim();
               if (!product) return;
+              const dept3 = String(row[cm.dept3] || '');
+              if (EXCLUDED_DEPTS.has(dept3)) return;
               userRows.push({
                 center: String(row[cm.center] || ''),
-                dept3: String(row[cm.dept3] || ''),
+                dept3,
                 dept4: String(row[cm.dept4] || ''),
                 dept5: String(row[cm.dept5] || ''),
                 contact: String(row[cm.contact] || ''),

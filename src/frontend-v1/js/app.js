@@ -1212,9 +1212,6 @@ App.YOY_BASE_DATA = [
 
 // 各部门对每个产品的销售贡献百分比（6个部门之和 ≈ 100%）
 App.DEPT_PRODUCT_SHARE = {
-  '管理部':       { '观澜编码产品（非大模型）':0, '出入口停车':0, '前端大模型':0, '网络产品':0, '后端大模型(文搜大模型）':0, '人员通道':0, '会议平板与视频会议':0, '国密产品':0, '执法记录仪':0, '物联安全':0, '音频产品':0 },
-  '深圳业务中心': { '观澜编码产品（非大模型）':9, '出入口停车':8, '前端大模型':8, '网络产品':8, '后端大模型(文搜大模型）':8, '人员通道':8, '会议平板与视频会议':8, '国密产品':8, '执法记录仪':8, '物联安全':8, '音频产品':8 },
-  '运营部':       { '观澜编码产品（非大模型）':0, '出入口停车':0, '前端大模型':0, '网络产品':0, '后端大模型(文搜大模型）':0, '人员通道':0, '会议平板与视频会议':0, '国密产品':0, '执法记录仪':0, '物联安全':0, '音频产品':0 },
   '行业二部':     { '观澜编码产品（非大模型）':35, '出入口停车':32, '前端大模型':30, '网络产品':28, '后端大模型(文搜大模型）':38, '人员通道':28, '会议平板与视频会议':26, '国密产品':32, '执法记录仪':30, '物联安全':28, '音频产品':22 },
   '行业一部':     { '观澜编码产品（非大模型）':25, '出入口停车':18, '前端大模型':28, '网络产品':24, '后端大模型(文搜大模型）':22, '人员通道':22, '会议平板与视频会议':26, '国密产品':20, '执法记录仪':22, '物联安全':24, '音频产品':20 },
   '客户销售一部': { '观澜编码产品（非大模型）':18, '出入口停车':20, '前端大模型':15, '网络产品':20, '后端大模型(文搜大模型）':14, '人员通道':22, '会议平板与视频会议':22, '国密产品':18, '执法记录仪':18, '物联安全':20, '音频产品':28 },
@@ -2729,7 +2726,7 @@ App.renderPotentialTop10 = function(tbodyId, products) {
   var html = '';
   products.forEach(function(p, i) {
     var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-    var yoyBadge = p.yoy.indexOf('+') === 0 ? 'b-up' : (p.yoy.indexOf('-') === 0 ? 'b-down' : (p.yoy === '新增' ? 'b-new' : 'b-warn'));
+    var yoyBadge = String(p.yoy).indexOf('+') === 0 ? 'b-up' : (String(p.yoy).indexOf('-') === 0 ? 'b-down' : (p.yoy === '新增' ? 'b-new' : 'b-warn'));
     var qtyCls = p.qty.indexOf('+') === 0 ? 'delta-up' : 'delta-down';
     var typeBadge = p.type === '量价齐升' ? 'b-up' : (p.type === '量价齐跌' ? 'b-down' : (p.type === '新增' ? 'b-new' : 'b-warn'));
     html += '<tr>' +
@@ -5045,7 +5042,7 @@ App.ImportPotential.render = function() {
   // 表体（使用分页数据 pData）
   var html = '';
   pData.forEach(function(r, ri) {
-    var yoyStr = r.yoy || r.outYoy || '';
+    var yoyStr = String(r.yoy || r.outYoy || '');
     var yoyBadge = '';
     if (yoyStr === '新增') yoyBadge = '<span class="badge b-new">新增</span>';
     else if (yoyStr.indexOf('+') === 0) yoyBadge = '<span class="badge b-up">' + yoyStr + '</span>';
@@ -5185,8 +5182,8 @@ App.ImportPotential.batchDelete = function() {
 App.renderAdminUsers = function() {
   var users = App.MOCK_USERS.slice();
   var roles = App.USER_ROLES;
-  // 按部门顺序排列（管理部/深圳业务中心/运营部置顶）
-  var deptOrder = ['管理部', '深圳业务中心', '运营部'].concat(App.DEPT_LIST || []);
+  // 按部门顺序排列
+  var deptOrder = App.DEPT_LIST || [];
   users.sort(function(a, b) {
     var da = deptOrder.indexOf(a.dept), db = deptOrder.indexOf(b.dept);
     if (da < 0) da = 99; if (db < 0) db = 99;
@@ -5596,7 +5593,7 @@ App.renderUserDimension = function() {
       var licon = { new:'🆕', active:'🟢', decline:'🟡', lost:'🔴' };
       var llabel = { new:'新增用户', active:'存量活跃', decline:'萎缩用户', lost:'流失用户' };
       var lcls = { new:'b-new', active:'b-up', decline:'b-warn', lost:'b-down' };
-      var yoyCls = u.yoy === '新增' ? 'b-new' : (u.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
+      var yoyCls = u.yoy === '新增' ? 'b-new' : (String(u.yoy).indexOf('-') >= 0 ? 'b-down' : 'b-up');
       return '<tr><td style="font-weight:600">' + u.user + '</td><td style="text-align:center"><span class="badge ' + lcls[u.life] + '">' + (licon[u.life]||'') + ' ' + (llabel[u.life]||'') + '</span></td><td style="text-align:right">¥' + u.sales + '万</td><td style="text-align:right;color:#6b7280">¥' + u.prev + '万</td><td style="text-align:center"><span class="badge ' + yoyCls + '">' + u.yoy + '</span></td><td style="text-align:center">' + u.cov + '/' + App.ALL_POT_PRODUCTS.length + '</td></tr>';
     }).join('');
   }
@@ -5655,7 +5652,7 @@ App.renderUserDimension = function() {
       var li = { new:'🆕', active:'🟢', decline:'🟡', lost:'🔴' };
       var ll = { new:'新增用户', active:'存量活跃', decline:'萎缩用户', lost:'流失用户' };
       var lc = { new:'b-new', active:'b-up', decline:'b-warn', lost:'b-down' };
-      var yc = u.yoy === '新增' ? 'b-new' : (u.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
+      var yc = u.yoy === '新增' ? 'b-new' : (String(u.yoy).indexOf('-') >= 0 ? 'b-down' : 'b-up');
       return '<tr><td style="font-weight:600">' + u.user + '</td><td style="text-align:center"><span class="badge ' + lc[u.life] + '">' + li[u.life] + ' ' + ll[u.life] + '</span></td><td style="text-align:right">¥' + u.sales + '万</td><td style="text-align:right;color:#6b7280">¥' + u.prev + '万</td><td style="text-align:center"><span class="badge ' + yc + '">' + u.yoy + '</span></td><td style="text-align:center">' + u.cov + '/' + App.ALL_POT_PRODUCTS.length + '</td></tr>';
     }).join('');
   }
@@ -5665,7 +5662,7 @@ App.renderUserDimension = function() {
   function fillUTable(tid, list) {
     var tb = document.getElementById(tid);
     if (tb) tb.innerHTML = list.map(function(u, i) {
-      var rn = i < 3 ? 'rn'+(i+1) : 'rn0'; var yc = u.yoy === '新增' ? 'b-new' : (u.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
+      var rn = i < 3 ? 'rn'+(i+1) : 'rn0'; var yc = u.yoy === '新增' ? 'b-new' : (String(u.yoy).indexOf('-') >= 0 ? 'b-down' : 'b-up');
       return '<tr><td><span class="' + rn + '">' + (i+1) + '</span></td><td style="font-weight:600">' + u.user + '</td><td style="text-align:right">¥' + u.sales + '万</td><td style="text-align:center"><span class="badge ' + yc + '">' + u.yoy + '</span></td><td style="text-align:center">' + u.cov + '/' + App.ALL_POT_PRODUCTS.length + '</td></tr>';
     }).join('');
   }
@@ -6948,7 +6945,7 @@ App.showGrowthDetailModal = function(groupName, type, count) {
   if (g) h += '<div style="font-size:12px;color:#6b7280;margin-bottom:12px">' + g.dept + ' · ' + g.cw + '客户</div>';
   h += '<table class="table tight-table"><thead><tr><th>客户</th><th>产品</th><th style="text-align:right">销售额(万)</th><th style="text-align:center">同比</th><th>说明</th></tr></thead><tbody>';
   details.forEach(function(d) {
-    var yoyCls = d.yoy === '新增' ? 'b-new' : (d.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
+    var yoyCls = d.yoy === '新增' ? 'b-new' : (String(d.yoy).indexOf('-') >= 0 ? 'b-down' : 'b-up');
     h += '<tr><td>' + d.cust + '</td><td>' + d.product + '</td><td style="text-align:right">¥' + d.amt + '万</td><td style="text-align:center"><span class="badge ' + yoyCls + '">' + d.yoy + '</span></td><td>' + d.note + '</td></tr>';
   });
   h += '</tbody></table>';
@@ -7202,7 +7199,7 @@ App.renderCustTopBottom = function() {
     var tbody = document.getElementById(tbodyId);
     if (tbody) {
       tbody.innerHTML = list.map(function(c, i) {
-        var yoyCls = c.yoy === '新增' ? 'b-new' : (c.yoy.indexOf('-') >= 0 ? 'b-down' : 'b-up');
+        var yoyCls = c.yoy === '新增' ? 'b-new' : (String(c.yoy).indexOf('-') >= 0 ? 'b-down' : 'b-up');
         var covCnt = Math.min(Math.round((c.sales || 10) / 80), App.ALL_POT_PRODUCTS.length);
         return '<tr>' +
           '<td style="width:1%"><span class="rn ' + (i < 3 ? 'rn'+(i+1) : 'rn0') + '">' + (i+1) + '</span></td>' +

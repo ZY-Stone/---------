@@ -6,6 +6,14 @@ import { GROUPS } from './authStore';
 const GROUP_DEPT_MAP: Record<string, string> = {};
 GROUPS.forEach(g => { GROUP_DEPT_MAP[g.n] = g.dept; });
 
+// 运营部门：不参与任何数据统计
+const EXCLUDED_DEPTS = new Set(['管理部', '深圳业务中心', '运营部']);
+
+// 判断是否属于被排除的部门
+function isExcludedDept(deptName: string): boolean {
+  return EXCLUDED_DEPTS.has(deptName);
+}
+
 // ===== 27 产品（对齐模板 cols 7-33）=====
 const PRODS = [
   'IPC','球机','专用摄像机','服务器','网络产品','PC产品','NVR','存储',
@@ -43,10 +51,25 @@ function resolveDept(groupName: string): string {
   return GROUP_DEPT_MAP[groupName] || groupName;
 }
 
+// 规范化表头：全角括号 → 半角，统一空格，去除不可见字符
+function normalizeHeader(h: string): string {
+  return h
+    .replace(/（/g, '(').replace(/）/g, ')')   // 全角括号 → 半角
+    .replace(/：/g, ':').replace(/，/g, ',')   // 全角冒号/逗号
+    .replace(/\s+/g, '')                        // 去除所有空白
+    .trim();
+}
+
 function buildMap(headers: string[], mapping: Record<string, string>): Record<string, number> {
+  // 同时建立原始键和规范化键的索引，方便双路查找
+  const normKeys: Record<string, string> = {};
+  Object.entries(mapping).forEach(([k, v]) => { normKeys[normalizeHeader(k)] = v; });
+
   const m: Record<string, number> = {};
   headers.forEach((h, i) => {
-    const key = mapping[String(h || '').trim()];
+    const raw = String(h || '').trim();
+    // 优先精确匹配，再尝试规范化匹配
+    const key = mapping[raw] || normKeys[normalizeHeader(raw)];
     if (key) m[key] = i;
   });
   // Find prodStart = first product column index
@@ -163,9 +186,11 @@ export const useWidthStore = create<WidthState>((set, get) => ({
                 prods[p] = v; actualW += v;
               });
               const groupName = String(row[cm.group] || '');
+              const deptName = resolveDept(groupName);
+              if (isExcludedDept(deptName)) return;
             users.push({
                 user: nm, siebel: String(row[cm.siebel] || ''), industry: String(row[cm.industry] || ''),
-                sales: String(row[cm.sales] || ''), group: groupName, dept: resolveDept(groupName),
+                sales: String(row[cm.sales] || ''), group: groupName, dept: deptName,
                 guishang: String(row[cm.guishang] || '').includes('是') ? '是' : '否',
                 width: sw || actualW, prods,
                 contact: String(row[cm.contact] || ''), level: String(row[cm.level] || ''),
@@ -185,9 +210,11 @@ export const useWidthStore = create<WidthState>((set, get) => ({
                 prods[p] = v; actualW += v;
               });
               const groupName = String(row[cm.group] || '');
+              const deptName2 = resolveDept(groupName);
+              if (isExcludedDept(deptName2)) return;
             custs.push({
                 name: nm, siebel: String(row[cm.siebel] || ''), industry: '',
-                sales: String(row[cm.sales] || ''), group: groupName, dept: resolveDept(groupName),
+                sales: String(row[cm.sales] || ''), group: groupName, dept: deptName2,
                 guishang: String(row[cm.guishang] || '').includes('是') ? '是' : (row[cm.guishang] == null ? '否' : '否'),
                 width: sw || actualW, prods,
                 contact: String(row[cm.contact] || ''), level: String(row[cm.level] || ''),
@@ -196,17 +223,14 @@ export const useWidthStore = create<WidthState>((set, get) => ({
           }
         });
 
-        const { userGS: pu, custGS: pc, history: ph } = get();
-        const um: Record<string, number> = {}; pu.forEach((r, i) => { um[r.user || ''] = i; });
-        let nu = 0, uu = 0;
-        users.forEach(r => { const k = r.user || ''; if (um[k] !== undefined) { Object.assign(pu[um[k]], r); uu++; } else { pu.push(r); nu++; um[k] = pu.length - 1; } });
-        const cm2: Record<string, number> = {}; pc.forEach((r, i) => { cm2[r.name || ''] = i; });
-        let nc = 0, uc = 0;
-        custs.forEach(r => { const k = r.name || ''; if (cm2[k] !== undefined) { Object.assign(pc[cm2[k]], r); uc++; } else { pc.push(r); nc++; cm2[k] = pc.length - 1; } });
+        const { history: ph } = get();
+        const pu: WidthRow[] = []; users.forEach(r => { pu.push(r); });
+        const pc: WidthRow[] = []; custs.forEach(r => { pc.push(r); });
+        const nu = users.length, nc = custs.length;
 
         const computed = compute(pc, pu);
         const now = new Date(); const ts = now.toLocaleString('zh-CN');
-        set({ userGS: pu, custGS: pc, ...computed, history: [{ id: Date.now(), file: file.name, time: ts, userCount: pu.length, custCount: pc.length, userSnap: JSON.parse(JSON.stringify(get().userGS)), custSnap: JSON.parse(JSON.stringify(get().custGS)) }, ...ph].slice(0, 20), loading: false });
+        set({ userGS: pu, custGS: pc, ...computed, history: [{ id: Date.now(), file: file.name, time: ts, userCount: pu.length, custCount: pc.length, userSnap: JSON.parse(JSON.stringify(pu)), custSnap: JSON.parse(JSON.stringify(pc)) }, ...ph].slice(0, 20), loading: false });
         try { localStorage.setItem('pa_width_cust', JSON.stringify(pc)); localStorage.setItem('pa_width_user', JSON.stringify(pu)); } catch { /* */ }
         resolve({ nu, nc });
       } catch (err) { set({ loading: false }); reject(err); }

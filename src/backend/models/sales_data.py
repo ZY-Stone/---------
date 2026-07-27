@@ -6,23 +6,23 @@ from database import Base
 
 
 class WidthRecord(Base):
-    """产品宽度销售明细"""
+    """产品宽度（14字段，对齐导入模板）"""
     __tablename__ = "width_records"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id"), comment="租户ID")
-    period: Mapped[str] = mapped_column(String(7), comment="期间 如 2026-07")
-    customer_name: Mapped[str] = mapped_column(String(200), comment="客户名称")
-    user_name: Mapped[str | None] = mapped_column(String(200), default=None, comment="最终用户")
-    dept_id: Mapped[int] = mapped_column(Integer, ForeignKey("departments.id"))
-    group_id: Mapped[int] = mapped_column(Integer, ForeignKey("groups.id"))
-    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), comment="负责销售")
-    product_id: Mapped[int] = mapped_column(Integer, ForeignKey("products.id"))
-    amount: Mapped[float] = mapped_column(Float, default=0, comment="销售额(万)")
-    amount_prev: Mapped[float] = mapped_column(Float, default=0, comment="同期销售额")
-    qty: Mapped[int] = mapped_column(Integer, default=0)
-    qty_prev: Mapped[int] = mapped_column(Integer, default=0)
-    is_regulated: Mapped[bool] = mapped_column(Boolean, default=False, comment="是否规上")
+    record_type: Mapped[str] = mapped_column(String(10), default="user", comment="user/cust")
+    siebel: Mapped[str] = mapped_column(String(50), default="", comment="siebel编码")
+    industry: Mapped[str] = mapped_column(String(100), default="", comment="用户行业(user独有)")
+    name: Mapped[str] = mapped_column(String(200), comment="用户名称(user)/客户名称(cust)")
+    sales: Mapped[str] = mapped_column(String(50), default="", comment="销售")
+    dept: Mapped[str] = mapped_column(String(100), default="", comment="部门（从组自动推导）")
+    group_name: Mapped[str] = mapped_column(String(100), default="", comment="组名")
+    guishang: Mapped[str] = mapped_column(String(5), default="否", comment="是否规上")
+    width: Mapped[int] = mapped_column(Integer, default=0, comment="产品线合计")
+    prods_json: Mapped[str | None] = mapped_column(String, default=None, comment="27产品 0/1 JSON")
+    contact: Mapped[str] = mapped_column(String(50), default="", comment="接口人")
+    level: Mapped[str] = mapped_column(String(50), default="", comment="用户/客户等级")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 

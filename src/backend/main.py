@@ -25,7 +25,7 @@ from config import CORS_ORIGINS
 
 # 前端静态文件路径
 SRC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-FRONTEND_DIR = os.path.join(SRC_DIR, "frontend-v1")  # 旧版 Vanilla JS
+FRONTEND_DIR = os.path.join(SRC_DIR, "frontend")  # Vanilla JS SPA
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -117,6 +117,9 @@ from routers.backup import router as backup_router
 from routers.data_import import router as data_import_router
 from routers.potential_import import router as potential_import_router
 from routers.potential_query import router as potential_query_router
+from routers.analytics import router as analytics_router
+from routers.products import router as products_router
+from routers.audit import router as audit_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -128,11 +131,18 @@ app.include_router(backup_router)
 app.include_router(data_import_router)
 app.include_router(potential_import_router)
 app.include_router(potential_query_router)
+app.include_router(analytics_router)
+app.include_router(products_router)
+app.include_router(audit_router)
 
 # ── 静态文件托管（最后注册，确保 API 路由优先） ──
 if os.path.isdir(FRONTEND_DIR):
-    app.mount("/css", StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
-    app.mount("/js", StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")), name="js")
+    css_dir = os.path.join(FRONTEND_DIR, "css")
+    js_dir = os.path.join(FRONTEND_DIR, "js")
+    if os.path.isdir(css_dir):
+        app.mount("/css", StaticFiles(directory=css_dir), name="css")
+    if os.path.isdir(js_dir):
+        app.mount("/js", StaticFiles(directory=js_dir), name="js")
     print(f"[init] 前端静态文件: {FRONTEND_DIR}")
 
 
