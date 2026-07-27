@@ -19,6 +19,9 @@ export default function PotentialPage() {
   const yoyRef = useRef<HTMLDivElement>(null);
   const quadRef = useRef<HTMLDivElement>(null);
 
+  // 页面挂载时从 localStorage 恢复旧 JS 导入的数据
+  useEffect(() => { pot.restoreLS(); }, []);
+
   useEffect(() => {
     if (tab !== 'overview') return;
     const instances: echarts.ECharts[] = [];
@@ -40,7 +43,7 @@ export default function PotentialPage() {
       {/* ===== 总览分析 ===== */}
       {tab === 'overview' && <div>
         <div className="kpi-row" style={{gridTemplateColumns:'repeat(5,1fr)'}}>
-          <div className="kpi-card k-blue"><div className="kpi-label">💰 潜力产品销售额</div><div className="kpi-value">¥ {pot.kpi.totalSales.toLocaleString()}万</div><div className="kpi-sub">同期 ¥{pot.kpi.totalSalesPrev.toLocaleString()}万</div></div>
+          <div className="kpi-card k-blue"><div className="kpi-label">💰 潜力产品销售额</div><div className="kpi-value">¥ {pot.kpi.totalSales.toLocaleString()}万</div><div className="kpi-sub">同期 ¥{pot.kpi.totalPrev.toLocaleString()}万</div></div>
           <div className="kpi-card k-purple"><div className="kpi-label">📦 潜力产品数</div><div className="kpi-value">{pot.kpi.productCount}</div><div className="kpi-sub">品类</div></div>
           <div className="kpi-card k-orange"><div className="kpi-label">👥 覆盖客户数</div><div className="kpi-value">{pot.kpi.customerCount}</div><div className="kpi-sub">交易客户</div></div>
           <div className="kpi-card k-green"><div className="kpi-label">💰 客均单价</div><div className="kpi-value">{pot.kpi.avgPrice.toFixed(1)}</div><div className="kpi-sub">万/客户</div></div>
@@ -72,17 +75,29 @@ export default function PotentialPage() {
       {/* ===== 客户维度 ===== */}
       {tab === 'customer' && <div>
         <div className="card"><div className="card-title">📊 客户分层分析</div><div className="table-wrap" style={{maxHeight:420}}><table className="table"><thead><tr><th>排名</th><th>客户名称</th><th style={{textAlign:'right'}}>销售额(万)</th><th style={{textAlign:'center'}}>覆盖产品线</th></tr></thead><tbody>
-          {pot.customerSegments.length===0?<tr><td colSpan={4} className="empty-state">📭 暂无数据，请先导入</td></tr>:pot.customerSegments.slice(0,30).map((c,i)=><tr key={c.name}><td><span className={`rn rn${i<3?i+1:0}`}>{i+1}</span></td><td><strong>{c.name}</strong></td><td style={{textAlign:'right',fontWeight:700}}>¥{c.sales.toLocaleString()}万</td><td style={{textAlign:'center',fontWeight:600}}>{c.products}</td></tr>)}
+          {pot.customerSegments.length===0?<tr><td colSpan={4} className="empty-state">📭 暂无数据，请先导入</td></tr>:pot.customerSegments.slice(0,30).map((c,i)=><tr key={c.name}><td><span className={`rn rn${i<3?i+1:0}`}>{i+1}</span></td><td><strong>{c.name}</strong></td><td style={{textAlign:'right',fontWeight:700}}>¥{c.sales.toLocaleString()}万</td><td style={{textAlign:'center',fontWeight:600}}>{c.productCount}</td></tr>)}
         </tbody></table></div></div>
         <div className="card" style={{marginTop:16}}><div className="card-title">🏆 高贡献客户 TOP 10</div><div className="table-wrap" style={{maxHeight:400}}><table className="table"><thead><tr><th>排名</th><th>客户名称</th><th style={{textAlign:'right'}}>销售额(万)</th><th style={{textAlign:'center'}}>产品数</th></tr></thead><tbody>
-          {pot.customerSegments.length===0?<tr><td colSpan={4} className="empty-state">📭 暂无数据</td></tr>:pot.customerSegments.slice(0,10).map((c,i)=><tr key={'top'+c.name}><td><span className={`rn rn${i<3?i+1:0}`}>{i+1}</span></td><td><strong>{c.name}</strong></td><td style={{textAlign:'right',fontWeight:700}}>¥{c.sales.toLocaleString()}万</td><td style={{textAlign:'center',fontWeight:600}}>{c.products}</td></tr>)}
+          {pot.customerSegments.length===0?<tr><td colSpan={4} className="empty-state">📭 暂无数据</td></tr>:pot.customerSegments.slice(0,10).map((c,i)=><tr key={'top'+c.name}><td><span className={`rn rn${i<3?i+1:0}`}>{i+1}</span></td><td><strong>{c.name}</strong></td><td style={{textAlign:'right',fontWeight:700}}>¥{c.sales.toLocaleString()}万</td><td style={{textAlign:'center',fontWeight:600}}>{c.productCount}</td></tr>)}
         </tbody></table></div></div>
       </div>}
 
       {/* ===== 用户维度 ===== */}
       {tab === 'user' && <div>
         <div className="card"><div className="card-title">🏢 最终用户潜力产品推广情况</div><div className="table-wrap" style={{maxHeight:420}}><table className="table"><thead><tr><th>排名</th><th>最终用户</th><th style={{textAlign:'center'}}>覆盖产品线</th><th style={{textAlign:'center'}}>关联客户数</th><th style={{textAlign:'right'}}>出库额(万)</th></tr></thead><tbody>
-          <tr><td colSpan={5} className="empty-state">📭 暂无数据，请先导入用户维度数据</td></tr>
+          {pot.userSegments.length === 0 ? (
+            <tr><td colSpan={5} className="empty-state">📭 暂无数据，请先导入用户维度数据</td></tr>
+          ) : (
+            pot.userSegments.slice(0, 30).map((u, i) => (
+              <tr key={u.name}>
+                <td><span className={`rn rn${i<3?i+1:0}`}>{i+1}</span></td>
+                <td><strong>{u.name}</strong></td>
+                <td style={{textAlign:'center'}}>{u.productCount}</td>
+                <td style={{textAlign:'center'}}>{u.custCount}</td>
+                <td style={{textAlign:'right',fontWeight:700}}>¥{u.sales.toLocaleString()}万</td>
+              </tr>
+            ))
+          )}
         </tbody></table></div></div>
       </div>}
 

@@ -59,7 +59,7 @@ App.AI = {
 
     // 按部门统计
     ctx += '部门维度:\n';
-    App.DEPTS.forEach(function(d) {
+    App.BUSINESS_DEPTS.forEach(function(d) {
       var dg = App.GROUPS.filter(function(g) { return g.dept === d.n; }).map(function(g) { return g.n; });
       var dr = raw.filter(function(r) { return dg.indexOf(r.team) >= 0; });
       var dw = dr.length ? (dr.reduce(function(s, r) { return s + r.width; }, 0) / dr.length).toFixed(1) : 0;
@@ -234,7 +234,7 @@ App.PotAI = {
     var avgW = raw.length ? (raw.reduce(function(s, r) { return s + r.width; }, 0) / raw.length).toFixed(1) : 0;
     ctx += '平均产品宽度: ' + avgW + '\n\n';
     ctx += '部门维度:\n';
-    App.DEPTS.forEach(function(d) {
+    App.BUSINESS_DEPTS.forEach(function(d) {
       var dg = App.GROUPS.filter(function(g) { return g.dept === d.n; }).map(function(g) { return g.n; });
       var dr = raw.filter(function(r) { return dg.indexOf(r.team) >= 0; });
       var dw = dr.length ? (dr.reduce(function(s, r) { return s + r.width; }, 0) / dr.length).toFixed(1) : 0;

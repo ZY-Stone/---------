@@ -95,6 +95,13 @@ export interface PotCustSegment {
   contact: string;          // 对接销售
 }
 
+export interface PotUserSegment {
+  name: string;
+  sales: number;
+  productCount: number;
+  custCount: number;
+}
+
 export interface PotQuadrantPoint {
   product: string;
   x: number;                // 数量同比%

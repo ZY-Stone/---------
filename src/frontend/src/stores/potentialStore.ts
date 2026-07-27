@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as XLSX from 'xlsx';
-import type { PotCustRow, PotUserRow, PotKpi, PotProductRank, PotDeptRank, PotCustSegment, PotQuadrantPoint } from '../types/potential';
+import type { PotCustRow, PotUserRow, PotKpi, PotProductRank, PotDeptRank, PotCustSegment, PotUserSegment, PotQuadrantPoint } from '../types/potential';
 
 // ===== 字段映射：Excel 表头 → 逻辑字段名 =====
 const CUST_HEADERS: Record<string, string> = {
@@ -119,6 +119,7 @@ interface PotentialState {
   deptRanking: PotDeptRank[];
   prodComposition: Array<{ name: string; amount: number }>;
   customerSegments: PotCustSegment[];
+  userSegments: PotUserSegment[];
   quadrant: PotQuadrantPoint[];
   // Actions
   importExcel: (file: File) => Promise<{ custN: number; userN: number }>;
@@ -184,6 +185,21 @@ function recompute(custRAW: PotCustRecord[], userRAW: PotUserRecord[]) {
     name: c.contact || '', sales: c.sales, productCount: c.products.size, contact: c.contact,
   })).sort((a, b) => b.sales - a.sales);
 
+  // User segments（按最终用户聚合）
+  const userMap: Record<string, { sales: number; products: Set<string>; custSet: Set<string> }> = {};
+  userRAW.forEach(r => {
+    const un = r.userName || '未知';
+    if (!userMap[un]) userMap[un] = { sales: 0, products: new Set(), custSet: new Set() };
+    userMap[un].sales += r.outAmt || 0;
+    if (r.product) userMap[un].products.add(r.product);
+  });
+  const userSegments: PotUserSegment[] = Object.entries(userMap).map(([name, v]) => ({
+    name,
+    sales: v.sales,
+    productCount: v.products.size,
+    custCount: v.custSet.size,
+  })).sort((a, b) => b.sales - a.sales);
+
   // Quadrant
   const quadrant: PotQuadrantPoint[] = productRanking.slice(0, 11).map(p => ({
     product: p.product,
@@ -208,13 +224,13 @@ function recompute(custRAW: PotCustRecord[], userRAW: PotUserRecord[]) {
     else kpi.downCount++;
   });
 
-  return { kpi, productRanking, top10: productRanking.slice(0, 10), deptRanking, prodComposition, customerSegments, quadrant };
+  return { kpi, productRanking, top10: productRanking.slice(0, 10), deptRanking, prodComposition, customerSegments, userSegments, quadrant };
 }
 
 export const usePotentialStore = create<PotentialState>((set, get) => ({
   custRAW: [], userRAW: [], history: [], loading: false, currentView: 'cust',
   kpi: { totalSales: 0, totalPrev: 0, yoyGrowth: 0, productCount: 0, customerCount: 0, avgPrice: 0, upCount: 0, downCount: 0, newCount: 0 },
-  productRanking: [], top10: [], deptRanking: [], prodComposition: [], customerSegments: [], quadrant: [],
+  productRanking: [], top10: [], deptRanking: [], prodComposition: [], customerSegments: [], userSegments: [], quadrant: [],
 
   importExcel: (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();

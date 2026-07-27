@@ -75,6 +75,9 @@ App.DEPTS = [
   { n: '行业二部', ld: '房伟建', cw: 0, aw: 0, mw: 0, cov: 0, yoy: '-' },
 ];
 
+// 业务部门（排除管理部/深圳业务中心/运营部，用于图表和表格渲染）
+App.BUSINESS_DEPTS = App.DEPTS.filter(function(d) { return !['管理部','深圳业务中心','运营部'].includes(d.n); });
+
 // ===== GROUPS =====
 App.GROUPS = [
   { n: '客户销售一组', dept: '客户销售一部', ld: '张栋柱', cw: 0, aw: 0, mw: 0, cov: 0, yoy: '-' },
@@ -516,7 +519,7 @@ App.Data.getPotential = function(team) {
     var sharePct = totalPrev > 0 ? (totalSales / totalPrev * 100).toFixed(1) : '100.0';
     var deptMap = {};
     rawData.forEach(function(r) { var d = r.dept3 || r.dept4 || '未分组'; if (!deptMap[d]) deptMap[d] = 0; deptMap[d] += (r.amount || r.outAmt || 0); });
-    var deptRank = Object.entries(deptMap).sort(function(a,b) { return b[1] - a[1]; }).slice(0, 8).map(function(e) { return [e[0], e[1], '+0%', '0%']; });
+    var deptRank = Object.entries(deptMap).sort(function(a,b) { return b[1] - a[1]; }).slice(0, 8).map(function(e) { return { dept: e[0], sales: e[1], yoy: 0, qtyYoy: 0, manager: '' }; });
     var prodComposition = prodList.slice(0, 12).map(function(p) { return { name: p, amount: prodSet[p] || 0 }; });
     var quadrant = top10.map(function(p) {
       var yv = parseFloat(p.yoy) || 0, qv = parseFloat(p.qty) || 0;
@@ -847,7 +850,8 @@ App.GAP_DATA = {
 App.ImportPotential.getDepts = function() {
   var data = App.ImportPotential.currentDS === 'cust' ? App.ImportPotential.CustRAW : App.ImportPotential.UserRAW;
   var set = {};
-  data.forEach(function(r) { set[r.dept4 || r.dept3] = true; });
+  var EXCLUDE = ['管理部','深圳业务中心','运营部'];
+  data.forEach(function(r) { var d = r.dept4 || r.dept3; if (d && EXCLUDE.indexOf(d) < 0) set[d] = true; });
   return Object.keys(set).sort();
 };
 

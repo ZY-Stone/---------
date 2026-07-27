@@ -4978,49 +4978,100 @@ App.ImportPotential.render = function() {
            (r.product || '').toLowerCase().indexOf(search) >= 0;
   });
 
-  // 冻结前7列（复选框+#+部门层级+销售），其余横向滚动
-  function freezeTh(colIdx) {
-    var lefts = [0, 28, 56, 136, 216, 296, 376]; // 累计偏移
-    if (colIdx < lefts.length) return 'position:sticky;left:' + lefts[colIdx] + 'px;background:#f8fafc;z-index:2';
-    return '';
-  }
+  // ===== 列定义 =====
+  var custCols = [
+    {w:28,  frozen:true,  label:'<input type="checkbox" onclick="App.ImportPotential.toggleAll(this)">'},
+    {w:28,  frozen:true,  label:'#'},
+    {w:80,  frozen:true,  label:'二级部门'},
+    {w:80,  frozen:true,  label:'大部门'},
+    {w:80,  frozen:true,  label:'团队小组'},
+    {w:80,  frozen:true,  label:'五级部门'},
+    {w:80,  frozen:true,  label:'销售雇员'},
+    {w:100, frozen:false, label:'潜力产品'},
+    {w:130, frozen:false, label:'售达方名称'},
+    {w:130, frozen:false, label:'最终用户名称'},
+    {w:100, frozen:false, label:'销售额(万)', align:'right'},
+    {w:100, frozen:false, label:'同期(万)', align:'right'},
+    {w:60,  frozen:false, label:'同比', align:'center'},
+    {w:60,  frozen:false, label:'数量', align:'center'},
+    {w:60,  frozen:false, label:'同期数量', align:'center'},
+    {w:60,  frozen:false, label:'数量同比', align:'center'},
+    {w:60,  frozen:false, label:'商机数', align:'center'},
+    {w:60,  frozen:false, label:'商机同期', align:'center'},
+    {w:60,  frozen:false, label:'商机同比', align:'center'},
+    {w:60,  frozen:false, label:'用户数', align:'center'},
+    {w:60,  frozen:false, label:'用户同期', align:'center'},
+    {w:60,  frozen:false, label:'用户同比', align:'center'},
+    {w:80,  frozen:false, label:'对接人'},
+    {w:80,  frozen:false, label:'客户等级', align:'center'}
+  ];
+  var userCols = [
+    {w:28,  frozen:true,  label:'<input type="checkbox" onclick="App.ImportPotential.toggleAll(this)">'},
+    {w:28,  frozen:true,  label:'#'},
+    {w:80,  frozen:true,  label:'业务中心'},
+    {w:80,  frozen:true,  label:'部门'},
+    {w:80,  frozen:true,  label:'团队小组'},
+    {w:80,  frozen:true,  label:'负责销售'},
+    {w:80,  frozen:false, label:'对接人'},
+    {w:130, frozen:false, label:'最终用户名称'},
+    {w:80,  frozen:false, label:'行业'},
+    {w:100, frozen:false, label:'潜力产品'},
+    {w:100, frozen:false, label:'出库额(万)', align:'right'},
+    {w:100, frozen:false, label:'同期(万)', align:'right'},
+    {w:60,  frozen:false, label:'同比', align:'center'},
+    {w:60,  frozen:false, label:'数量', align:'center'},
+    {w:60,  frozen:false, label:'同期数量', align:'center'},
+    {w:60,  frozen:false, label:'数量同比', align:'center'},
+    {w:60,  frozen:false, label:'商机数', align:'center'},
+    {w:60,  frozen:false, label:'商机同期', align:'center'},
+    {w:60,  frozen:false, label:'商机同比', align:'center'},
+    {w:60,  frozen:false, label:'用户数', align:'center'},
+    {w:60,  frozen:false, label:'用户同期', align:'center'},
+    {w:60,  frozen:false, label:'用户同比', align:'center'},
+    {w:60,  frozen:false, label:'客户数', align:'center'},
+    {w:60,  frozen:false, label:'客户同期', align:'center'},
+    {w:60,  frozen:false, label:'客户同比', align:'center'}
+  ];
+  var cols = isCust ? custCols : userCols;
 
-  // 渲染表头
+  // 恢复已保存的列宽
+  var savedKey = isCust ? 'pImpColW_cust' : 'pImpColW_user';
+  try { var saved = JSON.parse(localStorage.getItem(savedKey)); if (saved) { cols.forEach(function(c,i){ if (saved[i]) c.w = saved[i]; }); } } catch(e) {}
+
+  // ===== 计算累计 left 值（从 colgroup 宽度累加） =====
+  var stickyTh = '', stickyTd = '';
+  function buildSticky() {
+    var left = 0;
+    var thParts = [], tdParts = [];
+    cols.forEach(function(c, i) {
+      if (c.frozen) {
+        thParts.push('position:sticky;left:' + left + 'px;background:#f8fafc;z-index:2');
+        tdParts.push('position:sticky;left:' + left + 'px;background:#fff;z-index:1');
+      } else {
+        thParts.push('');
+        tdParts.push('');
+      }
+      left += c.w;
+    });
+    stickyTh = thParts; stickyTd = tdParts;
+  }
+  buildSticky();
+
+  // ===== 渲染 colgroup + thead =====
   var thead = document.getElementById('pImportDataThead');
   if (thead) {
-    if (isCust) {
-      thead.innerHTML = '<tr>' +
-        '<th style="width:28px;' + freezeTh(0) + '"><input type="checkbox" onclick="App.ImportPotential.toggleAll(this)"></th>' +
-        '<th style="width:28px;' + freezeTh(1) + '">#</th>' +
-        '<th style="width:80px;' + freezeTh(2) + '">二级部门</th>' +
-        '<th style="width:80px;' + freezeTh(3) + '">大部门</th>' +
-        '<th style="width:80px;' + freezeTh(4) + '">团队小组</th>' +
-        '<th style="width:80px;' + freezeTh(5) + '">五级部门</th>' +
-        '<th style="width:80px;' + freezeTh(6) + '">销售雇员</th>' +
-        '<th>潜力产品</th><th>售达方名称</th><th>最终用户名称</th>' +
-        '<th style="text-align:right">销售额(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">同比</th>' +
-        '<th style="text-align:center">数量</th><th style="text-align:center">同期数量</th><th style="text-align:center">数量同比</th>' +
-        '<th style="text-align:center">商机数</th><th style="text-align:center">商机同期</th><th style="text-align:center">商机同比</th>' +
-        '<th style="text-align:center">用户数</th><th style="text-align:center">用户同期</th><th style="text-align:center">用户同比</th>' +
-        '<th>对接人</th><th>客户等级</th></tr>';
-    } else {
-      thead.innerHTML = '<tr>' +
-        '<th style="width:28px;' + freezeTh(0) + '"><input type="checkbox" onclick="App.ImportPotential.toggleAll(this)"></th>' +
-        '<th style="width:28px;' + freezeTh(1) + '">#</th>' +
-        '<th style="width:80px;' + freezeTh(2) + '">业务中心</th>' +
-        '<th style="width:80px;' + freezeTh(3) + '">大部门</th>' +
-        '<th style="width:80px;' + freezeTh(4) + '">团队小组</th>' +
-        '<th style="width:80px;' + freezeTh(5) + '">四级部门</th>' +
-        '<th style="width:80px;' + freezeTh(6) + '">负责销售</th>' +
-        '<th>对接人</th><th>最终用户名称</th><th>行业</th><th>潜力产品</th>' +
-        '<th style="text-align:right">出库额(万)</th><th style="text-align:right">同期(万)</th><th style="text-align:center">同比</th>' +
-        '<th style="text-align:center">数量</th><th style="text-align:center">同期数量</th><th style="text-align:center">数量同比</th>' +
-        '<th style="text-align:center">商机数</th><th style="text-align:center">商机同期</th><th style="text-align:center">商机同比</th>' +
-        '<th style="text-align:center">用户数</th><th style="text-align:center">用户同期</th><th style="text-align:center">用户同比</th>' +
-        '<th style="text-align:center">客户数</th><th style="text-align:center">客户同期</th><th style="text-align:center">客户同比</th>' +
-        '<th>用户等级</th></tr>';
-    }
+    var colHtml = '<colgroup>' + cols.map(function(c) { return '<col style="width:' + c.w + 'px">'; }).join('') + '</colgroup>';
+    var thHtml = '<tr>' + cols.map(function(c, i) {
+      var st = stickyTh[i] ? ' style="' + stickyTh[i] + '"' : '';
+      var al = c.align ? ' style="text-align:' + c.align + (stickyTh[i] ? ';' + stickyTh[i] : '') + '"' : st;
+      return '<th' + al + '>' + c.label + '</th>';
+    }).join('') + '</tr>';
+    thead.innerHTML = colHtml + thHtml;
   }
+
+  // 给 table 加上 table-layout:fixed
+  var table = document.getElementById('pImportDataTable');
+  if (table) table.style.tableLayout = 'fixed';
 
   // 分页
   var pSize = parseInt((document.getElementById('pImportPageSize')||{}).value) || 20;
@@ -5039,81 +5090,101 @@ App.ImportPotential.render = function() {
   var countEl = document.getElementById('p-import-ds-count');
   if (countEl) countEl.textContent = data.length + ' 条记录';
 
+  // 同比值 → 带颜色的 HTML
+  function fmtYoyHtml(v) {
+    if (v == null || v === '' || v === '-') return '<span style="color:#94a3b8">-</span>';
+    var s = String(v);
+    if (s === '新增') return '<span class="badge b-new">新增</span>';
+    // 解析数值
+    var num = parseFloat(s);
+    if (!isNaN(num)) {
+      if (num > 0) return '<span style="color:#16a34a;font-weight:600">+' + num.toFixed(1) + '%</span>';
+      if (num < 0) return '<span style="color:#dc2626;font-weight:600">' + num.toFixed(1) + '%</span>';
+      return '<span style="color:#94a3b8">0.0%</span>';
+    }
+    // 已有 +/- 或 % 的字符串
+    if (s.indexOf('+') === 0) return '<span style="color:#16a34a;font-weight:600">' + s + '</span>';
+    if (s.indexOf('-') === 0) return '<span style="color:#dc2626;font-weight:600">' + s + '</span>';
+    return s;
+  }
+
   // 表体（使用分页数据 pData）
   var html = '';
   pData.forEach(function(r, ri) {
-    var yoyStr = String(r.yoy || r.outYoy || '');
-    var yoyBadge = '';
-    if (yoyStr === '新增') yoyBadge = '<span class="badge b-new">新增</span>';
-    else if (yoyStr.indexOf('+') === 0) yoyBadge = '<span class="badge b-up">' + yoyStr + '</span>';
-    else if (yoyStr.indexOf('-') === 0) yoyBadge = '<span class="badge b-down">' + yoyStr + '</span>';
-    else yoyBadge = yoyStr;
+    var yoyBadge = fmtYoyHtml(r.yoy || r.outYoy);
 
     var rowNum = pStart + ri + 1;
     var rowId = 'pimp-' + (isCust ? 'c' : 'u') + '-' + ri;
-    function freezeTd(idx) {
-      var lefts = [0, 28, 56, 136, 216, 296, 376];
-      if (idx < lefts.length) return 'position:sticky;left:' + lefts[idx] + 'px;background:#fff;z-index:1';
-      return '';
-    }
-    html += '<tr id="' + rowId + '">';
-    html += '<td style="' + freezeTd(0) + '"><input type="checkbox" class="p-imp-check" data-row="' + rowId + '"></td>';
-    html += '<td style="' + freezeTd(1) + '">' + rowNum + '</td>';
-    if (isCust) {
-      html += '<td style="' + freezeTd(2) + '">' + (r.dept2 || '-') + '</td>';
-      html += '<td style="' + freezeTd(3) + '">' + (r.dept3 || '-') + '</td>';
-      html += '<td style="' + freezeTd(4) + '">' + (r.dept4 || '-') + '</td>';
-      html += '<td style="' + freezeTd(5) + '">' + (r.dept5 || '-') + '</td>';
-      html += '<td style="' + freezeTd(6) + '">' + (r.sales || '-') + '</td>';
-      html += '<td><strong>' + (r.product || '-') + '</strong></td>';
-      html += '<td>' + (r.custName || '-') + '</td>';
-      html += '<td>' + (r.userName || '-') + '</td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:right;font-weight:700">' + (r.amount || 0) + '</td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:right;color:#6b7280">' + (r.amountPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + yoyBadge + '</td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:center">' + (r.qty || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.qtyPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.qtyYoy || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.opps || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.oppsPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.oppsYoy || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.users || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.usersPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.usersYoy || '-') + '</td>';
-      html += '<td>' + (r.contact || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.level || '-') + '</td>';
-    } else {
-      html += '<td style="' + freezeTd(2) + '">' + (r.center || '-') + '</td>';
-      html += '<td style="' + freezeTd(3) + '">' + (r.dept3 || '-') + '</td>';
-      html += '<td style="' + freezeTd(4) + '">' + (r.dept4 || '-') + '</td>';
-      html += '<td style="' + freezeTd(5) + '">' + (r.sales || '-') + '</td>';
-      html += '<td>' + (r.contact || '-') + '</td>';
-      html += '<td>' + (r.userName || '-') + '</td>';
-      html += '<td>' + (r.industry || '-') + '</td>';
-      html += '<td><strong>' + (r.product || '-') + '</strong></td>';
-      html += '<td class="editable-cell" contenteditable="true" style="text-align:right;font-weight:700">' + (r.outAmt || 0) + '</td>';
-      html += '<td style="text-align:right;color:#6b7280">' + (r.outAmtPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + yoyBadge + '</td>';
-      html += '<td style="text-align:center">' + (r.outQty || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.outQtyPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.outQtyYoy || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.opps || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.oppsPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.oppsYoy || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.users || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.usersPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.usersYoy || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.custs || 0) + '</td>';
-      html += '<td style="text-align:center;color:#6b7280">' + (r.custsPrev || 0) + '</td>';
-      html += '<td style="text-align:center">' + (r.custsYoy || '-') + '</td>';
-      html += '<td style="text-align:center">' + (r.level || '-') + '</td>';
-    }
-    html += '</tr>';
+
+    // 按列定义生成每个 td
+    var cells = [];
+    cols.forEach(function(c, ci) {
+      var st = stickyTd[ci] ? ' style="' + stickyTd[ci] + '"' : '';
+      var val = '';
+      if (isCust) {
+        switch (ci) {
+          case 0: val = '<input type="checkbox" class="p-imp-check" data-row="' + rowId + '">'; break;
+          case 1: val = rowNum; break;
+          case 2: val = r.dept2 || '-'; break;
+          case 3: val = r.dept3 || '-'; break;
+          case 4: val = r.dept4 || '-'; break;
+          case 5: val = r.dept5 || '-'; break;
+          case 6: val = r.sales || '-'; break;
+          case 7: val = '<strong>' + (r.product || '-') + '</strong>'; break;
+          case 8: val = r.custName || '-'; break;
+          case 9: val = r.userName || '-'; break;
+          case 10: val = '<span style="font-weight:700">' + (r.amount || 0).toFixed(2) + '</span>'; st = stickyTd[ci] ? ' style="text-align:right;' + stickyTd[ci] + '"' : ' style="text-align:right"'; break;
+          case 11: val = (r.amountPrev || 0).toFixed(2); st = stickyTd[ci] ? ' style="text-align:right;color:#6b7280;' + stickyTd[ci] + '"' : ' style="text-align:right;color:#6b7280"'; break;
+          case 12: val = yoyBadge; break;
+          case 13: val = r.qty || 0; break;
+          case 14: val = r.qtyPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 15: val = fmtYoyHtml(r.qtyYoy); break;
+          case 16: val = r.opps || 0; break;
+          case 17: val = r.oppsPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 18: val = fmtYoyHtml(r.oppsYoy); break;
+          case 19: val = r.users || 0; break;
+          case 20: val = r.usersPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 21: val = fmtYoyHtml(r.usersYoy); break;
+          case 22: val = r.contact || '-'; break;
+          case 23: val = r.level || '-'; break;
+        }
+      } else {
+        switch (ci) {
+          case 0: val = '<input type="checkbox" class="p-imp-check" data-row="' + rowId + '">'; break;
+          case 1: val = rowNum; break;
+          case 2: val = r.center || '-'; break;
+          case 3: val = r.dept3 || '-'; break;
+          case 4: val = r.dept4 || '-'; break;
+          case 5: val = r.sales || '-'; break;
+          case 6: val = r.contact || '-'; break;
+          case 7: val = r.userName || '-'; break;
+          case 8: val = r.industry || '-'; break;
+          case 9: val = '<strong>' + (r.product || '-') + '</strong>'; break;
+          case 10: val = '<span style="font-weight:700">' + (r.outAmt || 0).toFixed(2) + '</span>'; st = stickyTd[ci] ? ' style="text-align:right;' + stickyTd[ci] + '"' : ' style="text-align:right"'; break;
+          case 11: val = (r.outAmtPrev || 0).toFixed(2); st = stickyTd[ci] ? ' style="text-align:right;color:#6b7280;' + stickyTd[ci] + '"' : ' style="text-align:right;color:#6b7280"'; break;
+          case 12: val = yoyBadge; break;
+          case 13: val = r.outQty || 0; break;
+          case 14: val = r.outQtyPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 15: val = fmtYoyHtml(r.outQtyYoy); break;
+          case 16: val = r.opps || 0; break;
+          case 17: val = r.oppsPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 18: val = fmtYoyHtml(r.oppsYoy); break;
+          case 19: val = r.users || 0; break;
+          case 20: val = r.usersPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 21: val = fmtYoyHtml(r.usersYoy); break;
+          case 22: val = r.custs || 0; break;
+          case 23: val = r.custsPrev || 0; st = stickyTd[ci] ? ' style="color:#6b7280;' + stickyTd[ci] + '"' : ' style="color:#6b7280"'; break;
+          case 24: val = fmtYoyHtml(r.custsYoy); break;
+        }
+      }
+      cells.push('<td' + st + '>' + val + '</td>');
+    });
+
+    html += '<tr id="' + rowId + '">' + cells.join('') + '</tr>';
   });
 
   if (data.length === 0) {
-    var totalCols = isCust ? 24 : 26;
-    html = '<tr><td colspan="' + totalCols + '" style="text-align:center;padding:24px;color:#94a3b8">无匹配数据</td></tr>';
+    html = '<tr><td colspan="' + cols.length + '" style="text-align:center;padding:24px;color:#94a3b8">无匹配数据</td></tr>';
   }
 
   var tbody = document.getElementById('pImportDataTbody');
@@ -5133,21 +5204,53 @@ App.ImportPotential.render = function() {
   } else if (pageBtns) { pageBtns.innerHTML = ''; }
 };
 
-// 列宽拖拽（限import-table，只增不减，不影响其他列）
+// 列宽拖拽 — 基于 colgroup，同步更新 sticky left
 (function() {
-  var dragCol = null, startX = 0, startW = 0;
+  var dragIdx = -1, startX = 0, startW = 0, dragTable = null;
   document.addEventListener('mousedown', function(e) {
-    var th = e.target.closest('.import-table th');
-    if (!th || e.offsetX < th.offsetWidth - 6) return;
-    dragCol = th; startX = e.clientX; startW = th.offsetWidth;
+    var th = e.target.closest('#pImportDataTable th');
+    if (!th) return;
+    var cells = th.parentNode.querySelectorAll('th');
+    var idx = Array.prototype.indexOf.call(cells, th);
+    if (idx < 0 || e.offsetX < th.offsetWidth - 8) return; // 仅右边缘 8px 触发
+    dragIdx = idx; startX = e.clientX; startW = cols[idx].w;
+    dragTable = th.closest('table');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
     e.preventDefault();
   });
   document.addEventListener('mousemove', function(e) {
-    if (!dragCol) return;
+    if (dragIdx < 0) return;
     var delta = e.clientX - startX;
-    dragCol.style.width = Math.max(30, startW + delta) + 'px';
+    var newW = Math.max(20, startW + delta);
+    cols[dragIdx].w = newW;
+    // 更新对应 col
+    var col = dragTable.querySelectorAll('col')[dragIdx];
+    if (col) col.style.width = newW + 'px';
+    // 重新计算累积 left
+    var left = 0;
+    var newLefts = cols.map(function(c) { var l = left; left += c.w; return l; });
+    // 刷新所有 sticky th/td
+    dragTable.querySelectorAll('th, td').forEach(function(cell) {
+      var ci = cell.cellIndex;
+      if (ci >= 0 && ci < cols.length && cols[ci].frozen) {
+        cell.style.left = newLefts[ci] + 'px';
+      }
+    });
+    // 同步 stickyTd / stickyTh
+    stickyTd = cols.map(function(c, i) { return c.frozen ? 'position:sticky;left:' + newLefts[i] + 'px;background:#fff;z-index:1' : ''; });
+    stickyTh = cols.map(function(c, i) { return c.frozen ? 'position:sticky;left:' + newLefts[i] + 'px;background:#f8fafc;z-index:2' : ''; });
   });
-  document.addEventListener('mouseup', function() { dragCol = null; });
+  document.addEventListener('mouseup', function() {
+    if (dragIdx >= 0) {
+      // 持久化列宽
+      var widths = cols.map(function(c) { return c.w; });
+      try { localStorage.setItem(savedKey, JSON.stringify(widths)); } catch(e) {}
+    }
+    dragIdx = -1; dragTable = null;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
 })();
 
 // 批操作
