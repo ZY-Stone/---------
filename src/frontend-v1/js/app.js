@@ -7246,70 +7246,37 @@ App.renderPotentialCustTab = function() {
   else if (team !== 'all') sf = 0.28;
   var s = function(v) { return Math.round(v * sf); };
 
-  // 客户 × 潜力产品交叉矩阵 — 从导入数据动态计算
-  var raw = App.ImportPotential.CustRAW || [];
-  var prods = App.ImportPotential.PRODUCTS || (App.WidthTeamMatrix.PRODUCTS && App.WidthTeamMatrix.PRODUCTS.length > 0 ? App.WidthTeamMatrix.PRODUCTS : []);
-  if (prods.length === 0 && raw.length > 0) {
-    var ps = {}; raw.forEach(function(r) { if (r.product) ps[r.product] = true; });
-    prods = Object.keys(ps);
-  }
-  var custNames = [];
-  var custMap = {};
-  raw.forEach(function(r) {
-    var cn = r.custName || r.userName || '';
-    if (!cn) return;
-    if (!custMap[cn]) { custMap[cn] = {}; custNames.push(cn); }
-    custMap[cn][r.product] = (custMap[cn][r.product] || 0) + (r.amount || 0);
-  });
-  custNames = custNames.slice(0, 12);
-  var top8Prods = prods.slice(0, 8);
+  // 客户 × 潜力产品交叉矩阵
+  var custMatrix = [];
   var tbody1 = document.getElementById('pCustMatrixBody');
   if (tbody1) {
-    if (raw.length === 0) {
-      tbody1.innerHTML = '<tr><td colspan="' + (top8Prods.length + 1) + '" style="text-align:center;padding:20px;color:#94a3b8">请先导入潜力产品数据</td></tr>';
-    } else {
-      // 更新 thead
-      var thead = document.querySelector('#p-customer table:first-of-type thead');
-      if (thead) {
-        thead.innerHTML = '<tr><th>客户</th>' + top8Prods.map(function(p) { return '<th>' + (p.length > 6 ? p.substring(0,6) + '…' : p) + '</th>'; }).join('') + '</tr>';
-      }
-      tbody1.innerHTML = custNames.map(function(cn) {
-        var cells = top8Prods.map(function(p) {
-          var amt = custMap[cn][p] || 0;
-          if (amt === 0) return '<td style="color:#d1d5db;text-align:center">-</td>';
-          return '<td style="text-align:center;font-weight:600;color:#059669">' + (amt >= 10 ? amt.toFixed(0) : amt.toFixed(1)) + '</td>';
-        }).join('');
-        return '<tr><td><strong>' + cn.substring(0, 18) + '</strong></td>' + cells + '</tr>';
-      }).join('');
-    }
+    tbody1.innerHTML = custMatrix.map(function(c) {
+      var cell = function(val, cls) {
+        if (val === '未覆盖') return '<td style="color:#9ca3af">未覆盖</td>';
+        return '<td><span class="badge ' + cls + '">' + val + '</span></td>';
+      };
+      return '<tr>' +
+        '<td>' + c.cust + '</td>' +
+        cell(c.nvr, c.nvrCls) + cell(c.ai, c.aiCls) + cell(c.ipc, c.ipcCls) +
+        cell(c.sw, c.swCls) + cell(c.ac, c.acCls) + cell(c.it, c.itCls) + cell(c.st, c.stCls) +
+        '</tr>';
+    }).join('');
   }
 
-  // 高贡献客户 TOP 10 — 从导入数据动态计算
-  var custAmt = {};
-  raw.forEach(function(r) {
-    var cn = r.custName || r.userName || '';
-    if (!cn) return;
-    custAmt[cn] = (custAmt[cn] || 0) + (r.amount || 0);
-  });
-  var custTop = Object.entries(custAmt).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 10).map(function(e) {
-    return { cust: e[0], prods: Object.keys(custMap[e[0]] || {}).length, amt: e[1], yoy: '-', yoyCls: 'b-flat' };
-  });
+  // 高贡献客户 TOP 10
+  var custTop = [];
   var tbody2 = document.getElementById('pCustTop10Body');
   if (tbody2) {
-    if (custTop.length === 0) {
-      tbody2.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">请先导入潜力产品数据</td></tr>';
-    } else {
-      tbody2.innerHTML = custTop.map(function(c, i) {
-        var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-        return '<tr>' +
-          '<td><span class="rn ' + rn + '">' + (i + 1) + '</span></td>' +
-          '<td>' + c.cust.substring(0, 25) + '</td>' +
-          '<td style="text-align:center">' + c.prods + '</td>' +
-          '<td style="text-align:right;font-weight:600">' + c.amt.toFixed(0).toLocaleString() + '</td>' +
-          '<td style="text-align:center"><span class="badge ' + c.yoyCls + '">' + c.yoy + '</span></td>' +
-          '</tr>';
-      }).join('');
-    }
+    tbody2.innerHTML = custTop.map(function(c, i) {
+      var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
+      return '<tr>' +
+        '<td><span class="rn ' + rn + '">' + (i + 1) + '</span></td>' +
+        '<td>' + c.cust + '</td>' +
+        '<td>' + c.prods + '</td>' +
+        '<td style="text-align:right">' + s(c.amt).toLocaleString() + '</td>' +
+        '<td style="text-align:center"><span class="badge ' + c.yoyCls + '">' + c.yoy + '</span></td>' +
+        '</tr>';
+    }).join('');
   }
 };
 
@@ -7324,83 +7291,58 @@ App.renderPotentialUserTab = function() {
   else if (team !== 'all') sf = 0.28;
   var s = function(v) { return Math.round(v * sf); };
 
-  // 最终用户潜力产品推广情况 — 从导入数据动态计算
-  var rawUser = App.ImportPotential.UserRAW || [];
-  var rawCust = App.ImportPotential.CustRAW || [];
-  // 优先用 UserRAW，如果没有则从 CustRAW 提取 user 维度
-  var userSource = rawUser.length > 0 ? rawUser : rawCust;
-  var userAgg = {};
-  userSource.forEach(function(r) {
-    var un = r.userName || r.custName || '';
-    if (!un) return;
-    if (!userAgg[un]) userAgg[un] = { amt: 0, prods: {}, custs: {} };
-    userAgg[un].amt += (parseFloat(r.outAmt || r.amount) || 0);
-    if (r.product) userAgg[un].prods[r.product] = true;
-    var cn = r.custName || '';
-    if (cn) userAgg[un].custs[cn] = true;
-  });
-  var users = Object.entries(userAgg).sort(function(a, b) { return b[1].amt - a[1].amt; }).slice(0, 20).map(function(e) {
-    var v = e[1];
-    var prodList = Object.keys(v.prods);
-    return { name: e[0], custCnt: Object.keys(v.custs).length, cov: prodList.length + '/' + (App.ImportPotential.PRODUCTS || []).length || '8', contrib: v.amt, yoy: '-', yoyCls: 'b-flat', prods: prodList.slice(0, 4).join(', ') };
-  });
+  // 最终用户潜力产品推广情况
+  var users = [
+    { name:'深圳市公安局', custCnt:12, cov:'8/8', contrib:4520, yoy:'+52.3%', yoyCls:'b-up', prods:'NVR, 智能计算, IPC, 平台软件' },
+    { name:'深圳市教育局', custCnt:8, cov:'5/8', contrib:1880, yoy:'+28.7%', yoyCls:'b-up', prods:'NVR, 智能计算, LCD' },
+    { name:'广东省交通厅', custCnt:6, cov:'4/8', contrib:1250, yoy:'+5.2%', yoyCls:'b-warn', prods:'智能交通, IPC, 存储' },
+    { name:'深圳市卫健委', custCnt:5, cov:'3/8', contrib:820, yoy:'-8.5%', yoyCls:'b-down', prods:'门禁, IPC' },
+    { name:'深圳市文体局', custCnt:4, cov:'2/8', contrib:350, yoy:'新增', yoyCls:'b-new', prods:'LCD, 新业务' }
+  ];
 
   var tbody1 = document.getElementById('pUserPromoBody');
   if (tbody1) {
-    if (users.length === 0) {
-      tbody1.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8">请先导入潜力产品数据</td></tr>';
-    } else {
-      tbody1.innerHTML = users.map(function(u) {
-        return '<tr>' +
-          '<td>' + u.name.substring(0, 25) + '</td>' +
-          '<td style="text-align:center">' + u.custCnt + '</td>' +
-          '<td style="text-align:center;font-weight:700;color:var(--primary)">' + u.cov + '</td>' +
-          '<td style="text-align:center;font-weight:700">' + u.contrib.toFixed(0).toLocaleString() + '</td>' +
-          '<td style="text-align:center"><span class="badge ' + u.yoyCls + '">' + u.yoy + '</span></td>' +
-          '<td>' + u.prods + '</td></tr>';
-      }).join('');
-    }
+    tbody1.innerHTML = users.map(function(u) {
+      return '<tr>' +
+        '<td>' + u.name + '</td>' +
+        '<td style="text-align:center">' + u.custCnt + '</td>' +
+        '<td style="text-align:center;font-weight:700;color:var(--primary)">' + u.cov + '</td>' +
+        '<td style="text-align:center;font-weight:700">' + s(u.contrib).toLocaleString() + '</td>' +
+        '<td style="text-align:center"><span class="badge ' + u.yoyCls + '">' + u.yoy + '</span></td>' +
+        '<td>' + u.prods + '</td></tr>';
+    }).join('');
   }
 
-  // 用户关联客户潜力覆盖明细 — 从导入数据动态计算
-  var userCustDetails = [];
-  if (rawCust.length > 0) {
-    var ucMap = {};
-    rawCust.forEach(function(r) {
-      var un = r.userName || '';
-      var cn = r.custName || '';
-      if (!un || !cn) return;
-      if (!ucMap[un]) ucMap[un] = [];
-      var existing = ucMap[un].find(function(x) { return x.cust === cn; });
-      if (existing) { existing.amt += (r.amount || 0); existing.prods.push(r.product); }
-      else { ucMap[un].push({ cust: cn, amt: r.amount || 0, prods: [r.product], person: r.sales || '' }); }
-    });
-    userCustDetails = Object.entries(ucMap).slice(0, 8).map(function(e) {
-      return { user: e[0], custs: e[1].slice(0, 5).map(function(c) { return { cust: c.cust, cov: c.prods.length, amt: c.amt, person: c.person }; }) };
-    });
-  }
+  // 用户关联客户潜力覆盖明细
+  var userCustDetails = [
+    { user:'深圳市公安局', custs:[
+      { cust:'深圳市政府', cov:8, amt:2880, person:'陈思源' },
+      { cust:'宝安公安局', cov:6, amt:1650, person:'王志强' },
+      { cust:'龙岗分局', cov:3, amt:620, person:'张伟' }
+    ]},
+    { user:'深圳市教育局', custs:[
+      { cust:'罗湖教育局', cov:5, amt:1240, person:'李梦琪' },
+      { cust:'南山区教育局', cov:2, amt:380, person:'罗兴华' }
+    ]}
+  ];
 
   var tbody2 = document.getElementById('pUserCustDetailBody');
   if (tbody2) {
-    if (userCustDetails.length === 0) {
-      tbody2.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#94a3b8">请先导入潜力产品数据</td></tr>';
-    } else {
-      var html = '';
-      userCustDetails.forEach(function(u) {
-        u.custs.forEach(function(c, ci) {
-          if (ci === 0) {
-            html += '<tr><td rowspan="' + u.custs.length + '" style="vertical-align:middle;font-weight:600">' + u.user.substring(0, 20) + '</td>';
-          } else {
-            html += '<tr>';
-          }
-          html += '<td>' + c.cust.substring(0, 25) + '</td>' +
-            '<td style="text-align:center;color:var(--success)">' + c.cov + '</td>' +
-            '<td style="text-align:right;font-weight:600">' + c.amt.toFixed(0).toLocaleString() + '</td>' +
-            '<td>' + c.person + '</td></tr>';
-        });
+    var html = '';
+    userCustDetails.forEach(function(u) {
+      u.custs.forEach(function(c, ci) {
+        if (ci === 0) {
+          html += '<tr><td rowspan="' + u.custs.length + '" style="vertical-align:middle;font-weight:600">' + u.user + '</td>';
+        } else {
+          html += '<tr>';
+        }
+        html += '<td>' + c.cust + '</td>' +
+          '<td style="text-align:center;color:var(--success)">' + c.cov + '</td>' +
+          '<td style="text-align:right">' + s(c.amt).toLocaleString() + '</td>' +
+          '<td>' + c.person + '</td></tr>';
       });
-      tbody2.innerHTML = html;
-    }
+    });
+    tbody2.innerHTML = html;
   }
 };
 
