@@ -41,8 +41,7 @@ App.ImportData.lookupDept = function(salesName, selfDept) {
 
 // 统一持久化内存数据到 localStorage（缓存层，防止刷新后回退到后端旧数据）
 App.ImportData.persist = function() {
-  try { localStorage.setItem('pa_width_user', JSON.stringify(App.ImportData.UserGS || [])); } catch(e) { console.warn(e); }
-  try { localStorage.setItem('pa_width_cust', JSON.stringify(App.ImportData.CustGS || [])); } catch(e) { console.warn(e); }
+  // 数据全部存储在后端，前端不再缓存到 localStorage
 };
 
 // 统一规上识别：是/y/yes/true/1/√/✓/对 → '是'，其他 → '否'
@@ -67,28 +66,14 @@ App.ImportData.init = function() {
     periodSel.setAttribute('data-inited', '1');
     periodSel.value = thisMonth;
   }
-  // 恢复历史记录（兼容旧格式 userCount/custCount → userNew/custNew）
+  // 恢复历史记录（兼容旧格式）
   try { var sh = localStorage.getItem('pa_w_history'); if (sh) {
     App.ImportData.history = JSON.parse(sh);
     App.ImportData.history.forEach(function(h) {
       if (h.userCount !== undefined && h.userNew === undefined) { h.userNew = h.userCount; h.custNew = h.custCount; h.userUpd = 0; h.custUpd = 0; }
     });
   }} catch(e) {}
-  // 先从 localStorage 缓存快速恢复（避免白屏等待）
-  try {
-    var cachedUser = localStorage.getItem('pa_width_user');
-    var cachedCust = localStorage.getItem('pa_width_cust');
-    if (cachedUser) App.ImportData.UserGS = JSON.parse(cachedUser);
-    if (cachedCust) App.ImportData.CustGS = JSON.parse(cachedCust);
-    if (cachedUser || cachedCust) {
-      App.ImportData.syncToRaw();
-      App.ImportData.updateTags();
-      App.ImportData.renderHistory();
-      App.ImportData.render();
-      try { App.updateWidth(); } catch(e) {}
-    }
-  } catch(e) {}
-  // 从后端 API 拉取最新数据（覆盖缓存）
+  // 从后端 API 拉取数据（所有数据存储在后端，前端不缓存）
   fetch('/api/import/width-records?type=user').then(function(r) { return r.json(); }).then(function(data) {
     if (data.rows && data.rows.length > 0) {
       App.ImportData.UserGS = data.rows.map(function(r) {
@@ -210,13 +195,15 @@ App.ImportData.deleteHistory = function(idx) {
   try { localStorage.setItem('pa_w_history', JSON.stringify(App.ImportData.history)); } catch(e) {}
 };
 
-// 清空所有历史记录
+// 清空所有历史记录及数据（含后端）
 App.ImportData.clearAll = function() {
-  if (!confirm('确定清空所有历史记录及数据吗？此操作不可撤销。')) return;
+  if (!confirm('确定清空所有历史记录及后端数据吗？此操作不可撤销。')) return;
+  // 清后端
+  try { fetch('/api/import/width-records', { method: 'DELETE' }); } catch(e) {}
+  // 清内存
   App.ImportData.history = [];
   App.ImportData.UserGS = [];
   App.ImportData.CustGS = [];
-  App.ImportData.persist();
   App.ImportData.syncToRaw();
   App.ImportData.updateTags();
   App.ImportData.render();
@@ -335,8 +322,14 @@ App.ImportData.syncFromRaw = function() {
 App.ImportData.switchView = function(v) { App.ImportData.currentView = v; App.ImportData.updateTags(); App.ImportData.render(); };
 
 App.ImportData.updateTags = function() {
-  App.setText('w-total-user-count', (App.ImportData.UserGS || []).length);
-  App.setText('w-total-cust-count', (App.ImportData.CustGS || []).length);
+  var ugs = (App.ImportData.UserGS || []).filter(function(r) { var g=(r.guishang||'').toString().trim(); return g==='是'||g==='1'; }).length;
+  var ungs = (App.ImportData.UserGS || []).length - ugs;
+  var cgs = (App.ImportData.CustGS || []).filter(function(r) { var g=(r.guishang||'').toString().trim(); return g==='是'||g==='1'; }).length;
+  var cngs = (App.ImportData.CustGS || []).length - cgs;
+  App.setText('w-total-user-gs', ugs);
+  App.setText('w-total-user-ngs', ungs);
+  App.setText('w-total-cust-gs', cgs);
+  App.setText('w-total-cust-ngs', cngs);
   var ut = document.getElementById('w-total-user-tag'), ct = document.getElementById('w-total-cust-tag');
   if (ut) {
     ut.style.opacity = App.ImportData.currentView === 'user' ? '1' : '0.5';
@@ -386,10 +379,13 @@ App.ImportData.handleUpload = function(input) {
   }
   var snapVal = snapInput ? snapInput.value : '';
   if (!confirm('数据月份：' + (snapVal || '未设置') + '\n\n确定导入「' + file.name + '」吗？\n\n如需修改月份，请点击"取消"后在页面上修改。')) return;
+  console.log('[宽度导入] 开始解析:', file.name);
   var reader = new FileReader();
   reader.onload = function(e) {
     try {
       var data = new Uint8Array(e.target.result), wb = XLSX.read(data, { type: 'array' }), products = App.ImportData.PRODS;
+      console.log('[宽度导入] Sheets:', wb.SheetNames.join(', '));
+      var newUserRows = [], newCustRows = [];
       var nu = 0, uu = 0, nc = 0, uc = 0;
       var foundUser = false, foundCust = false;
 
@@ -405,45 +401,41 @@ App.ImportData.handleUpload = function(input) {
 
         if (hasUser && !foundUser) {
           foundUser = true;
+          console.log('[宽度导入] 用户sheet:', sn, '行数:', j.length, '表头:', hd);
           try { App.Field.detectSchema(hd, 'width.user'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'user');
-          // 按 siebel编码 + 数据月份 去重（同月同编码=更新，不同月=新增）
+          console.log('[宽度导入] 用户列映射:', JSON.stringify(col));
+          // 按 siebel编码 + 数据月份 去重（同编码同月=更新，不同月=新增）
           var snap = (document.getElementById('wSnapshotPeriod') || {}).value || '';
-          // 旧记录补上缺失的月份（防止 key 不匹配导致重复）
-          App.ImportData.UserGS.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = snap; });
-          var em = {}; App.ImportData.UserGS.forEach(function(r) { em[(r.siebel||'') + '|' + (r.snapshotPeriod||'')] = r; });
           j.slice(1).forEach(function(row) {
             var siebel = String(row[col.siebel] || '').trim();
             var nm = String(row[col.user] || '').trim();
             if (!siebel && !nm) return;
-            var key = (siebel || nm) + '|' + snap;
             var salesName = String(row[col.sales] || '').trim();
             var deptInput = String(row[col.dept] || '').trim();
             var resolvedDept = App.ImportData.lookupDept(salesName, deptInput);
             var e = { user: nm, siebel: siebel, industry: String(row[col.industry] || '').trim(), sales: salesName, group: deptInput, dept: resolvedDept, guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim(), snapshotPeriod: snap };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
-            if (em[key]) { uu++; Object.assign(em[key], e); } else { nu++; App.ImportData.UserGS.push(e); em[key] = e; }
+            newUserRows.push(e);
           });
         } else if (hasCust && !foundCust) {
           foundCust = true;
+          console.log('[宽度导入] 客户sheet:', sn, '行数:', j.length, '表头:', hd);
           try { App.Field.detectSchema(hd, 'width.cust'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'cust');
-          // 按 siebel编码 + 数据月份 去重（同月同编码=更新，不同月=新增）
+          console.log('[宽度导入] 客户列映射:', JSON.stringify(col));
+          // 按 siebel编码 + 数据月份 去重（同编码同月=更新，不同月=新增）
           var snap2 = (document.getElementById('wSnapshotPeriod') || {}).value || '';
-          // 旧记录补上缺失的月份（防止 key 不匹配导致重复）
-          App.ImportData.CustGS.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = snap2; });
-          var em2 = {}; App.ImportData.CustGS.forEach(function(r) { em2[(r.siebel||'') + '|' + (r.snapshotPeriod||'')] = r; });
           j.slice(1).forEach(function(row) {
             var siebel = String(row[col.siebel] || '').trim();
             var nm = String(row[col.name] || '').trim();
             if (!siebel && !nm) return;
-            var key = (siebel || nm) + '|' + snap2;
             var salesName = String(row[col.sales] || '').trim();
             var deptInput = String(row[col.dept] || '').trim();
             var resolvedDept = App.ImportData.lookupDept(salesName, deptInput);
             var e = { name: nm, siebel: siebel, sales: salesName, group: deptInput, dept: resolvedDept, guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim(), snapshotPeriod: snap2 };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
-            if (em2[key]) { uc++; Object.assign(em2[key], e); } else { nc++; App.ImportData.CustGS.push(e); em2[key] = e; }
+            newCustRows.push(e);
           });
         }
       });
@@ -484,6 +476,23 @@ App.ImportData.handleUpload = function(input) {
       if (potMatrix.length > 0) {
         App.WidthTeamMatrix.RAW = potMatrix;
       }
+      // ── 合并去重：按 siebel + snapshotPeriod 合并到 UserGS/CustGS ──
+      var _snap = (document.getElementById('wSnapshotPeriod') || {}).value || '';
+      App.ImportData.UserGS.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = _snap; });
+      var _userIdx = {}; App.ImportData.UserGS.forEach(function(r, i) { _userIdx[(r.siebel||r.user||'') + '|' + (r.snapshotPeriod||'')] = i; });
+      newUserRows.forEach(function(r) {
+        var _key = (r.siebel||r.user||'') + '|' + (r.snapshotPeriod||'');
+        if (_userIdx[_key] !== undefined) { App.ImportData.UserGS[_userIdx[_key]] = r; uu++; }
+        else { App.ImportData.UserGS.push(r); nu++; _userIdx[_key] = App.ImportData.UserGS.length - 1; }
+      });
+      App.ImportData.CustGS.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = _snap; });
+      var _custIdx = {}; App.ImportData.CustGS.forEach(function(r, i) { _custIdx[(r.siebel||r.name||'') + '|' + (r.snapshotPeriod||'')] = i; });
+      newCustRows.forEach(function(r) {
+        var _key = (r.siebel||r.name||'') + '|' + (r.snapshotPeriod||'');
+        if (_custIdx[_key] !== undefined) { App.ImportData.CustGS[_custIdx[_key]] = r; uc++; }
+        else { App.ImportData.CustGS.push(r); nc++; _custIdx[_key] = App.ImportData.CustGS.length - 1; }
+      });
+      console.log('[宽度导入] 解析完成: 用户', nu, '新增/', uu, '更新, 客户', nc, '新增/', uc, '更新, 潜力矩阵', potMatrix.length, '条');
 
       if (!foundUser && !foundCust && potMatrix.length === 0) {
         alert('未识别到用户/客户/潜力产品数据。\n\n当前sheets: ' + wb.SheetNames.join(', '));
@@ -506,16 +515,16 @@ App.ImportData.handleUpload = function(input) {
       try { App.Data.rebuildDerived(); } catch(e) { console.warn('rebuildDerived failed:', e); }
 
       // 发送到后端数据库
-      var userApiRows = App.ImportData.UserGS.map(function(r) {
-        return {user: r.user, siebel: r.siebel||'', industry: r.industry||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
+      var userApiRows = newUserRows.map(function(r) {
+        return {user: r.user, siebel: r.siebel||'', industry: r.industry||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||'', snapshotPeriod: r.snapshotPeriod||''};
       });
-      var custApiRows = App.ImportData.CustGS.map(function(r) {
-        return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
+      var custApiRows = newCustRows.map(function(r) {
+        return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||'', snapshotPeriod: r.snapshotPeriod||''};
       });
       var snapshot = (document.getElementById('wSnapshotPeriod') || {}).value || '';
       var apiCalls = [];
-      if (userApiRows.length > 0) apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: userApiRows, type: 'user', snapshotPeriod: snapshot }) }));
-      if (custApiRows.length > 0) apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: custApiRows, type: 'cust', snapshotPeriod: snapshot }) }));
+      if (userApiRows.length > 0) { console.log('[导入] 发送用户数据:', userApiRows.length, '条, 月份:', snapshot); apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: userApiRows, type: 'user', snapshotPeriod: snapshot }) })); }
+      if (custApiRows.length > 0) { console.log('[导入] 发送客户数据:', custApiRows.length, '条, 月份:', snapshot); apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: custApiRows, type: 'cust', snapshotPeriod: snapshot }) })); }
       var msg = '导入完成! 文件: ' + file.name;
       msg += '\n\n规上用户: 新增' + nu + ' / 更新' + uu + '（共' + App.ImportData.UserGS.length + '）';
       if (!foundUser) msg += '\n  ⚠ 未找到用户sheet';
@@ -525,14 +534,16 @@ App.ImportData.handleUpload = function(input) {
       msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
       if (apiCalls.length > 0) {
         Promise.all(apiCalls).then(function() {
+          console.log('[宽度导入] 后端保存成功');
           alert(msg + '\n\n✅ 已同步后端数据库');
         }).catch(function(err) {
+          console.error('[宽度导入] 后端保存失败:', err);
           alert(msg + '\n\n⚠️ 后端保存失败：' + err.message + '\n数据仅在前端内存中，刷新后消失。');
         });
       } else {
         alert(msg);
       }
-    } catch(err) { alert('解析失败: ' + err.message); }
+    } catch(err) { console.error('[宽度导入] 解析失败:', err); alert('解析失败: ' + err.message); }
   };
   reader.readAsArrayBuffer(file);
 };
@@ -635,9 +646,8 @@ App.ImportData.render = function() {
   var deptFilter = deptSel ? deptSel.value : 'all';
   var groupFilter = grpSel ? grpSel.value : 'all';
   var periodSel = document.getElementById('wImportPeriodFilter');
-  var periodFilter = periodSel ? periodSel.value : 'all';
 
-  // 动态填充月份下拉（每次渲染都刷新，不显示"全部月份"）
+  // 动态填充月份下拉（每次渲染都刷新）
   if (periodSel) {
     var periods = {};
     (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []).forEach(function(r) {
@@ -655,12 +665,12 @@ App.ImportData.render = function() {
     }
   }
 
+  var periodFilter = periodSel ? periodSel.value : '';
   var pageSize = App.ImportData.getPageSize();
   if (pageSize === 0) pageSize = Math.max(data.length, 1);
-  // 月份筛选（始终按选中月份过滤，无数据时不过滤）
+  // 月份筛选（选中哪个就筛哪个，没数据就显示空）
   if (periodFilter && periodFilter !== 'all') {
-    var filtered = data.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
-    if (filtered.length > 0) data = filtered;
+    data = data.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
   }
   if (deptFilter !== 'all') data = data.filter(function(r) { return (r.dept || '') === deptFilter; });
   if (groupFilter !== 'all') data = data.filter(function(r) { return (r.group || r.dept || '') === groupFilter; });
@@ -675,19 +685,21 @@ App.ImportData.render = function() {
   if (page > totalPages && totalPages > 0) { page = totalPages; App.ImportData._page = page; }
   var start = (page - 1) * pageSize, paged = data.slice(start, start + pageSize);
 
-  App.setText('w-import-view-title', (isU ? '规上用户产品宽度 (' : '规上客户产品宽度 (') + total + ' 条)');
+  App.setText('w-import-view-title', (isU ? '用户产品宽度 (' : '客户产品宽度 (') + total + ' 条)');
   // 同步更新右上角客户/用户数量标签（按当前筛选条件，筛空回退全部）
   var filteredUser = App.ImportData.UserGS.slice();
   var filteredCust = App.ImportData.CustGS.slice();
   if (periodFilter && periodFilter !== 'all') {
-    var fu = filteredUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
-    var fc = filteredCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
-    if (fu.length > 0 || fc.length > 0) { filteredUser = fu; filteredCust = fc; }
+    filteredUser = filteredUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    filteredCust = filteredCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
   }
   if (deptFilter !== 'all') { filteredUser = filteredUser.filter(function(r) { return (r.dept || '') === deptFilter; }); filteredCust = filteredCust.filter(function(r) { return (r.dept || '') === deptFilter; }); }
   if (groupFilter !== 'all') { filteredUser = filteredUser.filter(function(r) { return (r.group || r.dept || '') === groupFilter; }); filteredCust = filteredCust.filter(function(r) { return (r.group || r.dept || '') === groupFilter; }); }
-  App.setText('w-total-user-count', filteredUser.length);
-  App.setText('w-total-cust-count', filteredCust.length);
+  var isGs2 = function(r) { var g=(r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
+  App.setText('w-total-user-gs', filteredUser.filter(isGs2).length);
+  App.setText('w-total-user-ngs', filteredUser.length - filteredUser.filter(isGs2).length);
+  App.setText('w-total-cust-gs', filteredCust.filter(isGs2).length);
+  App.setText('w-total-cust-ngs', filteredCust.length - filteredCust.filter(isGs2).length);
 
   var prods = App.ImportData.PRODS, sp = App.ImportData.shortProds;
   var thead = document.getElementById('wImportDataThead');

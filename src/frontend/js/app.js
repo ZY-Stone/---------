@@ -909,11 +909,10 @@ App.updateWidth = function() {
   var custGS = (App.ImportData.CustGS || []);
   var fUser = userGS.slice();
   var fCust = custGS.slice();
-  // 月份筛选（优先当月；若筛后为空则回退全部数据）
+  // 月份筛选（选中哪个就筛哪个）
   if (periodFilter) {
-    var fUserM = fUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
-    var fCustM = fCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
-    if (fUserM.length > 0 || fCustM.length > 0) { fUser = fUserM; fCust = fCustM; }
+    fUser = fUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    fCust = fCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
   }
   if (person !== 'all') {
     fUser = fUser.filter(function(r) { return r.sales === person; });
@@ -2151,8 +2150,11 @@ App._drillHeatmap = function(prodName) {
   if (modalBox) { modalBox.style.maxWidth = '1000px'; modalBox.style.width = '95%'; }
   var isCust = App._hmDim === 'cust';
   var data = (isCust ? (App.ImportData.CustGS || []) : (App.ImportData.UserGS || [])).slice();
-  // 应用当前筛选层级
+  // 应用当前筛选层级（月份 + 部门/组/人员）
   var state = (typeof App.getFilterState === 'function') ? App.getFilterState('page-width') : { team: 'all', group: 'all', person: 'all' };
+  var periodSel = document.getElementById('wImportPeriodFilter');
+  var pf = periodSel ? (periodSel.value && periodSel.value !== 'all' ? periodSel.value : '') : '';
+  if (pf) { data = data.filter(function(r) { return (r.snapshotPeriod || '') === pf; }); }
   if (state.person !== 'all') {
     data = data.filter(function(r) { return r.sales === state.person; });
   } else if (state.group !== 'all') {
@@ -2160,8 +2162,15 @@ App._drillHeatmap = function(prodName) {
   } else if (state.team !== 'all') {
     data = data.filter(function(r) { return r.dept === state.team; });
   }
-  // 筛选覆盖了该产品的记录
+  // 筛选覆盖了该产品的记录，按 name/user 去重（避免多月重复）
   var covered = data.filter(function(r) { return r.prods && r.prods[prodName]; });
+  var seen = {};
+  covered = covered.filter(function(r) {
+    var key = (r.user || r.name || '') + '|' + (r.siebel || '');
+    if (seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
   var label = isCust ? '客户' : '用户';
   var html = '<h3 style="margin:0 0 8px">' + prodName + ' — 覆盖' + label + '明细</h3>' +
     '<p style="color:#6b7280;margin:0 0 16px">共 <strong>' + covered.length + '</strong> 个' + label + '覆盖了该产品</p>';
@@ -5261,13 +5270,13 @@ App.ImportPotential.handleUpload = function(input) {
       if (custSheet) {
         var custData = XLSX.utils.sheet_to_json(wb.Sheets[custSheet], { header: 1, defval: null });
         console.log('[潜力导入] 客户sheet行数:', custData.length, '表头:', custData[0]);
+        var newCustRows = [];
         if (custData.length > 1) {
           var cm = App.ImportPotential._buildColMap(custData[0], App.ImportPotential.CUST_MAP);
           console.log('[潜力导入] 客户列映射:', JSON.stringify(cm));
-          App.ImportPotential.CustRAW = custData.slice(1).filter(function(r) { return r && r.length > 3; }).map(function(r) {
+          newCustRows = custData.slice(1).filter(function(r) { return r && r.length > 3; }).map(function(r) {
             var p = String(r[cm.product]||'').trim();
             var d3 = String(r[cm.dept3]||''), d4 = String(r[cm.dept4]||''), d5 = String(r[cm.dept5]||'');
-            // 无下属组的部门：组=部门
             var noGroupDepts = ['场景数字化销售部','大客户销售部'];
             if ((!d4 || d4 === '未分配') && noGroupDepts.indexOf(d3) >= 0) d4 = d3;
             if ((!d5 || d5 === '未分配') && noGroupDepts.indexOf(d3) >= 0) d5 = d3;
@@ -5283,16 +5292,16 @@ App.ImportPotential.handleUpload = function(input) {
           }).filter(function(r) { return r.product; });
         }
       }
+      var newUserRows = [];
       if (userSheet) {
         var userData = XLSX.utils.sheet_to_json(wb.Sheets[userSheet], { header: 1, defval: null });
         console.log('[潜力导入] 用户sheet行数:', userData.length, '表头:', userData[0]);
         if (userData.length > 1) {
           var um = App.ImportPotential._buildColMap(userData[0], App.ImportPotential.USER_MAP);
           console.log('[潜力导入] 用户列映射:', JSON.stringify(um));
-          App.ImportPotential.UserRAW = userData.slice(1).filter(function(r) { return r && r.length > 3; }).map(function(r) {
+          newUserRows = userData.slice(1).filter(function(r) { return r && r.length > 3; }).map(function(r) {
             var p = String(r[um.product]||'').trim();
             var d3 = String(r[um.dept3]||''), d4 = String(r[um.dept4]||'');
-            // 无下属组的部门：组=部门
             var noGroupDepts = ['场景数字化销售部','大客户销售部'];
             if ((!d4 || d4 === '未分配') && noGroupDepts.indexOf(d3) >= 0) d4 = d3;
             return {
@@ -5308,14 +5317,15 @@ App.ImportPotential.handleUpload = function(input) {
           }).filter(function(r) { return r.product; });
         }
       }
-      console.log('[潜力导入] 解析完成: 客户', App.ImportPotential.CustRAW.length, '条, 用户', App.ImportPotential.UserRAW.length, '条');
+      console.log('[潜力导入] 解析完成: 客户', newCustRows.length, '条, 用户', newUserRows.length, '条');
 
       // ── 合并去重：按 客户名+产品+月份 / 用户名+产品+月份 去重 ──
       var snap = (document.getElementById('pSnapshotPeriod') || {}).value || '';
       var custIdx = {}, custN = 0, custU = 0;
-      var prevCust = App.ImportPotential.CustRAW || [];
+      var prevCust = (App.ImportPotential.CustRAW || []).slice();
+      // 旧记录补上缺失的月份
+      prevCust.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = snap; });
       prevCust.forEach(function(r, i) { custIdx[(r.custName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'')] = i; });
-      var newCustRows = App.ImportPotential.CustRAW;
       var mergedCust = prevCust.slice();
       newCustRows.forEach(function(r) {
         var key = (r.custName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'');
@@ -5325,9 +5335,9 @@ App.ImportPotential.handleUpload = function(input) {
       App.ImportPotential.CustRAW = mergedCust;
 
       var userIdx = {}, userN = 0, userU = 0;
-      var prevUser = App.ImportPotential.UserRAW || [];
+      var prevUser = (App.ImportPotential.UserRAW || []).slice();
+      prevUser.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = snap; });
       prevUser.forEach(function(r, i) { userIdx[(r.userName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'')] = i; });
-      var newUserRows = App.ImportPotential.UserRAW;
       var mergedUser = prevUser.slice();
       newUserRows.forEach(function(r) {
         var key = (r.userName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'');
@@ -5343,7 +5353,7 @@ App.ImportPotential.handleUpload = function(input) {
       ]).then(function() {
         console.log('[潜力导入] 后端保存成功');
         App.ImportPotential.render();
-        App.ImportPotential.saveToHistory(file.name);
+        App.ImportPotential.saveToHistory(file.name, custN, custU, userN, userU);
         try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
         var msg = '导入完成! 文件: ' + file.name;
         msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
@@ -5376,15 +5386,16 @@ App.ImportPotential.handleUpload = function(input) {
 
 // ===== 导入历史管理 =====
 App.ImportPotential.history = [];
-App.ImportPotential.saveToHistory = function(fileName) {
+App.ImportPotential.saveToHistory = function(fileName, custN, custU, userN, userU) {
   var now = new Date();
   var ds = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2) + ' ' + ('0'+now.getHours()).slice(-2) + ':' + ('0'+now.getMinutes()).slice(-2);
   var snapInput = document.getElementById('pSnapshotPeriod');
   var entry = {
     id: Date.now(), file: fileName || '手动快照', time: ds,
+    custNew: custN||0, custUpd: custU||0, userNew: userN||0, userUpd: userU||0,
     custCount: (App.ImportPotential.CustRAW || []).length,
     userCount: (App.ImportPotential.UserRAW || []).length,
-    total: (App.ImportPotential.CustRAW || []).length + (App.ImportPotential.UserRAW || []).length,
+    total: (custN||0) + (custU||0) + (userN||0) + (userU||0),
     person: (App.loggedInUser && App.loggedInUser.name) || '当前用户',
     snapshotPeriod: snapInput ? snapInput.value : '',
     custSnap: JSON.parse(JSON.stringify(App.ImportPotential.CustRAW || [])),
@@ -5393,10 +5404,9 @@ App.ImportPotential.saveToHistory = function(fileName) {
   App.ImportPotential.history.unshift(entry);
   if (App.ImportPotential.history.length > 20) App.ImportPotential.history = App.ImportPotential.history.slice(0, 20);
   App.ImportPotential.renderHistory();
-  // 持久化到 localStorage（只存元数据，不存数据快照）
   try {
     var meta = App.ImportPotential.history.map(function(h) {
-      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person, snapshotPeriod: h.snapshotPeriod||'' };
+      return {id:h.id, file:h.file, time:h.time, custNew:h.custNew||0, custUpd:h.custUpd||0, userNew:h.userNew||0, userUpd:h.userUpd||0, custCount:h.custCount, userCount:h.userCount, total:h.total, person:h.person, snapshotPeriod:h.snapshotPeriod||''};
     });
     localStorage.setItem('pa_p_history', JSON.stringify(meta));
   } catch(e) {}
@@ -5411,36 +5421,36 @@ App.ImportPotential.renderHistory = function() {
   var html = '';
   App.ImportPotential.history.forEach(function(h, i) {
     html += '<tr>';
-    html += '<td>' + (i + 1) + '</td>';
+    html += '<td><span class="rn rn0">' + (i + 1) + '</span></td>';
     html += '<td><strong>' + h.file + '</strong></td>';
     html += '<td style="text-align:center;font-size:11px">' + h.time + '</td>';
     html += '<td style="text-align:center;font-weight:600">' + (h.snapshotPeriod || '-') + '</td>';
-    html += '<td style="text-align:center;font-weight:600;color:#1e40af">' + h.custCount + '</td>';
-    html += '<td style="text-align:center;font-weight:600;color:#166534">' + h.userCount + '</td>';
+    html += '<td style="text-align:center;font-weight:600;color:#1e40af">' + (h.userNew||0) + '<span style="color:#94a3b8">/' + (h.userUpd||0) + '</span></td>';
+    html += '<td style="text-align:center;font-weight:600;color:#166534">' + (h.custNew||0) + '<span style="color:#94a3b8">/' + (h.custUpd||0) + '</span></td>';
     html += '<td style="text-align:center">' + h.total + '</td>';
     html += '<td style="font-size:11px">' + h.person + '</td>';
-    html += '<td style="text-align:center">';
-    html += '<button class="btn-ghost" style="padding:2px 6px;font-size:10px;color:#dc2626" onclick="App.ImportPotential.deleteHistory(' + i + ')" title="删除此记录">✕</button>';
-    html += '</td></tr>';
+    html += '<td style="text-align:center"><button class="btn-ghost" style="padding:2px 6px;font-size:10px;color:#dc2626" onclick="App.ImportPotential.deleteHistory(' + i + ')" title="删除此记录">✕</button></td></tr>';
   });
   tbody.innerHTML = html;
 };
-App.ImportPotential.restoreHistory = function(idx) {
+App.ImportPotential.deleteHistory = function(idx) {
   var h = App.ImportPotential.history[idx];
   if (!h) return;
-  if (!confirm('确定恢复到 "' + h.file + '" (' + h.time + ') 的数据吗？')) return;
-  App.ImportPotential.CustRAW = JSON.parse(JSON.stringify(h.custSnap));
-  App.ImportPotential.UserRAW = JSON.parse(JSON.stringify(h.userSnap));
-  App.ImportPotential.render();
-};
-App.ImportPotential.deleteHistory = function(idx) {
-  if (!confirm('确定删除此历史记录吗？')) return;
+  if (!confirm('确定删除「' + h.file + '」(' + (h.snapshotPeriod || h.time) + ') 的记录并回退数据吗？')) return;
   App.ImportPotential.history.splice(idx, 1);
+  var prev = App.ImportPotential.history[idx] || App.ImportPotential.history[0];
+  if (prev && prev.custSnap && prev.userSnap) {
+    App.ImportPotential.CustRAW = JSON.parse(JSON.stringify(prev.custSnap));
+    App.ImportPotential.UserRAW = JSON.parse(JSON.stringify(prev.userSnap));
+  } else {
+    App.ImportPotential.CustRAW = [];
+    App.ImportPotential.UserRAW = [];
+  }
+  App.ImportPotential.render();
   App.ImportPotential.renderHistory();
-  // 同步 localStorage
   try {
     var meta = App.ImportPotential.history.map(function(h) {
-      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person, snapshotPeriod: h.snapshotPeriod||'' };
+      return {id:h.id, file:h.file, time:h.time, custNew:h.custNew||0, custUpd:h.custUpd||0, userNew:h.userNew||0, userUpd:h.userUpd||0, custCount:h.custCount, userCount:h.userCount, total:h.total, person:h.person, snapshotPeriod:h.snapshotPeriod||''};
     });
     localStorage.setItem('pa_p_history', JSON.stringify(meta));
   } catch(e) {}
@@ -5465,7 +5475,11 @@ App.ImportPotential.exportCurrent = function() {
 
 // 清空潜力产品历史记录及数据
 App.ImportPotential.clearAll = function() {
-  if (!confirm('确定清空所有潜力产品历史记录及数据吗？此操作不可撤销。')) return;
+  if (!confirm('确定清空所有潜力产品历史记录及后端数据吗？此操作不可撤销。')) return;
+  // 清后端
+  try { fetch('/api/import/potential-cust', { method: 'DELETE' }); } catch(e) {}
+  try { fetch('/api/import/potential-user', { method: 'DELETE' }); } catch(e) {}
+  // 清内存
   App.ImportPotential.history = [];
   App.ImportPotential.CustRAW = [];
   App.ImportPotential.UserRAW = [];
@@ -5623,21 +5637,26 @@ App.ImportPotential.render = function() {
   else if (sort === 'name') data.sort(function(a,b) { return (a.custName||a.userName||'').localeCompare(b.custName||b.userName||''); });
 
   // 分页
-  var pSize = parseInt((document.getElementById('pImportPageSize')||{}).value) || 20;
-  if (pSize === 0) pSize = data.length;
+  var pSizeVal = (document.getElementById('pImportPageSize')||{}).value;
+  var pSize = pSizeVal === '0' ? data.length : (parseInt(pSizeVal) || 20);
   var pTotal = data.length;
   var pPages = Math.ceil(pTotal / pSize);
   if (!App._pImportPage || App._pImportPage > pPages) App._pImportPage = pPages || 1;
   var pStart = (App._pImportPage - 1) * pSize;
   var pData = data.slice(pStart, pStart + pSize);
 
-  // 更新客户/用户标签内的计数
+  // 更新客户/用户标签内的计数（按当前筛选条件）
   var custCountEl = document.getElementById('p-import-cust-count');
   var userCountEl = document.getElementById('p-import-user-count');
-  var allCust = (App.ImportPotential.CustRAW || []).length;
-  var allUser = (App.ImportPotential.UserRAW || []).length;
-  if (custCountEl) custCountEl.textContent = allCust;
-  if (userCountEl) userCountEl.textContent = allUser;
+  var filteredCust = App.ImportPotential.CustRAW || [];
+  var filteredUser = App.ImportPotential.UserRAW || [];
+  if (periodFilter && periodFilter !== 'all') {
+    var fcu = filteredCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    var fus = filteredUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    if (fcu.length > 0 || fus.length > 0) { filteredCust = fcu; filteredUser = fus; }
+  }
+  if (custCountEl) custCountEl.textContent = filteredCust.length;
+  if (userCountEl) userCountEl.textContent = filteredUser.length;
 
   // 表体（使用分页数据 pData）
   // 同比格式化：带颜色（红涨绿跌）
@@ -7072,7 +7091,7 @@ App.renderWidthProductTab = function() {
   if (tbody1) {
     tbody1.innerHTML = custRank.map(function(p, i) {
       var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
+      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '';
       var yoyHtml = yoyPeriod ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
       return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
@@ -7088,7 +7107,7 @@ App.renderWidthProductTab = function() {
   if (tbody2) {
     tbody2.innerHTML = userRank.map(function(p, i) {
       var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
+      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '';
       var yoyHtml = yoyPeriod ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
       return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
@@ -7137,12 +7156,41 @@ App.showProdCovDrill = function(prodName, type) {
   else if (state.team !== 'all') raw = raw.filter(function(r) { return r.dept === state.team; });
   var covered = raw.filter(function(r) { return r.prods && r.prods[prodName]; });
   var label = type === 'cust' ? '客户' : '用户';
+  var rate = raw.length > 0 ? (covered.length / raw.length * 100).toFixed(1) : '0';
 
-  var html = '<p style="margin:0 0 12px;color:#6b7280">筛选范围内共 <strong>' + raw.length + '</strong> 个' + label + '，其中 <strong>' + covered.length + '</strong> 个覆盖了「' + prodName + '」</p>';
+  // 计算环比和同比
+  var diffHtml = '', yoyHtml = '';
+  if (pf && pf.indexOf('-') > 0) {
+    var parts = pf.split('-'), y2 = parseInt(parts[0]), m2 = parseInt(parts[1]);
+    var prevP = y2 + '-' + String(m2 === 1 ? 12 : m2 - 1).padStart(2, '0');
+    var yoyP = (y2 - 1) + '-' + String(m2).padStart(2, '0');
+    var rawPrev = (type === 'cust' ? App.ImportData.CustGS : App.ImportData.UserGS).filter(function(r) { return (r.snapshotPeriod||'') === prevP; });
+    var rawYoy = (type === 'cust' ? App.ImportData.CustGS : App.ImportData.UserGS).filter(function(r) { return (r.snapshotPeriod||'') === yoyP; });
+    if (state.person !== 'all') { rawPrev = rawPrev.filter(function(r) { return r.sales === state.person; }); rawYoy = rawYoy.filter(function(r) { return r.sales === state.person; }); }
+    else if (state.group !== 'all') { rawPrev = rawPrev.filter(function(r) { return r.group === state.group; }); rawYoy = rawYoy.filter(function(r) { return r.group === state.group; }); }
+    else if (state.team !== 'all') { rawPrev = rawPrev.filter(function(r) { return r.dept === state.team; }); rawYoy = rawYoy.filter(function(r) { return r.dept === state.team; }); }
+    if (rawPrev.length > 0) {
+      var cntPrev = rawPrev.filter(function(r) { return r.prods && r.prods[prodName]; }).length;
+      var ratePrev = (cntPrev / rawPrev.length * 100).toFixed(1);
+      var d = (parseFloat(rate) - parseFloat(ratePrev)).toFixed(1);
+      diffHtml = ' | 环比：' + (d > 0 ? '<span style="color:#dc2626">+' + d + '%</span>' : d < 0 ? '<span style="color:#16a34a">' + d + '%</span>' : '<span style="color:#9ca3af">0</span>');
+    }
+    if (rawYoy.length > 0) {
+      var cntYoy2 = rawYoy.filter(function(r) { return r.prods && r.prods[prodName]; }).length;
+      var rateYoy2 = (cntYoy2 / rawYoy.length * 100).toFixed(1);
+      var y = (parseFloat(rate) - parseFloat(rateYoy2)).toFixed(1);
+      yoyHtml = ' | 同比：' + (y > 0 ? '<span style="color:#dc2626">+' + y + '%</span>' : y < 0 ? '<span style="color:#16a34a">' + y + '%</span>' : '<span style="color:#9ca3af">0</span>');
+    } else {
+      yoyHtml = ' | 同比：<span style="color:#9ca3af">-</span>';
+    }
+  }
+
+  var html = '<p style="margin:0 0 4px;color:#6b7280">筛选范围内共 <strong>' + raw.length + '</strong> 个' + label + '，其中 <strong>' + covered.length + '</strong> 个覆盖了「' + prodName + '」</p>' +
+    '<p style="margin:0 0 12px;color:#6b7280;font-size:12px">品类覆盖率：<strong style="color:#1a56db">' + rate + '%</strong>' + diffHtml + yoyHtml + '</p>';
   if (covered.length === 0) {
     html += '<p style="text-align:center;padding:24px;color:#9ca3af">暂无覆盖记录</p>';
   } else {
-    html += '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+    html += '<table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:collapse">' +
       '<thead><tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">' +
       '<th style="text-align:left;padding:8px 10px">' + label + '名称</th>' +
       '<th style="text-align:left;padding:8px 10px">销售</th>' +
@@ -7151,10 +7199,10 @@ App.showProdCovDrill = function(prodName, type) {
       '<th style="text-align:center;padding:8px 10px">产品宽度</th></tr></thead><tbody>';
     covered.forEach(function(r) {
       html += '<tr style="border-bottom:1px solid #f3f4f6">' +
-        '<td style="padding:6px 10px;font-weight:600">' + (r.user || r.name || '-') + '</td>' +
-        '<td style="padding:6px 10px">' + (r.sales || '-') + '</td>' +
-        '<td style="padding:6px 10px;color:#6b7280">' + (r.dept || '-') + '</td>' +
-        '<td style="padding:6px 10px;color:#6b7280">' + (r.group || '-') + '</td>' +
+        '<td style="padding:6px 10px;font-weight:600;overflow:hidden;text-overflow:ellipsis" title="' + (r.user || r.name || '') + '">' + (r.user || r.name || '-') + '</td>' +
+        '<td style="padding:6px 10px;overflow:hidden;text-overflow:ellipsis" title="' + (r.sales || '') + '">' + (r.sales || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280;overflow:hidden;text-overflow:ellipsis">' + (r.dept || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280;overflow:hidden;text-overflow:ellipsis">' + (r.group || '-') + '</td>' +
         '<td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a56db">' + (r.width || 0) + '</td></tr>';
     });
     html += '</tbody></table>';

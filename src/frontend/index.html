@@ -84,13 +84,12 @@
         </div>
         <div class="filter-group" style="display:flex;gap:4px">
         </div>
-        <div class="filter-sep">|</div>
-        <div class="filter-group"><label>对比期</label><select onchange="App.updateOverview()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
-        <div class="filter-sep">|</div>
+
+
         <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-overview')"><option value="all">全部部门</option></select></div>
-        <span class="filter-sep">→</span>
+
         <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-overview')"><option value="all">全部小组</option></select></div>
-        <span class="filter-sep">→</span>
+
         <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-overview')"><option value="all">全部成员</option></select></div>
         <button class="btn-ghost" onclick="App.resetFilters('page-overview')">🔄 重置</button>
         <div class="right">
@@ -161,13 +160,12 @@
             <button onclick="App.closeDatePicker('w')" style="width:100%;padding:8px 0;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">确定</button>
           </div>
         </div>
-        <div class="filter-sep">|</div>
-        <div class="filter-group"><label>对比期</label><select onchange="App.updateWidth()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
-        <div class="filter-sep">|</div>
+
+
         <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-width')"><option value="all">全部部门</option></select></div>
-        <span class="filter-sep">→</span>
+
         <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-width')"><option value="all">全部小组</option></select></div>
-        <span class="filter-sep">→</span>
+
         <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-width')"><option value="all">全部成员</option></select></div>
         <button class="btn-ghost" onclick="App.resetFilters('page-width')">🔄 重置</button>
       </div>
@@ -577,8 +575,8 @@
           <div class="card-title">
             <span class="left">📂 产品宽度总表</span>
             <span class="right" style="display:flex;gap:8px">
-              <span class="tag" id="w-total-user-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer" onclick="App.ImportData.switchView('user')" title="点击查看用户明细">🏢 用户数量 <strong id="w-total-user-count">-</strong></span>
-              <span class="tag" id="w-total-cust-tag" style="background:#dcfce7;color:#166534;cursor:pointer" onclick="App.ImportData.switchView('cust')" title="点击查看客户明细">👥 客户数量 <strong id="w-total-cust-count">-</strong></span>
+              <span class="tag" id="w-total-user-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer" onclick="App.ImportData.switchView('user')" title="点击查看用户明细">🏢 用户：规上<strong id="w-total-user-gs">-</strong> / 非规上<strong id="w-total-user-ngs">-</strong></span>
+              <span class="tag" id="w-total-cust-tag" style="background:#dcfce7;color:#166534;cursor:pointer" onclick="App.ImportData.switchView('cust')" title="点击查看客户明细">👥 客户：规上<strong id="w-total-cust-gs">-</strong> / 非规上<strong id="w-total-cust-ngs">-</strong></span>
             </span>
           </div>
 
@@ -605,7 +603,7 @@
                 <option value="all">全部部门</option>
               </select>
             </div>
-            <span class="filter-sep">→</span>
+    
             <div class="filter-group"><label>小组</label>
               <select class="filter-group-sel" id="wImportGroupFilter" onchange="App.ImportData.onGrpChange(this.value)">
                 <option value="all">全部小组</option>
@@ -788,13 +786,12 @@
             <button onclick="App.closeDatePicker('p')" style="width:100%;padding:8px 0;background:#1a56db;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">确定</button>
           </div>
         </div>
-        <div class="filter-sep">|</div>
-        <div class="filter-group"><label>对比期</label><select onchange="App.updatePotential()"><option>同比(去年同期)</option><option>环比(上月)</option></select></div>
-        <div class="filter-sep">|</div>
+
+
         <div class="filter-group"><label>👥 部门</label><select class="filter-dept" onchange="App.onDeptChange('page-potential')"><option value="all">全部部门</option></select></div>
-        <span class="filter-sep">→</span>
+
         <div class="filter-group"><label>小组</label><select class="filter-group-sel" onchange="App.onGrpChange('page-potential')"><option value="all">全部小组</option></select></div>
-        <span class="filter-sep">→</span>
+
         <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-potential')"><option value="all">全部成员</option></select></div>
         <button class="btn-ghost" onclick="App.resetFilters('page-potential')">🔄 重置</button>
         <div class="right"><span style="font-size:11px;color:var(--text-sub)">基线: 2025年7月</span></div>
@@ -1087,7 +1084,7 @@
           <div class="table-wrap" style="max-height:240px">
             <table class="table">
               <thead><tr>
-                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">数据月份</th><th style="text-align:center">潜力产品-客户</th><th style="text-align:center">潜力产品-用户</th><th style="text-align:center">总记录</th><th>操作人</th><th style="text-align:center">操作</th>
+                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">数据月份</th><th style="text-align:center">用户(新/更)</th><th style="text-align:center">客户(新/更)</th><th style="text-align:center">合计</th><th>操作人</th><th style="text-align:center">操作</th>
               </tr></thead>
               <tbody id="pImportHistoryTable"></tbody>
             </table>
@@ -1099,8 +1096,8 @@
           <div class="card-title">
             <span class="left" id="p-import-ds-title">📋 潜力产品数据明细</span>
             <div class="right" style="display:flex;gap:8px">
-              <span class="tag" id="p-import-cust-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer;opacity:1" onclick="App.ImportPotential.switchDS('cust')">👥 潜力产品-客户 <strong id="p-import-cust-count">0</strong></span>
-              <span class="tag" id="p-import-user-tag" style="background:#dcfce7;color:#166534;cursor:pointer;opacity:0.5" onclick="App.ImportPotential.switchDS('user')">🏢 潜力产品-用户 <strong id="p-import-user-count">0</strong></span>
+              <span class="tag" id="p-import-cust-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer;opacity:1" onclick="App.ImportPotential.switchDS('cust')">👥 客户数量 <strong id="p-import-cust-count">0</strong></span>
+              <span class="tag" id="p-import-user-tag" style="background:#dcfce7;color:#166534;cursor:pointer;opacity:0.5" onclick="App.ImportPotential.switchDS('user')">🏢 用户数量 <strong id="p-import-user-count">0</strong></span>
             </div>
           </div>
 
@@ -1126,7 +1123,7 @@
                 <option value="all">全部部门</option>
               </select>
             </div>
-            <span class="filter-sep">→</span>
+    
             <div class="filter-group"><label>小组</label>
               <select id="pImportGroupFilter" onchange="App.ImportPotential.render()" class="filter-group-sel">
                 <option value="all">全部小组</option>
@@ -1297,7 +1294,7 @@
           <div class="filter-group"><label>操作用户</label><input type="text" id="aAuditUser" placeholder="用户名" oninput="App.renderAuditLog()"></div>
           <div class="filter-group"><label>操作类型</label><select id="aAuditAction" onchange="App.renderAuditLog()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="查看页面">查看页面</option><option value="数据导出">数据导出</option><option value="数据导入">数据导入</option><option value="新增用户">新增用户</option><option value="修改用户">修改用户</option><option value="修改密码">修改密码</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="系统配置">系统配置</option></select></div>
           <div class="filter-group"><label>开始日期</label><input type="date" id="aAuditDateStart" value="2026-07-01" onchange="App.renderAuditLog()"></div>
-          <span class="filter-sep">→</span>
+  
           <div class="filter-group"><label>结束日期</label><input type="date" id="aAuditDateEnd" value="2026-07-21" onchange="App.renderAuditLog()"></div>
           <button class="btn-ghost" onclick="App.exportAuditLog()">📥 导出日志</button>
           <span class="right" style="font-size:12px;color:var(--text-muted)" id="aAuditCount">20 条记录</span>

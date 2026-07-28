@@ -76,7 +76,7 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
         cust_name = r.get("custName", "")
         product = r.get("product", "")
         period_val = r.get("snapshotPeriod", "") or r.get("period", "") or snapshot
-        # 按 售达方名称 + 产品 + 月份 去重
+        # 按 售达方名称 + 产品 + 月份 去重（同客户同产品同月=更新，不同月=新增）
         existing = db.query(PotentialCust).filter(
             PotentialCust.cust_name == cust_name,
             PotentialCust.product == product,
@@ -127,6 +127,7 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
                 users_yoy=str(r.get("usersYoy", "")) if r.get("usersYoy") is not None else None,
             )
             db.add(rec)
+            db.flush()
             count += 1
 
     db.commit()
@@ -157,7 +158,7 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
         user_name = r.get("userName", "")
         product = r.get("product", "")
         period_val2 = r.get("snapshotPeriod", "") or r.get("period", "") or snapshot
-        # 按 最终用户名称 + 产品 + 月份 去重
+        # 按 最终用户名称 + 产品 + 月份 去重（同用户同产品同月=更新，不同月=新增）
         existing = db.query(PotentialUser).filter(
             PotentialUser.user_name == user_name,
             PotentialUser.product == product,
@@ -213,6 +214,7 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
                 custs_yoy=parse_yoy(r.get("custsYoy")),
             )
             db.add(rec)
+            db.flush()
             count += 1
 
     db.commit()
@@ -262,7 +264,7 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
             continue
         siebel = r.get("siebel", "")
         name = r.get("user") or r.get("name", "")
-        # 按 siebel + record_type + snapshot_period 去重
+        # 按 siebel + record_type + snapshot_period 去重（同编码同月=更新，不同月=新增）
         existing = db.query(WidthRecord).filter(
             WidthRecord.siebel == siebel,
             WidthRecord.record_type == record_type,
@@ -280,6 +282,7 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
             existing.prods_json = json.dumps(r.get("prods", {}), ensure_ascii=False)
             existing.contact = r.get("contact", existing.contact or "")
             existing.level = r.get("level", existing.level or "")
+            existing.snapshot_period = snapshot or existing.snapshot_period
             updated += 1
         else:
             rec = WidthRecord(
@@ -293,6 +296,7 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
                 snapshot_period=snapshot,
             )
             db.add(rec)
+            db.flush()  # 确保同批次后续去重能查到
             count += 1
 
     db.commit()
@@ -370,7 +374,7 @@ def get_potential_user(db: Session = Depends(get_db)):
 @router.delete("/width-records")
 def delete_width_records(type: str = "", db: Session = Depends(get_db)):
     q = db.query(WidthRecord).filter(WidthRecord.tenant_id == 1)
-    if type:
+    if type and type != "all":
         q = q.filter(WidthRecord.record_type == type)
     deleted = q.delete()
     db.commit()
