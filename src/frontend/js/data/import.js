@@ -21,10 +21,10 @@ App.ImportData.resolveDept = function(groupName) {
 };
 
 // 从销售人员名反查所属部门（PERSONS 精确匹配 → GROUPS 负责人包含匹配）
-// 优先使用导入的 dept 值；仅在 dept 为空时才反查
+// 导入的 dept 实际是组名，通过 resolveDept 映射到真实部门
 App.ImportData.lookupDept = function(salesName, selfDept) {
   var dept = (selfDept || '').trim();
-  if (dept) return dept;  // 1) 优先用导入的 dept
+  if (dept) return App.ImportData.resolveDept(dept);  // 1) 组名 → 部门名映射
   if (!salesName) return '';
   // 2) PERSONS 表反查：sales → p.dept
   var persons = App.PERSONS || [];
@@ -443,10 +443,10 @@ App.ImportData.handleUpload = function(input) {
 
       // 发送到后端数据库
       var userApiRows = App.ImportData.UserGS.map(function(r) {
-        return {user: r.user, siebel: r.siebel||'', industry: r.industry||'', sales: r.sales||'', dept: r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
+        return {user: r.user, siebel: r.siebel||'', industry: r.industry||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
       });
       var custApiRows = App.ImportData.CustGS.map(function(r) {
-        return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
+        return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
       });
       var apiCalls = [];
       if (userApiRows.length > 0) apiCalls.push(App.API.sendWidth(userApiRows, 'user'));
@@ -528,17 +528,22 @@ App.ImportData.populateImportGrpDropdown = function() {
   else sel.value = 'all';
 };
 
-// 部门变更 → 级联刷新小组下拉 + 重渲表格
+// 部门变更 → 级联刷新小组下拉 + 同步顶部 FilterBar
 App.ImportData.onDeptChange = function(val) {
   var grpSel = document.getElementById('wImportGroupFilter');
   if (grpSel) grpSel.value = 'all';
   App.ImportData.populateImportGrpDropdown();
-  App.ImportData.render();
+  // 同步顶部 FilterBar（单向：表内 → 顶部）
+  var topDept = document.querySelector('#page-width .filter-dept');
+  if (topDept && topDept.value !== val) { topDept.value = val; App.onDeptChange('page-width'); }
+  else App.ImportData.render();
 };
 
-// 小组变更 → 重渲表格
+// 小组变更 → 同步顶部 FilterBar
 App.ImportData.onGrpChange = function(val) {
-  App.ImportData.render();
+  var topGrp = document.querySelector('#page-width .filter-group-sel');
+  if (topGrp && topGrp.value !== val) { topGrp.value = val; App.onGrpChange('page-width'); }
+  else App.ImportData.render();
 };
 
 
@@ -547,19 +552,18 @@ App.ImportData.render = function() {
   var srch = ((document.getElementById('wImportSearch') || {}).value || '').trim().toLowerCase();
   var srt = (document.getElementById('wImportSort') || {}).value || 'width_desc';
 
-  // 同步顶部筛选状态到表内下拉（首次渲染 / Tab 切换时）
+  // 首次渲染时同步顶部筛选状态到表内下拉（仅在选项未初始化时）
   var topState = (typeof App.getFilterState === 'function') ? App.getFilterState('page-width') : { team: 'all', group: 'all' };
   var deptSel = document.getElementById('wImportDeptFilter');
   var grpSel = document.getElementById('wImportGroupFilter');
   if (deptSel && deptSel.options.length <= 1) {
     App.ImportData.populateImportDeptDropdown();
-    // 联动顶部状态
     if (topState.team !== 'all' && deptSel.querySelector('option[value="' + topState.team + '"]')) {
       deptSel.value = topState.team;
-      App.ImportData.populateImportGrpDropdown();
-      if (topState.group !== 'all' && grpSel && grpSel.querySelector('option[value="' + topState.group + '"]')) {
-        grpSel.value = topState.group;
-      }
+    }
+    App.ImportData.populateImportGrpDropdown();
+    if (topState.group !== 'all' && grpSel && grpSel.querySelector('option[value="' + topState.group + '"]')) {
+      grpSel.value = topState.group;
     }
   }
 
@@ -588,8 +592,8 @@ App.ImportData.render = function() {
   var thead = document.getElementById('wImportDataThead');
   if (thead) {
     var th = '<th style="width:32px"><input type="checkbox" id="wImportCheckAll" onchange="App.ImportData.toggleAll(this)" title="全选/取消"></th><th style="width:44px">序号</th>';
-    if (isU) th += '<th>最终用户-行业</th><th>siebel编码</th><th style="min-width:130px">最终用户</th><th>销售</th><th>销售部门</th><th style="text-align:center">规上</th><th style="text-align:center">产品线合计</th>';
-    else th += '<th>siebel编码</th><th style="min-width:150px">售达方描述(客户)</th><th>销售</th><th>销售部门</th><th style="text-align:center">规上</th><th style="text-align:center">产品线合计</th>';
+    if (isU) th += '<th>最终用户-行业</th><th>siebel编码</th><th style="min-width:130px">最终用户</th><th>销售</th><th>组</th><th>销售部门</th><th style="text-align:center">规上</th><th style="text-align:center">产品线合计</th>';
+    else th += '<th>siebel编码</th><th style="min-width:150px">售达方描述(客户)</th><th>销售</th><th>组</th><th>销售部门</th><th style="text-align:center">规上</th><th style="text-align:center">产品线合计</th>';
     sp.forEach(function(s, i) { th += '<th style="text-align:center" title="' + prods[i] + '">' + s + '</th>'; });
     th += (isU ? '<th>接口人</th><th style="text-align:center">用户等级</th>' : '<th>接口人</th><th style="text-align:center">客户等级</th>');
     thead.innerHTML = '<tr>' + th + '</tr>';
@@ -604,7 +608,8 @@ App.ImportData.render = function() {
     if (isU) { h += '<td>' + (r.industry || '-') + '</td><td style="font-size:11px">' + (r.siebel || '-') + '</td><td class="name-cell"><strong>' + App.escapeHtml(r.user) + '</strong></td>'; }
     else { h += '<td style="font-size:11px">' + (r.siebel || '-') + '</td><td class="name-cell"><strong>' + App.escapeHtml(r.name) + '</strong></td>'; }
     h += '<td>' + App.escapeHtml(r.sales || '-') + '</td>';
-    h += '<td>' + App.escapeHtml(r.group || r.dept || '-') + '</td>';
+    h += '<td>' + App.escapeHtml(r.group || '-') + '</td>';
+    h += '<td>' + App.escapeHtml(r.dept || '-') + '</td>';
     var gs = r.guishang || '否';
     h += '<td style="text-align:center"><span class="badge ' + (gs==='是'?'badge-on':'badge-off') + '">' + gs + '</span></td>';
     h += '<td style="text-align:center"><div style="display:flex;align-items:center;gap:4px;justify-content:center"><div style="width:50px;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#2563eb,#60a5fa);border-radius:3px"></div></div><span style="font-weight:700;color:#2563eb;min-width:22px">' + r.width + '</span></div></td>';
@@ -612,7 +617,7 @@ App.ImportData.render = function() {
     h += '<td>' + (r.contact || '-') + '</td>';
     h += '<td style="text-align:center;font-size:11px">' + (r.level || '-') + '</td></tr>';
   });
-  var tc = prods.length + (isU ? 9 : 8) + 2;
+  var tc = prods.length + (isU ? 10 : 9) + 2;
   if (data.length === 0) h = '<tr><td colspan="' + tc + '" style="text-align:center;padding:24px;color:#94a3b8">请上传总表文件</td></tr>';
   var tb = document.getElementById('wImportDataTbody'); if (tb) tb.innerHTML = h;
   document.getElementById('wImportCheckAll').checked = false;
@@ -677,7 +682,7 @@ App.ImportData.batchDelete = function() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ rows: remaining.map(function(r) {
-            var obj = { siebel: r.siebel || '', industry: r.industry || '', name: r.user || r.name || '', sales: r.sales || '', dept: r.dept || r.group || '', guishang: r.guishang || '否', width: r.width || 0, prods: r.prods || {}, contact: r.contact || '', level: r.level || '' };
+            var obj = { siebel: r.siebel || '', industry: r.industry || '', name: r.user || r.name || '', sales: r.sales || '', dept: r.group || r.dept || '', guishang: r.guishang || '否', width: r.width || 0, prods: r.prods || {}, contact: r.contact || '', level: r.level || '' };
             return obj;
           }), type: type })
         });
@@ -747,9 +752,17 @@ App.ImportData.startEdit = function(td, field) {
   td.textContent = ''; td.appendChild(inp); inp.focus(); inp.select();
   var save = function() {
     var v = inp.value.trim(); record[field] = v;
-    // 编辑 sales 后自动回填部门
+    // 编辑 sales 后自动回填组和部门
     if (field === 'sales' && v) {
       record.dept = App.ImportData.lookupDept(v, record.dept);
+      var grpTd = td.nextElementSibling;           // 组
+      var deptTd = grpTd ? grpTd.nextElementSibling : null;  // 销售部门
+      if (grpTd) grpTd.textContent = record.group || '-';
+      if (deptTd) deptTd.textContent = record.dept || '-';
+    }
+    // 编辑组后自动推导部门
+    if (field === 'group' && v) {
+      record.dept = App.ImportData.resolveDept(v);
       var nextTd = td.nextElementSibling;
       if (nextTd) nextTd.textContent = record.dept || '-';
     }

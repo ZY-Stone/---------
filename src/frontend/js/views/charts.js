@@ -104,6 +104,7 @@ function makeHBar(labels, data, color, id, opts) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 24 } },
         onClick: function(evt, elements) {
           if (elements && elements.length > 0) {
             App.drillToWidth();
@@ -114,7 +115,7 @@ function makeHBar(labels, data, color, id, opts) {
           tooltip: { callbacks: { label: function(ctx) { return '客均宽度: ' + ctx.raw; } } }
         },
         scales: {
-          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度', font: { size: 11 } } },
+          y: { beginAtZero: true, grace: '25%', grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度', font: { size: 11 } } },
           x: { grid: { display: false }, ticks: { font: { size: 11 } } }
         }
       },
@@ -158,12 +159,13 @@ function makeHBar(labels, data, color, id, opts) {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 24 } },
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: function(ctx) { return '销售额: ' + ctx.raw.toLocaleString() + '万'; } } }
         },
         scales: {
-          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额 (万)', font: { size: 11 } } },
+          y: { beginAtZero: true, grace: '25%', grid: { color: '#f3f4f6' }, title: { display: true, text: '销售额 (万)', font: { size: 11 } } },
           x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } }
         }
       },
@@ -205,38 +207,50 @@ App._widthApiQs = function() {
 App.reloadWidthCharts = function() {
   var hdrs = { 'Authorization': 'Bearer ' + (App.token || '') };
   var qs = App._widthApiQs();
+  // 有导入数据时由 updateWidth() 前端计算，不用后端 API 覆盖
+  var hasImport = (App.ImportData && App.ImportData.UserGS && App.ImportData.UserGS.length > 0) ||
+                  (App.ImportData && App.ImportData.CustGS && App.ImportData.CustGS.length > 0);
   // 宽度分布
   if (App.charts.wDist) {
-    fetch('/api/width/dist' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
-      if (d.labels && d.values) {
-        App.charts.wDist.data.labels = d.labels;
-        App.charts.wDist.data.datasets[0].data = d.values;
-        App.charts.wDist.update();
-      }
-    }).catch(function() {});
-  }
-  // 团队平均
-  if (App.charts.wTeamAvg) {
-    fetch('/api/width/team-avg' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(list) {
-      if (Array.isArray(list) && list.length) {
-        App.charts.wTeamAvg.data.labels = list.map(function(t) { return t.team; });
-        App.charts.wTeamAvg.data.datasets[0].data = list.map(function(t) { return t.avg; });
-        App.charts.wTeamAvg.update();
-      }
-    }).catch(function() {});
-  }
-  // 产品覆盖率
-  if (App.charts.wCov) {
-    fetch('/api/width/heatmap' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(data) {
-      if (data.products) {
-        App.charts.wCov.data.labels = data.products.map(function(p) { return p.name; });
-        App.charts.wCov.data.datasets[0].data = data.products.map(function(p) { return p.rate; });
-        App.charts.wCov.update();
-        if (typeof App.renderHeatmap === 'function') {
-          App.renderHeatmap('w-heatmap', data);
+    if (!hasImport) {
+      fetch('/api/width/dist' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.labels && d.values) {
+          App.charts.wDist.data.labels = d.labels;
+          App.charts.wDist.data.datasets[0].data = d.values;
+          App.charts.wDist.update();
         }
-      }
-    }).catch(function() {});
+      }).catch(function() {});
+    }
+  }
+  // 团队平均 — 有导入数据时由 _updateDimBarChart 计算，不用后端覆盖
+  if (App.charts.wTeamAvg) {
+    if (!hasImport) {
+      fetch('/api/width/team-avg' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(list) {
+        if (Array.isArray(list) && list.length) {
+          App.charts.wTeamAvg.data.labels = list.map(function(t) { return t.team; });
+          App.charts.wTeamAvg.data.datasets[0].data = list.map(function(t) { return t.avg; });
+          App.charts.wTeamAvg.update();
+        }
+      }).catch(function() {});
+    }
+  }
+  // 产品覆盖率 — 有导入数据时由前端计算，不用后端覆盖
+  if (App.charts.wCov) {
+    if (!hasImport) {
+      fetch('/api/width/heatmap' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.products) {
+          App.charts.wCov.data.labels = data.products.map(function(p) { return p.name; });
+          App.charts.wCov.data.datasets[0].data = data.products.map(function(p) { return p.rate; });
+          App.charts.wCov.update();
+          if (typeof App._hmCust !== 'undefined') {
+            var total = data.total_customers || 0;
+            App._hmCust = (data.products || []).map(function(p) { return { name: p.name, count: p.count, total: total, rate: p.rate }; });
+            App._hmUser = App._hmCust;
+            App._renderHeatmap();
+          }
+        }
+      }).catch(function() {});
+    }
   }
   // 历史趋势
   if (App.charts.wWidthTrend) {
@@ -311,6 +325,7 @@ App.reloadPotentialCharts = function() {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 24 } },
         onClick: function(evt, elements) {
           if (elements && elements.length > 0) {
             var idx = elements[0].index;
@@ -326,7 +341,7 @@ App.reloadPotentialCharts = function() {
           tooltip: { callbacks: { label: function(ctx) { return '客户数: ' + ctx.parsed.y; } } }
         },
         scales: {
-          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '客户数' } },
+          y: { beginAtZero: true, grace: '25%', grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '客户数' } },
           x: { grid: { display: false }, ticks: { font: { size: 11 } } }
         }
       },
@@ -367,9 +382,10 @@ App.reloadPotentialCharts = function() {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 24 } },
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return '客均宽度: ' + ctx.raw; } } } },
         scales: {
-          y: { beginAtZero: true, grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度' } },
+          y: { beginAtZero: true, grace: '25%', grid: { color: '#f3f4f6' }, title: { display: true, text: '客均宽度' } },
           x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45 } }
         }
       },
@@ -383,8 +399,8 @@ App.reloadPotentialCharts = function() {
           if (!meta || !meta.data) return;
           meta.data.forEach(function(bar, j) {
             if (!bar || typeof bar.x === 'undefined') return;
-            var val = data[j];
-            if (val != null) ctx2.fillText(val, bar.x, bar.y - 4);
+            var val = chart.data.datasets[0].data[j];
+            if (val != null) ctx2.fillText(parseFloat(val).toFixed(1), bar.x, bar.y - 4);
           });
           ctx2.restore();
         }
@@ -485,52 +501,54 @@ App.reloadPotentialCharts = function() {
   }
 })();
 
-// ===== 5. 产品宽度: 产品覆盖率 (后端 /api/width/heatmap?dept=...) =====
-(async function() {
+// ===== 5. 产品宽度: 产品覆盖率（同步创建空图表，由 updateWidth() 填入导入数据） =====
+(function() {
   var canvas = document.getElementById('chart-w-cov');
   if (!canvas) return;
-  try {
-    var r = await fetch('/api/width/heatmap' + App._widthApiQs(), { headers: { 'Authorization': 'Bearer ' + (App.token || '') } });
-    if (!r.ok) return;
-    var data = await r.json();
-    var prods = (data.products || []).map(function(p) { return p.name; });
-    var rates = (data.products || []).map(function(p) { return p.rate; });
-    App.charts.wCov = new Chart(canvas, {
-      type: 'bar',
-      data: {
-        labels: prods,
-        datasets: [{ label: '客户覆盖率', data: rates, backgroundColor: '#22c55e', borderRadius: 4, barPercentage: .7 }]
+  var prods = (App.ImportData && App.ImportData.PRODS ? App.ImportData.PRODS : []);
+  App.charts.wCov = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: prods,
+      datasets: [
+        { label: '客户覆盖率', data: prods.map(function() { return 0; }), backgroundColor: '#22c55e', borderRadius: 4, barPercentage: .7 },
+        { label: '用户覆盖率', data: prods.map(function() { return 0; }), backgroundColor: '#93c5fd', borderRadius: 4, barPercentage: .7 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 24 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function(ctx) { return '覆盖率: ' + ctx.parsed.y + '%'; } } }
       },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: function(ctx) { return '客户覆盖率: ' + ctx.parsed.y + '%'; } } }
-        },
-        scales: {
-          y: { beginAtZero: true, max: 100, grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '覆盖率 (%)' } },
-          x: { grid: { display: false }, ticks: { font: { size: 12, weight: 'bold' }, color: '#000', maxRotation: 60, minRotation: 60 } }
-        }
-      },
-      plugins: [{
-        id: 'covValueLabels',
-        afterDatasetsDraw: function(chart) {
-          var ctx2 = chart.ctx; ctx2.save();
-          var meta = chart.getDatasetMeta(0);
+      scales: {
+        y: { beginAtZero: true, max: 100, grace: '15%', grid: { color: '#f3f4f6' }, ticks: { font: { size: 10 } }, title: { display: true, text: '覆盖率 (%)' } },
+        x: { grid: { display: false }, ticks: { font: { size: 12, weight: 'bold' }, color: '#000', maxRotation: 60, minRotation: 60 } }
+      }
+    },
+    plugins: [{
+      id: 'covValueLabels',
+      afterDatasetsDraw: function(chart) {
+        var ctx2 = chart.ctx; ctx2.save();
+        ctx2.font = '600 10px -apple-system, sans-serif';
+        ctx2.textAlign = 'center'; ctx2.textBaseline = 'bottom';
+        chart.data.datasets.forEach(function(ds, di) {
+          var meta = chart.getDatasetMeta(di);
           if (!meta || meta.hidden) return;
-          chart.data.datasets[0].data.forEach(function(v, i) {
+          ds.data.forEach(function(v, i) {
             var bar = meta.data[i];
             if (!bar) return;
-            ctx2.fillStyle = '#16a34a';
-            ctx2.font = '600 10px -apple-system, sans-serif';
-            ctx2.textAlign = 'center'; ctx2.textBaseline = 'bottom';
+            ctx2.fillStyle = di === 0 ? '#16a34a' : '#3b82f6';
             ctx2.fillText(v + '%', bar.x, bar.y - 2);
           });
-          ctx2.restore();
-        }
-      }]
-    });
-  } catch(e) { console.warn('chart-w-cov fetch failed:', e); }
+        });
+        ctx2.restore();
+      }
+    }]
+  });
+  // 如果有导入数据，立即用导入数据更新覆盖率
+  setTimeout(function() { try { App.updateWidth(); } catch(e) {} }, 50);
 })();
 
 // ===== 6. 产品宽度: 规上 vs 非规上（双轴混合图）- 已从页面移除，保留安全初始化 =====

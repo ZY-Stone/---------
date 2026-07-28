@@ -224,7 +224,7 @@ def _customer_width_subquery(db: Session, user_info: dict, dept: str | None = No
         WidthRecord.dept.label("dept_name"),
         WidthRecord.group_name.label("grp_name"),
         WidthRecord.sales.label("owner_name"),
-        func.count(func.distinct(WidthRecord.siebel)).label("width")
+        func.max(WidthRecord.width).label("width")
     ).filter(WidthRecord.record_type == 'cust')
     q = _width_role_filter(q, user_info)
     # 前端传了具体部门则覆盖角色范围
@@ -255,7 +255,7 @@ def get_width_distribution(db: Session, user_info: dict, dept: str | None = None
 
 
 def get_team_avg(db: Session, user_info: dict, dept: str | None = None) -> list:
-    """容器 2：各组平均产品宽度"""
+    """容器 2：各组平均产品宽度 — 合并客户+用户数据取 width 字段均值"""
     from models.group import Group
     from models.department import Department
     tid = _tenant(db, user_info)
@@ -264,8 +264,7 @@ def get_team_avg(db: Session, user_info: dict, dept: str | None = None) -> list:
     ).filter(Group.tenant_id == tid).all()
 
     base_q = db.query(WidthRecord).filter(
-        WidthRecord.tenant_id == tid,
-        WidthRecord.record_type == 'cust'
+        WidthRecord.tenant_id == tid
     )
     # 角色权限过滤
     if dept and dept != 'all':
@@ -281,18 +280,12 @@ def get_team_avg(db: Session, user_info: dict, dept: str | None = None) -> list:
     for g, d in groups:
         cw_q = base_q.with_entities(
             WidthRecord.name,
-            func.count(func.distinct(WidthRecord.siebel)).label("w")
-        ).filter(
-            WidthRecord.name.in_(
-                base_q.with_entities(WidthRecord.name).filter(
-                    WidthRecord.group_name == g.name
-                ).subquery()
-            )
-        ).group_by(WidthRecord.name).all()
+            func.avg(WidthRecord.width).label("aw")
+        ).filter(WidthRecord.group_name == g.name).group_by(WidthRecord.name).all()
         if not cw_q:
             continue
-        total_w = sum(r.w or 0 for r in cw_q)
-        avg = round(total_w / len(cw_q), 1)
+        total_w = sum(r.aw or 0 for r in cw_q)
+        avg = round(total_w / len(cw_q), 1) if cw_q else 0
         result.append({
             "team": g.name,
             "dept": d.name if d else "",

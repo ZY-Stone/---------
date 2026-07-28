@@ -425,7 +425,7 @@ App.Data.getWidth = function(team) {
   var importedUser = (App.ImportData.UserGS && App.ImportData.UserGS.length > 0) ? App.ImportData.UserGS : null;
   var importedCust = (App.ImportData.CustGS && App.ImportData.CustGS.length > 0) ? App.ImportData.CustGS : null;
   if (importedUser || importedCust) {
-    var data = (importedCust || importedUser).slice();
+    var data = (importedCust || []).concat(importedUser || []);  // 合并客户+用户数据
     if (team && team !== 'all') {
       data = data.filter(function(r) { return matchesTeam(r, team); });
     }
