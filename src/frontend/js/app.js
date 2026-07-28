@@ -2177,21 +2177,21 @@ App._drillHeatmap = function(prodName) {
   if (covered.length === 0) {
     html += '<p style="text-align:center;padding:24px;color:#9ca3af">暂无覆盖记录</p>';
   } else {
-    html += '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+    html += '<table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:collapse">' +
       '<thead><tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">' +
-      '<th style="text-align:left;padding:8px 10px;white-space:nowrap">' + label + '名称</th>' +
-      '<th style="text-align:left;padding:8px 10px;white-space:nowrap">销售</th>' +
-      '<th style="text-align:left;padding:8px 10px;white-space:nowrap">部门</th>' +
-      '<th style="text-align:left;padding:8px 10px;white-space:nowrap">小组</th>' +
-      '<th style="text-align:center;padding:8px 10px;white-space:nowrap">产品宽度</th>' +
+      '<th style="text-align:left;padding:8px 10px">' + label + '名称</th>' +
+      '<th style="text-align:left;padding:8px 10px">销售</th>' +
+      '<th style="text-align:left;padding:8px 10px">部门</th>' +
+      '<th style="text-align:left;padding:8px 10px">小组</th>' +
+      '<th style="text-align:center;padding:8px 10px">产品宽度</th>' +
       '</tr></thead><tbody>';
     covered.forEach(function(r) {
       html += '<tr style="border-bottom:1px solid #f3f4f6">' +
         '<td style="padding:6px 10px;font-weight:600;white-space:nowrap">' + (r.user || r.name || '-') + '</td>' +
         '<td style="padding:6px 10px;white-space:nowrap">' + (r.sales || '-') + '</td>' +
-        '<td style="padding:6px 10px;color:#6b7280;white-space:nowrap">' + (r.dept || '-') + '</td>' +
-        '<td style="padding:6px 10px;color:#6b7280;white-space:nowrap">' + (r.group || '-') + '</td>' +
-        '<td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a56db;white-space:nowrap">' + (r.width || 0) + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280;word-break:break-all">' + (r.dept || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280;word-break:break-all">' + (r.group || '-') + '</td>' +
+        '<td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a56db">' + (r.width || 0) + '</td>' +
         '</tr>';
     });
     html += '</tbody></table>';
@@ -2327,7 +2327,7 @@ App.showBundleDrill = function(bundleName) {
       return '<tr style="border-bottom:1px solid #f3f4f6">' + cols.map(function(c) { return cell(c.render(r), c.style||''); }).join('') + '</tr>';
     }).join('');
     return '<div><h4 style="margin:0 0 10px;color:' + titleColor + ';font-size:14px">' + title + '</h4>' +
-      '<table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>';
+      '<table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:collapse"><thead><tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></div>';
   };
 
   var cols = [
@@ -7040,6 +7040,8 @@ App.renderWidthProductTab = function() {
     fUser2 = fUser2.filter(function(r) { return r.dept === team; });
   }
   var custTotal = fCust2.length, userTotal = fUser2.length;
+  App.setText('w-cust-scale-count', custTotal);
+  App.setText('w-user-scale-count', userTotal);
   // 计算上月（环比）和去年同月（同比）
   var prevPeriod = '', yoyPeriod = '';
   if (periodFilter && periodFilter.indexOf('-') > 0) {
@@ -7067,6 +7069,10 @@ App.renderWidthProductTab = function() {
   fCustYoy = applyFilter(fCustYoy); fUserYoy = applyFilter(fUserYoy);
   var custPrevTotal = fCustPrev.length, userPrevTotal = fUserPrev.length;
   var custYoyTotal = fCustYoy.length, userYoyTotal = fUserYoy.length;
+  var custHasPrevData = prevPeriod && custPrevTotal > 0;
+  var custHasYoyData = yoyPeriod && custYoyTotal > 0;
+  var userHasPrevData = prevPeriod && userPrevTotal > 0;
+  var userHasYoyData = yoyPeriod && userYoyTotal > 0;
   // 计算每个产品的品类覆盖率 + 环比 + 同比
   var custRank = allProds.map(function(p) {
     var cnt = fCust2.filter(function(r) { return r.prods && r.prods[p]; }).length;
@@ -7075,8 +7081,7 @@ App.renderWidthProductTab = function() {
     var ratePrev = custPrevTotal > 0 ? parseFloat((cntPrev / custPrevTotal * 100).toFixed(1)) : 0;
     var cntYoy = fCustYoy.filter(function(r) { return r.prods && r.prods[p]; }).length;
     var rateYoy = custYoyTotal > 0 ? parseFloat((cntYoy / custYoyTotal * 100).toFixed(1)) : 0;
-    return { name: p, count: cnt, rate: rate, diff: prevPeriod ? parseFloat((rate - ratePrev).toFixed(1)) : 0, yoy: yoyPeriod ? parseFloat((rate - rateYoy).toFixed(1)) : 0 };
-  }).sort(function(a, b) { return b.rate - a.rate; });
+    return { name: p, count: cnt, rate: rate, diff: custHasPrevData ? parseFloat((rate - ratePrev).toFixed(1)) : null, yoy: custHasYoyData ? parseFloat((rate - rateYoy).toFixed(1)) : null } }).sort(function(a, b) { return b.rate - a.rate; });
   var userRank = allProds.map(function(p) {
     var cnt = fUser2.filter(function(r) { return r.prods && r.prods[p]; }).length;
     var rate = userTotal > 0 ? parseFloat((cnt / userTotal * 100).toFixed(1)) : 0;
@@ -7084,15 +7089,14 @@ App.renderWidthProductTab = function() {
     var ratePrev = userPrevTotal > 0 ? parseFloat((cntPrev / userPrevTotal * 100).toFixed(1)) : 0;
     var cntYoy = fUserYoy.filter(function(r) { return r.prods && r.prods[p]; }).length;
     var rateYoy = userYoyTotal > 0 ? parseFloat((cntYoy / userYoyTotal * 100).toFixed(1)) : 0;
-    return { name: p, count: cnt, rate: rate, diff: prevPeriod ? parseFloat((rate - ratePrev).toFixed(1)) : 0, yoy: yoyPeriod ? parseFloat((rate - rateYoy).toFixed(1)) : 0 };
-  }).sort(function(a, b) { return b.rate - a.rate; });
+    return { name: p, count: cnt, rate: rate, diff: userHasPrevData ? parseFloat((rate - ratePrev).toFixed(1)) : null, yoy: userHasYoyData ? parseFloat((rate - rateYoy).toFixed(1)) : null } }).sort(function(a, b) { return b.rate - a.rate; });
 
   var tbody1 = document.getElementById('wProdCovCustBody');
   if (tbody1) {
     tbody1.innerHTML = custRank.map(function(p, i) {
       var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '';
-      var yoyHtml = yoyPeriod ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
+      var diffHtml = p.diff !== null ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
+      var yoyHtml = p.yoy !== null ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
       return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
         '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
@@ -7107,8 +7111,8 @@ App.renderWidthProductTab = function() {
   if (tbody2) {
     tbody2.innerHTML = userRank.map(function(p, i) {
       var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '';
-      var yoyHtml = yoyPeriod ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
+      var diffHtml = p.diff !== null ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
+      var yoyHtml = p.yoy !== null ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
       return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
         '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
@@ -7174,6 +7178,8 @@ App.showProdCovDrill = function(prodName, type) {
       var ratePrev = (cntPrev / rawPrev.length * 100).toFixed(1);
       var d = (parseFloat(rate) - parseFloat(ratePrev)).toFixed(1);
       diffHtml = ' | 环比：' + (d > 0 ? '<span style="color:#dc2626">+' + d + '%</span>' : d < 0 ? '<span style="color:#16a34a">' + d + '%</span>' : '<span style="color:#9ca3af">0</span>');
+    } else if (rawPrev.length === 0 && prevPeriod) {
+      diffHtml = ' | 环比：<span style="color:#9ca3af">/</span>';
     }
     if (rawYoy.length > 0) {
       var cntYoy2 = rawYoy.filter(function(r) { return r.prods && r.prods[prodName]; }).length;
@@ -7181,7 +7187,7 @@ App.showProdCovDrill = function(prodName, type) {
       var y = (parseFloat(rate) - parseFloat(rateYoy2)).toFixed(1);
       yoyHtml = ' | 同比：' + (y > 0 ? '<span style="color:#dc2626">+' + y + '%</span>' : y < 0 ? '<span style="color:#16a34a">' + y + '%</span>' : '<span style="color:#9ca3af">0</span>');
     } else {
-      yoyHtml = ' | 同比：<span style="color:#9ca3af">-</span>';
+      yoyHtml = ' | 同比：<span style="color:#9ca3af">/</span>';
     }
   }
 
@@ -7199,10 +7205,10 @@ App.showProdCovDrill = function(prodName, type) {
       '<th style="text-align:center;padding:8px 10px">产品宽度</th></tr></thead><tbody>';
     covered.forEach(function(r) {
       html += '<tr style="border-bottom:1px solid #f3f4f6">' +
-        '<td style="padding:6px 10px;font-weight:600;overflow:hidden;text-overflow:ellipsis" title="' + (r.user || r.name || '') + '">' + (r.user || r.name || '-') + '</td>' +
-        '<td style="padding:6px 10px;overflow:hidden;text-overflow:ellipsis" title="' + (r.sales || '') + '">' + (r.sales || '-') + '</td>' +
-        '<td style="padding:6px 10px;color:#6b7280;overflow:hidden;text-overflow:ellipsis">' + (r.dept || '-') + '</td>' +
-        '<td style="padding:6px 10px;color:#6b7280;overflow:hidden;text-overflow:ellipsis">' + (r.group || '-') + '</td>' +
+        '<td style="padding:6px 10px;font-weight:600;word-break:break-all">' + (r.user || r.name || '-') + '</td>' +
+        '<td style="padding:6px 10px;word-break:break-all">' + (r.sales || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280;word-break:break-all">' + (r.dept || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280;word-break:break-all">' + (r.group || '-') + '</td>' +
         '<td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a56db">' + (r.width || 0) + '</td></tr>';
     });
     html += '</tbody></table>';
@@ -7251,13 +7257,13 @@ App.showPotentialProductDrill = function(prodName) {
     '<p style="margin:0 0 16px;color:#6b7280">客户 <strong>' + custs.length + '</strong> 个 · 用户 <strong>' + users.length + '</strong> 个</p>' +
       '<div>' +
         '<h4 style="margin:0 0 8px;font-size:14px;color:#374151">👥 客户明细</h4>' +
-        '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+        '<table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:collapse">' +
           '<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb"><th style="padding:6px 10px;text-align:center;width:40px">#</th><th style="padding:6px 10px;text-align:left">客户名称</th><th style="padding:6px 10px;text-align:left">销售</th><th style="padding:6px 10px;text-align:left">所属团队</th></tr></thead>' +
           '<tbody>' + custRows + '</tbody></table>' +
       '</div>' +
       '<div>' +
         '<h4 style="margin:0 0 8px;font-size:14px;color:#374151">🏢 用户明细</h4>' +
-        '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+        '<table style="width:100%;table-layout:fixed;font-size:13px;border-collapse:collapse">' +
           '<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb"><th style="padding:6px 10px;text-align:center;width:40px">#</th><th style="padding:6px 10px;text-align:left">用户名称</th><th style="padding:6px 10px;text-align:center">关联客户</th><th style="padding:6px 10px;text-align:left">销售</th><th style="padding:6px 10px;text-align:left">所属团队</th></tr></thead>' +
           '<tbody>' + userRows + '</tbody></table>' +
       '</div>' +
@@ -8089,83 +8095,196 @@ App.renderPotentialUserTab = function() {
 
 // ===== 潜力产品 · 产品维度 — 覆盖率排名 =====
 App.renderPotentialProductCoverage = function() {
-  var state = App.getFilterState('page-potential');
-  var team = state.team, group = state.group, person = state.person;
+    var state = App.getFilterState('page-potential');
+    var team = state.team, group = state.group, person = state.person;
 
-  // 11 潜力产品全量基准（客户）
-  var custBase = [
-    { name:'观澜编码产品（非大模型）', cov:36.7, covered:326, yoy:'+18.5%', yoyCls:'b-up' },
-    { name:'出入口停车', cov:7.4,  covered:66,  yoy:'+15.2%', yoyCls:'b-up' },
-    { name:'前端大模型', cov:7.9,  covered:70,  yoy:'+85%',   yoyCls:'b-up' },
-    { name:'网络产品', cov:14.6,  covered:130, yoy:'-5.0%',  yoyCls:'b-warn' },
-    { name:'后端大模型(文搜大模型）', cov:5.2, covered:46, yoy:'新增', yoyCls:'b-new' },
-    { name:'人员通道', cov:6.4,  covered:57,  yoy:'+2.1%',  yoyCls:'b-flat' },
-    { name:'会议平板与视频会议', cov:17.6, covered:156, yoy:'+22.4%', yoyCls:'b-up' },
-    { name:'国密产品', cov:11.5,  covered:102, yoy:'+8.4%',  yoyCls:'b-up' },
-    { name:'执法记录仪', cov:8.5,  covered:76,  yoy:'+18.7%', yoyCls:'b-up' },
-    { name:'物联安全', cov:5.9,  covered:52,  yoy:'+5.2%',  yoyCls:'b-up' },
-    { name:'音频产品', cov:9.4,  covered:84,  yoy:'-3.5%',  yoyCls:'b-down' }
-  ];
+    // 获取产品列表和期间筛选
+    var prods = (typeof App.ImportPotential.getProducts === 'function')
+      ? App.ImportPotential.getProducts()
+      : App.ALL_POT_PRODUCTS;
+    var periodSel = document.getElementById('pImportPeriodFilter');
+    var periodFilter = periodSel ? (periodSel.value && periodSel.value !== 'all' && periodSel.value !== '无数据' ? periodSel.value : '') : '';
 
-  // 11 潜力产品全量基准（用户）
-  var userBase = [
-    { name:'观澜编码产品（非大模型）', cov:69.4, covered:268, yoy:'+22.1%', yoyCls:'b-up' },
-    { name:'出入口停车', cov:18.7, covered:72,  yoy:'+15.2%', yoyCls:'b-up' },
-    { name:'前端大模型', cov:14.2, covered:55,  yoy:'+85%',   yoyCls:'b-up' },
-    { name:'网络产品', cov:28.5,  covered:110, yoy:'-2.1%',  yoyCls:'b-warn' },
-    { name:'后端大模型(文搜大模型）', cov:8.5, covered:33, yoy:'新增', yoyCls:'b-new' },
-    { name:'人员通道', cov:10.8, covered:42,  yoy:'+2.1%',  yoyCls:'b-flat' },
-    { name:'会议平板与视频会议', cov:31.1, covered:120, yoy:'+15.6%', yoyCls:'b-up' },
-    { name:'国密产品', cov:36.8, covered:142, yoy:'+11.2%', yoyCls:'b-up' },
-    { name:'执法记录仪', cov:15.6, covered:60,  yoy:'+5.2%',  yoyCls:'b-up' },
-    { name:'物联安全', cov:9.4,  covered:36,  yoy:'+6.8%',  yoyCls:'b-up' },
-    { name:'音频产品', cov:15.6, covered:60,  yoy:'-1.2%',  yoyCls:'b-warn' }
-  ];
+    // 获取并过滤原始数据
+    var fCust = (App.ImportPotential.CustRAW || []).slice();
+    var fUser = (App.ImportPotential.UserRAW || []).slice();
 
-  var scopeTotalCust = App._getScopeTotal(state, 'cust');
-  var scopeTotalUser = App._getScopeTotal(state, 'user');
+    // 自动选取最新月份（如果未选择）
+    if (!periodFilter && (fCust.length > 0 || fUser.length > 0)) {
+      var allPeriods = {};
+      fCust.concat(fUser).forEach(function(r) {
+        var sp = r.snapshotPeriod || '';
+        if (sp) allPeriods[sp] = true;
+      });
+      var sortedPeriods = Object.keys(allPeriods).sort();
+      periodFilter = sortedPeriods[sortedPeriods.length - 1] || '';
+    }
 
-  // 客户覆盖率表
-  var tbody1 = document.getElementById('pProdCovCustBody');
-  if (tbody1) {
-    tbody1.innerHTML = custBase.map(function(p, i) {
-      var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var ps = App._getProductScale(p.name, state);
-      var coveredScaled = Math.round(p.covered * ps);
-      var covCalc = scopeTotalCust > 0 ? Math.round(coveredScaled / scopeTotalCust * 100) : Math.round(p.cov * ps);
-      covCalc = Math.min(100, Math.max(1, covCalc));
-      return '<tr style="cursor:pointer;" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
-        '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
-        '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
-        '<td style="text-align:center">' + coveredScaled + '</td>' +
-        '<td style="text-align:center;font-weight:700;color:var(--success)">' + covCalc + '%</td>' +
-        '<td style="text-align:center"><span class="badge ' + p.yoyCls + '">' + p.yoy + '</span></td></tr>';
-    }).join('');
-  }
+    if (periodFilter) {
+      fCust = fCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+      fUser = fUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    }
 
-  // 用户覆盖率表
-  var tbody2 = document.getElementById('pProdCovUserBody');
-  if (tbody2) {
-    tbody2.innerHTML = userBase.map(function(p, i) {
-      var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var ps = App._getProductScale(p.name, state);
-      var coveredScaled = Math.round(p.covered * ps);
-      var covCalc = scopeTotalUser > 0 ? Math.round(coveredScaled / scopeTotalUser * 100) : Math.round(p.cov * ps);
-      covCalc = Math.min(100, Math.max(1, covCalc));
-      return '<tr style="cursor:pointer;" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
-        '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
-        '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
-        '<td style="text-align:center">' + coveredScaled + '</td>' +
-        '<td style="text-align:center;font-weight:700;color:var(--success)">' + covCalc + '%</td>' +
-        '<td style="text-align:center"><span class="badge ' + p.yoyCls + '">' + p.yoy + '</span></td></tr>';
-    }).join('');
-  }
+    // 级联筛选：人员 > 组 > 部门
+    var applyFilter = function(arr) {
+      if (person !== 'all') return arr.filter(function(r) { return r.sales === person; });
+      if (group !== 'all') return arr.filter(function(r) { return r.dept5 === group || r.dept4 === group; });
+      if (team !== 'all') return arr.filter(function(r) { return (r.dept4 || r.dept3) === team; });
+      return arr;
+    };
+    fCust = applyFilter(fCust);
+    fUser = applyFilter(fUser);
 
-  // 更新卡片标题中的范围客户/用户数
-  App.setText('p-cust-scale-count', scopeTotalCust);
-  App.setText('p-user-scale-count', scopeTotalUser);
-};
+    // 计算每个产品的唯�?�客户/用户覆盖数
+    // 客�?�数据：按 custName 去重（同一客户同�?�产品只算一�?�）
+    var custUnique = {}; // { custName: { product: true } }
+    fCust.forEach(function(r) {
+      if (r.product && r.custName) {
+        if (!custUnique[r.custName]) custUnique[r.custName] = {};
+        custUnique[r.custName][r.product] = true;
+      }
+    });
+    var custTotal = Object.keys(custUnique).length;
 
+    // 用户数据：按 userName 去重
+    var userUnique = {};
+    fUser.forEach(function(r) {
+      if (r.product && r.userName) {
+        if (!userUnique[r.userName]) userUnique[r.userName] = {};
+        userUnique[r.userName][r.product] = true;
+      }
+    });
+    var userTotal = Object.keys(userUnique).length;
+
+    // 计算上月（环比）和去�?�同月（同比）期间
+    var prevPeriod = '', yoyPeriod = '';
+    if (periodFilter && periodFilter.indexOf('-') > 0) {
+      var parts = periodFilter.split('-');
+      var y = parseInt(parts[0]), m = parseInt(parts[1]);
+      var py = y, pm = m;
+      if (pm === 1) { py--; pm = 12; } else { pm--; }
+      prevPeriod = py + '-' + String(pm).padStart(2, '0');
+      yoyPeriod = (y - 1) + '-' + String(m).padStart(2, '0');
+    }
+
+    // 获取上月/去年同期数据
+    var fCustPrev = [], fUserPrev = [], fCustYoy = [], fUserYoy = [];
+    if (prevPeriod) {
+      fCustPrev = applyFilter((App.ImportPotential.CustRAW || []).filter(function(r) { return (r.snapshotPeriod || '') === prevPeriod; }));
+      fUserPrev = applyFilter((App.ImportPotential.UserRAW || []).filter(function(r) { return (r.snapshotPeriod || '') === prevPeriod; }));
+    }
+    if (yoyPeriod) {
+      fCustYoy = applyFilter((App.ImportPotential.CustRAW || []).filter(function(r) { return (r.snapshotPeriod || '') === yoyPeriod; }));
+      fUserYoy = applyFilter((App.ImportPotential.UserRAW || []).filter(function(r) { return (r.snapshotPeriod || '') === yoyPeriod; }));
+    }
+
+    // 辅助：计算唯�?�覆盖数
+    var countUnique = function(arr, keyField) {
+      var uniq = {};
+      arr.forEach(function(r) {
+        if (r.product && r[keyField]) {
+          if (!uniq[r[keyField]]) uniq[r[keyField]] = {};
+          uniq[r[keyField]][r.product] = true;
+        }
+      });
+      return uniq;
+    };
+
+    var custPrevUnique = countUnique(fCustPrev, 'custName');
+    var custPrevTotal = Object.keys(custPrevUnique).length;
+    var custYoyUnique = countUnique(fCustYoy, 'custName');
+    var custYoyTotal = Object.keys(custYoyUnique).length;
+    var userPrevUnique = countUnique(fUserPrev, 'userName');
+    var userPrevTotal = Object.keys(userPrevUnique).length;
+    var userYoyUnique = countUnique(fUserYoy, 'userName');
+    var userYoyTotal = Object.keys(userYoyUnique).length;
+
+    var custHasPrevData = prevPeriod && custPrevTotal > 0;
+    var custHasYoyData = yoyPeriod && custYoyTotal > 0;
+    var userHasPrevData = prevPeriod && userPrevTotal > 0;
+    var userHasYoyData = yoyPeriod && userYoyTotal > 0;
+
+    // 辅助：产品覆盖数
+    var prodCovered = function(uniqueMap, prod) {
+      var cnt = 0;
+      Object.keys(uniqueMap).forEach(function(key) {
+        if (uniqueMap[key][prod]) cnt++;
+      });
+      return cnt;
+    };
+
+    // 构建客户覆盖率排名
+    var custRank = prods.map(function(p) {
+      var cnt = prodCovered(custUnique, p);
+      var rate = custTotal > 0 ? parseFloat((cnt / custTotal * 100).toFixed(1)) : 0;
+      var cntPrev = prodCovered(custPrevUnique, p);
+      var ratePrev = custPrevTotal > 0 ? parseFloat((cntPrev / custPrevTotal * 100).toFixed(1)) : 0;
+      var cntYoy = prodCovered(custYoyUnique, p);
+      var rateYoy = custYoyTotal > 0 ? parseFloat((cntYoy / custYoyTotal * 100).toFixed(1)) : 0;
+      return { name: p, count: cnt, rate: rate,
+        diff: custHasPrevData ? parseFloat((rate - ratePrev).toFixed(1)) : null,
+        yoy: custHasYoyData ? parseFloat((rate - rateYoy).toFixed(1)) : null };
+    }).sort(function(a, b) { return b.rate - a.rate; });
+
+    // 构建用户覆盖率排名
+    var userRank = prods.map(function(p) {
+      var cnt = prodCovered(userUnique, p);
+      var rate = userTotal > 0 ? parseFloat((cnt / userTotal * 100).toFixed(1)) : 0;
+      var cntPrev = prodCovered(userPrevUnique, p);
+      var ratePrev = userPrevTotal > 0 ? parseFloat((cntPrev / userPrevTotal * 100).toFixed(1)) : 0;
+      var cntYoy = prodCovered(userYoyUnique, p);
+      var rateYoy = userYoyTotal > 0 ? parseFloat((cntYoy / userYoyTotal * 100).toFixed(1)) : 0;
+      return { name: p, count: cnt, rate: rate,
+        diff: userHasPrevData ? parseFloat((rate - ratePrev).toFixed(1)) : null,
+        yoy: userHasYoyData ? parseFloat((rate - rateYoy).toFixed(1)) : null };
+    }).sort(function(a, b) { return b.rate - a.rate; });
+
+    // 渲染客户覆盖率表（6列：排名/产品品�?已覆盖客户/覆盖�?环比/同比变化）
+    var tbody1 = document.getElementById('pProdCovCustBody');
+    if (tbody1) {
+      if (custRank.length === 0) {
+        tbody1.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#9ca3af">暂无导入数据</td></tr>';
+      } else {
+        tbody1.innerHTML = custRank.map(function(p, i) {
+          var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
+          var diffHtml = p.diff !== null ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
+          var yoyHtml = p.yoy !== null ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
+          return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
+            '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
+            '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
+            '<td style="text-align:center">' + p.count + '</td>' +
+            '<td style="text-align:center;font-weight:700;color:' + (p.rate >= 50 ? '#059669' : p.rate >= 20 ? '#d97706' : '#dc2626') + '">' + p.rate.toFixed(1) + '%</td>' +
+            '<td style="text-align:center;font-size:12px">' + diffHtml + '</td>' +
+            '<td style="text-align:center;font-size:12px">' + yoyHtml + '</td></tr>';
+        }).join('');
+      }
+    }
+
+    // 渲染用户覆盖率表（6列）
+    var tbody2 = document.getElementById('pProdCovUserBody');
+    if (tbody2) {
+      if (userRank.length === 0) {
+        tbody2.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#9ca3af">暂无导入数据</td></tr>';
+      } else {
+        tbody2.innerHTML = userRank.map(function(p, i) {
+          var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
+          var diffHtml = p.diff !== null ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
+          var yoyHtml = p.yoy !== null ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">/</span>';
+          return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
+            '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
+            '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
+            '<td style="text-align:center">' + p.count + '</td>' +
+            '<td style="text-align:center;font-weight:700;color:' + (p.rate >= 50 ? '#059669' : p.rate >= 20 ? '#d97706' : '#dc2626') + '">' + p.rate.toFixed(1) + '%</td>' +
+            '<td style="text-align:center;font-size:12px">' + diffHtml + '</td>' +
+            '<td style="text-align:center;font-size:12px">' + yoyHtml + '</td></tr>';
+        }).join('');
+      }
+    }
+
+    // 更新卡片标题中的范围客�?�/用户数
+    App.setText('p-cust-scale-count', custTotal);
+    App.setText('p-user-scale-count', userTotal);
+  };
 // ===== 潜力产品 · 产品维度 — 预警概览卡片 =====
 ;
 

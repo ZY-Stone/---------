@@ -452,7 +452,92 @@ App.Data.getWidth = function(team) {
     function userSummary(r) { var a = Object.keys(r.prods||{}).filter(function(k) { return r.prods[k]; }); return { name: r.user || '', avgW: r.width || 0, custCnt: 1, soldCnt: a.length, sold: a, custs: r.sales || '' }; }
     var userData = importedUser || data;
     var userSorted = userData.slice().sort(function(a,b) { return (b.width||0) - (a.width||0); });
-    var crossMatrix = allProds.slice(0, 10).map(function(pi, i) { return allProds.slice(0, 10).map(function(pj, j) { if (j <= i) return 0; var both = data.filter(function(r) { return r.prods && r.prods[pi] && r.prods[pj]; }).length; var base = data.filter(function(r) { return r.prods && r.prods[pi]; }).length; return base > 0 ? parseFloat((both / base).toFixed(1)) : 0; }); });
+    // ── 真 Lift 矩阵（27产品）：Lift(A,B) = P(A∩B) / (P(A)×P(B)) = both×N / (cntA×cntB) ──
+    var liftProds = allProds.slice(0, 27);
+    var nLift = liftProds.length;
+    var totalN = data.length;
+    var prodCounts = {};
+    liftProds.forEach(function(p) { prodCounts[p] = data.filter(function(r) { return r.prods && r.prods[p]; }).length; });
+    var crossMatrix = liftProds.map(function(pi, i) {
+      return liftProds.map(function(pj, j) {
+        if (j <= i) return 0;
+        var both = data.filter(function(r) { return r.prods && r.prods[pi] && r.prods[pj]; }).length;
+        var expected = totalN > 0 ? (prodCounts[pi] * prodCounts[pj] / totalN) : 0;
+        return expected > 0 ? parseFloat((both / expected).toFixed(1)) : 0;
+      });
+    });
+
+    // ── 套包生成（基于Lift矩阵聚类）──
+    var bundles = [];
+    var bundleStock = {};
+    if (totalN > 0 && nLift > 2) {
+      // 1. 找高关联三元组（所有两两Lift >= 1.8）
+      var triples = [];
+      for (var ti = 0; ti < nLift; ti++) {
+        for (var tj = ti + 1; tj < nLift; tj++) {
+          for (var tk = tj + 1; tk < nLift; tk++) {
+            var lij = crossMatrix[ti][tj], lik = crossMatrix[ti][tk], ljk = crossMatrix[tj][tk];
+            if (lij >= 1.8 && lik >= 1.8 && ljk >= 1.8) {
+              triples.push({ prods: [liftProds[ti], liftProds[tj], liftProds[tk]], lifts: [lij, lik, ljk] });
+            }
+          }
+        }
+      }
+      triples.sort(function(a, b) {
+        var sa = a.lifts.reduce(function(s, v) { return s + v; }, 0);
+        var sb = b.lifts.reduce(function(s, v) { return s + v; }, 0);
+        return sb - sa;
+      });
+      // 贪心去重选 top 三元组
+      var usedProds = {};
+      var topBundles = [];
+      triples.forEach(function(t) {
+        if (topBundles.length >= 4) return;
+        var key = t.prods.slice().sort().join('|');
+        if (usedProds[key]) return;
+        var overlap = topBundles.some(function(b) { return b.prods.some(function(p) { return t.prods.indexOf(p) >= 0; }); });
+        if (overlap) return;
+        usedProds[key] = true;
+        topBundles.push(t);
+      });
+      // 2. 不足则补充高Lift二元组（Lift >= 2.5）
+      if (topBundles.length < 6) {
+        var pairs = [];
+        for (var pi2 = 0; pi2 < nLift; pi2++) {
+          for (var pj2 = pi2 + 1; pj2 < nLift; pj2++) {
+            if (crossMatrix[pi2][pj2] >= 2.5) pairs.push({ prods: [liftProds[pi2], liftProds[pj2]], lifts: [crossMatrix[pi2][pj2]] });
+          }
+        }
+        pairs.sort(function(a, b) { return b.lifts[0] - a.lifts[0]; });
+        pairs.forEach(function(p) {
+          if (topBundles.length >= 6) return;
+          var key = p.prods.slice().sort().join('|');
+          if (usedProds[key]) return;
+          usedProds[key] = true;
+          topBundles.push(p);
+        });
+      }
+      // 3. 生成bundle输出 + stock
+      function _makeStock(records, bProds) {
+        return records.map(function(r) {
+          var covered = bProds.filter(function(p) { return r.prods && r.prods[p]; });
+          var missing = bProds.filter(function(p) { return !r.prods || !r.prods[p]; });
+          if (covered.length === 0 || missing.length === 0) return null;
+          return { name: r.user || r.name || '-', person: r.sales || '-', team: r.dept || '-', covered: covered.join('、'), missing: missing.join('、'), width: r.width || 0 };
+        }).filter(Boolean);
+      }
+      topBundles.forEach(function(b, bi) {
+        var bProds = b.prods;
+        var score = b.lifts.reduce(function(s, v) { return s + v; }, 0) / b.lifts.length;
+        var coverCount = data.filter(function(r) { return bProds.every(function(p) { return r.prods && r.prods[p]; }); }).length;
+        var rate = totalN > 0 ? (coverCount / totalN * 100).toFixed(1) + '%' : '0%';
+        var name = '套包' + (bi + 1) + '：' + bProds.slice(0, 2).join('+') + (bProds.length > 2 ? ' +' + bProds[2] : '');
+        var desc = bProds.length + '款产品高频协同，平均关联度 ' + score.toFixed(1) + 'x';
+        bundleStock[name] = { custs: _makeStock(importedCust || [], bProds).slice(0, 30), users: _makeStock(importedUser || [], bProds).slice(0, 30), _score: score.toFixed(1) };
+        bundles.push({ name: name, score: score, prods: bProds, rate: rate, desc: desc });
+      });
+    }
+    App._bundleStock = bundleStock;
     return {
       kpi: { customers: totalCust, scaleUp: guishang, scaleCustomers: guishang, scaleUsers: scaleUsersCount, nonScale: totalCust - guishang, avgWidth: avgW, coverage: totalCust > 0 ? (guishang / totalCust * 100).toFixed(1) + '%' : '0%', widthYoY: '-', customersMoM: 0, coverageYoY: '-' },
       missing: prodCoverage.slice().sort(function(a,b) { return a.rate - b.rate; }).slice(0, 10).map(function(p) { return { product: p.name, covered: p.count, missing: totalCust - p.count, rate: p.rate.toFixed(1) + '%', bar: Math.min(100, Math.round(p.rate)) }; }),
@@ -464,7 +549,7 @@ App.Data.getWidth = function(team) {
       custGood: sorted.slice(0, 20).map(custSummary),
       custBad: sorted.slice(-20).reverse().map(custSummary),
       custSegment: sorted.slice(0, Math.min(30, sorted.length)).map(function(r) { return { name: r.user || r.name || '', sales: (r.width || 0) * 100, width: r.width || 0, person: r.sales || '' }; }),
-      crossSell: { prods: allProds.slice(0, 10), matrix: crossMatrix, bundles: [] },
+      crossSell: { prods: liftProds, matrix: crossMatrix, bundles: bundles },
       userGood: userSorted.slice(0, 10).map(userSummary),
       userBad: userSorted.slice(-10).reverse().map(userSummary),
       teamDimension: { prods: allProds, teams: teamDimData },
@@ -484,7 +569,7 @@ App.Data.getWidth = function(team) {
     custGood: [],
     custBad: [],
     custSegment: [],
-    crossSell: { prods: [], matrix: [], bundles: [] },
+    crossSell: { prods: (App.ImportData.PRODS || []).slice(0, 27), matrix: [], bundles: [] },
     userGood: [],
     userBad: [],
     teamDimension: { prods: (App.ImportData.PRODS || []), teams: [] },
