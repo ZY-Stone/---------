@@ -218,7 +218,7 @@
         </div>
 
         <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">📈 人均产品宽度历史趋势 (近12月)</span><span class="tag">按筛选</span></div>
+          <div class="card-title"><span class="left">📈 人均产品宽度历史趋势</span><span class="tag">按筛选</span></div>
           <div class="chart-wrap tall"><canvas id="chart-w-width-trend"></canvas></div>
         </div>
 
@@ -231,7 +231,7 @@
             <div class="card-title"><span class="left">🏆 产品覆盖率排名 (规上客户)</span><span class="right" style="font-size:12px;color:#6b7280">规上客户 <strong style="color:#1a56db" id="w-cust-scale-count">888</strong> 个</span></div>
             <div class="table-wrap" style="max-height:420px">
               <table class="table">
-                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖客户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th></tr></thead>
+                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖客户</th><th style="text-align:center">品类覆盖率</th><th style="text-align:center">环比</th><th style="text-align:center">同比</th></tr></thead>
                 <tbody id="wProdCovCustBody"></tbody>
               </table>
             </div>
@@ -241,7 +241,7 @@
             <div class="card-title"><span class="left">🏆 产品覆盖率排名 (规上用户)</span><span class="right" style="font-size:12px;color:#6b7280">规上用户 <strong style="color:#059669" id="w-user-scale-count">285</strong> 个</span></div>
             <div class="table-wrap" style="max-height:420px">
               <table class="table">
-                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖用户</th><th style="text-align:center">覆盖率</th><th style="text-align:center">同比变化</th></tr></thead>
+                <thead><tr><th>排名</th><th>产品品类</th><th style="text-align:center">已覆盖用户</th><th style="text-align:center">品类覆盖率</th><th style="text-align:center">环比</th><th style="text-align:center">同比</th></tr></thead>
                 <tbody id="wProdCovUserBody"></tbody>
               </table>
             </div>
@@ -565,7 +565,7 @@
           <div class="table-wrap" style="max-height:240px">
             <table class="table">
               <thead><tr>
-                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">规上用户</th><th style="text-align:center">规上客户</th><th style="text-align:center">总记录</th><th>操作人</th><th style="text-align:center">操作</th>
+                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">数据月份</th><th style="text-align:center">用户(新/更)</th><th style="text-align:center">客户(新/更)</th><th style="text-align:center">合计</th><th>操作人</th><th style="text-align:center">操作</th>
               </tr></thead>
               <tbody id="wImportHistoryTable"></tbody>
             </table>
@@ -577,13 +577,15 @@
           <div class="card-title">
             <span class="left">📂 产品宽度总表</span>
             <span class="right" style="display:flex;gap:8px">
-              <span class="tag" id="w-total-user-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer" onclick="App.ImportData.switchView('user')" title="点击查看规上用户明细">🏢 规上用户 <strong id="w-total-user-count">-</strong></span>
-              <span class="tag" id="w-total-cust-tag" style="background:#dcfce7;color:#166534;cursor:pointer" onclick="App.ImportData.switchView('cust')" title="点击查看客户明细">👥 规上客户 <strong id="w-total-cust-count">-</strong></span>
+              <span class="tag" id="w-total-user-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer" onclick="App.ImportData.switchView('user')" title="点击查看用户明细">🏢 用户数量 <strong id="w-total-user-count">-</strong></span>
+              <span class="tag" id="w-total-cust-tag" style="background:#dcfce7;color:#166534;cursor:pointer" onclick="App.ImportData.switchView('cust')" title="点击查看客户明细">👥 客户数量 <strong id="w-total-cust-count">-</strong></span>
             </span>
           </div>
 
           <!-- 上传区 + 批量操作 -->
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <span style="font-size:12px;color:#6b7280;font-weight:600">数据月份</span>
+            <input type="month" id="wSnapshotPeriod" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;width:150px" value="">
             <button style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600" onclick="document.getElementById('importFileInput').click()">📤 上传总表文件</button>
             <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none" onchange="App.ImportData.handleUpload(this)">
             <span style="font-size:11px;color:#94a3b8">支持 .xlsx / .xls，按模板格式导入</span>
@@ -608,6 +610,9 @@
               <select class="filter-group-sel" id="wImportGroupFilter" onchange="App.ImportData.onGrpChange(this.value)">
                 <option value="all">全部小组</option>
               </select>
+            </div>
+            <div class="filter-group"><label>📅 月份</label>
+              <select id="wImportPeriodFilter" onchange="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
             </div>
             <input type="text" id="wImportSearch" placeholder="搜索名称..." oninput="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
             <select id="wImportSort" onchange="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
@@ -1075,14 +1080,14 @@
           <div class="card-title">
             <span class="left">📜 数据源管理</span>
             <div style="display:flex;gap:8px">
-              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.exportCurrent()">📥 导出当前数据</button>
-              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.render()">🔄 刷新</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.exportCurrent()">📥 下载当前数据</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.ImportPotential.clearAll()" title="清空所有历史记录">🗑 清空历史</button>
             </div>
           </div>
           <div class="table-wrap" style="max-height:240px">
             <table class="table">
               <thead><tr>
-                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">潜力产品-客户</th><th style="text-align:center">潜力产品-用户</th><th style="text-align:center">总记录</th><th>操作人</th><th style="text-align:center">操作</th>
+                <th style="width:30px">#</th><th>文件名称</th><th style="text-align:center">上传时间</th><th style="text-align:center">数据月份</th><th style="text-align:center">潜力产品-客户</th><th style="text-align:center">潜力产品-用户</th><th style="text-align:center">总记录</th><th>操作人</th><th style="text-align:center">操作</th>
               </tr></thead>
               <tbody id="pImportHistoryTable"></tbody>
             </table>
@@ -1094,14 +1099,15 @@
           <div class="card-title">
             <span class="left" id="p-import-ds-title">📋 潜力产品数据明细</span>
             <div class="right" style="display:flex;gap:8px">
-              <span class="tag" id="p-import-cust-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer;opacity:1" onclick="App.ImportPotential.switchDS('cust')">👥 潜力产品-客户</span>
-              <span class="tag" id="p-import-user-tag" style="background:#dcfce7;color:#166534;cursor:pointer;opacity:0.5" onclick="App.ImportPotential.switchDS('user')">🏢 潜力产品-用户</span>
-              <span class="tag" id="p-import-ds-count">- 条记录</span>
+              <span class="tag" id="p-import-cust-tag" style="background:#dbeafe;color:#1e40af;cursor:pointer;opacity:1" onclick="App.ImportPotential.switchDS('cust')">👥 潜力产品-客户 <strong id="p-import-cust-count">0</strong></span>
+              <span class="tag" id="p-import-user-tag" style="background:#dcfce7;color:#166534;cursor:pointer;opacity:0.5" onclick="App.ImportPotential.switchDS('user')">🏢 潜力产品-用户 <strong id="p-import-user-count">0</strong></span>
             </div>
           </div>
 
           <!-- 上传区 + 批量操作 -->
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+            <span style="font-size:12px;color:#6b7280;font-weight:600">数据月份</span>
+            <input type="month" id="pSnapshotPeriod" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;width:150px">
             <button style="padding:8px 18px;background:var(--primary);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600" onclick="document.getElementById('pImportFileInput').click()">📤 上传文件导入</button>
             <input type="file" id="pImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="App.ImportPotential.handleUpload(this)">
             <span style="font-size:11px;color:#94a3b8">支持 .xlsx / .xls，按模板格式导入</span>
@@ -1130,6 +1136,9 @@
               <select id="pImportProdFilter" onchange="App.ImportPotential.render()" class="filter-prod">
                 <option value="all">全部产品</option>
               </select>
+            </div>
+            <div class="filter-group"><label>📅 月份</label>
+              <select id="pImportPeriodFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
             </div>
             <input type="text" id="pImportSearch" placeholder="搜索名称..." oninput="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
             <select id="pImportSort" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">

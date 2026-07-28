@@ -253,18 +253,21 @@ App.reloadWidthCharts = function() {
     }
   }
   // 历史趋势
+  // 历史趋势 — 有导入数据时由 updateWidth() 计算，不用后端覆盖
   if (App.charts.wWidthTrend) {
-    fetch('/api/width/trend' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
-      if (d.labels && d.values) {
-        App.charts.wWidthTrend.data.labels = d.labels;
-        App.charts.wWidthTrend.data.datasets = [{
-          label: d.label || '平均产品宽度', data: d.values,
-          borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.1)',
-          tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#1a56db'
-        }];
-        App.charts.wWidthTrend.update();
-      }
-    }).catch(function() {});
+    if (!hasImport) {
+      fetch('/api/width/trend' + qs, { headers: hdrs }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.labels && d.values) {
+          App.charts.wWidthTrend.data.labels = d.labels;
+          App.charts.wWidthTrend.data.datasets = [{
+            label: d.label || '平均产品宽度', data: d.values,
+            borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.1)',
+            tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#1a56db'
+          }];
+          App.charts.wWidthTrend.update();
+        }
+      }).catch(function() {});
+    }
   }
 };
 
@@ -593,32 +596,22 @@ App.reloadPotentialCharts = function() {
   }
 })();
 
-// ===== 6b. 产品宽度: 历史趋势 (后端 /api/width/trend?dept=...) =====
-(async function() {
+// ===== 6b. 产品宽度: 历史趋势（同步创建，由 updateWidth() 填入导入数据） =====
+(function() {
   var canvas = document.getElementById('chart-w-width-trend');
   if (!canvas) return;
-  try {
-    var r = await fetch('/api/width/trend' + (App._widthApiQs ? App._widthApiQs() : ''), { headers: { 'Authorization': 'Bearer ' + (App.token || '') } });
-    if (!r.ok) return;
-    var d = await r.json();
-    var datasets = [{
-      label: d.label || '平均产品宽度', data: d.values || [0],
-      borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.1)',
-      tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#1a56db'
-    }];
-    App.charts.wWidthTrend = new Chart(canvas, {
-      type: 'line',
-      data: { labels: d.labels || ['01'], datasets: datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
-        scales: {
-          y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
-          x: { grid: { display: false } }
-        }
+  App.charts.wWidthTrend = new Chart(canvas, {
+    type: 'line',
+    data: { labels: ['暂无数据'], datasets: [{ label: '平均宽度', data: [0], borderColor: '#94a3b8', backgroundColor: 'transparent', borderDash: [6,4], tension: .3, fill: false, pointRadius: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+      scales: {
+        y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
+        x: { grid: { display: false } }
       }
-    });
-  } catch(e) { console.warn('chart-w-width-trend fetch failed:', e); }
+    }
+  });
 })();
 
 // Keep old chart for compatibility (wrapped in null check — canvas may not exist)

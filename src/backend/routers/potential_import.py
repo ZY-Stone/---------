@@ -60,6 +60,7 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
     rows = body.get("rows", [])
     if not rows:
         return {"ok": False, "message": "无数据", "count": 0}
+    snapshot = body.get("snapshotPeriod", "") or body.get("snapshot_period", "")
 
     # 构建产品名→ID 映射
     products = {p.name: p.id for p in db.query(ProductDict).filter(ProductDict.is_potential == True).all()}
@@ -74,10 +75,12 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
             continue
         cust_name = r.get("custName", "")
         product = r.get("product", "")
-        # 按 售达方名称 + 产品 去重
+        period_val = r.get("snapshotPeriod", "") or r.get("period", "") or snapshot
+        # 按 售达方名称 + 产品 + 月份 去重
         existing = db.query(PotentialCust).filter(
             PotentialCust.cust_name == cust_name,
             PotentialCust.product == product,
+            PotentialCust.period == period_val,
             PotentialCust.tenant_id == 1
         ).first() if cust_name else None
         if existing:
@@ -103,10 +106,11 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
             existing.users = int(r.get("users", 0))
             existing.users_prev = int(r.get("usersPrev", 0))
             existing.users_yoy = str(r.get("usersYoy", "")) if r.get("usersYoy") is not None else None
+            existing.period = period_val or existing.period
             updated += 1
         else:
             rec = PotentialCust(
-                tenant_id=1, period=r.get("period", "2026-07"),
+                tenant_id=1, period=period_val or "2026-07",
                 dept2=r.get("dept2", ""), dept3=r.get("dept3", ""),
                 dept4=r.get("dept4", ""), dept5=r.get("dept5", ""),
                 group_name=group_name, dept_name=dept_name,
@@ -140,6 +144,7 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
     rows = body.get("rows", [])
     if not rows:
         return {"ok": False, "message": "无数据", "count": 0}
+    snapshot = body.get("snapshotPeriod", "") or body.get("snapshot_period", "")
 
     products = {p.name: p.id for p in db.query(ProductDict).filter(ProductDict.is_potential == True).all()}
 
@@ -151,10 +156,12 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
         group_name = r.get("dept4", "") or r.get("dept5", "") or dept_name
         user_name = r.get("userName", "")
         product = r.get("product", "")
-        # 按 最终用户名称 + 产品 去重
+        period_val2 = r.get("snapshotPeriod", "") or r.get("period", "") or snapshot
+        # 按 最终用户名称 + 产品 + 月份 去重
         existing = db.query(PotentialUser).filter(
             PotentialUser.user_name == user_name,
             PotentialUser.product == product,
+            PotentialUser.period == period_val2,
             PotentialUser.tenant_id == 1
         ).first() if user_name else None
         if existing:
@@ -183,10 +190,11 @@ async def import_potential_user(request: Request, db: Session = Depends(get_db))
             existing.custs = int(r.get("custs", 0))
             existing.custs_prev = int(r.get("custsPrev", 0))
             existing.custs_yoy = parse_yoy(r.get("custsYoy"))
+            existing.period = period_val2 or existing.period
             updated += 1
         else:
             rec = PotentialUser(
-                tenant_id=1, period=r.get("period", "2026-07"),
+                tenant_id=1, period=period_val2 or "2026-07",
                 center=r.get("center", ""), dept3=r.get("dept3", ""),
                 dept4=r.get("dept4", ""), dept5=r.get("dept5", ""),
                 group_name=group_name, dept_name=dept_name,
@@ -245,6 +253,7 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
         return {"ok": False, "message": "无数据", "count": 0}
 
     count, updated = 0, 0
+    snapshot = body.get("snapshotPeriod", "") or body.get("snapshot_period", "")
     for r in rows:
         raw_group = r.get("dept", "")  # 模板的"销售部门"实际存的是组名
         dept_name, group_name = resolve_width_dept_group(db, raw_group)
@@ -253,10 +262,11 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
             continue
         siebel = r.get("siebel", "")
         name = r.get("user") or r.get("name", "")
-        # 按 siebel + record_type 去重：存在则更新，不存在则新增
+        # 按 siebel + record_type + snapshot_period 去重
         existing = db.query(WidthRecord).filter(
             WidthRecord.siebel == siebel,
             WidthRecord.record_type == record_type,
+            WidthRecord.snapshot_period == snapshot,
             WidthRecord.tenant_id == 1
         ).first() if siebel else None
         if existing:
@@ -280,6 +290,7 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
                 guishang=r.get("guishang", "否"), width=int(r.get("width", 0)),
                 prods_json=json.dumps(r.get("prods", {}), ensure_ascii=False),
                 contact=r.get("contact", ""), level=r.get("level", ""),
+                snapshot_period=snapshot,
             )
             db.add(rec)
             count += 1
@@ -303,6 +314,7 @@ def _width_row_to_dict(r: WidthRecord) -> dict:
         "prods": json.loads(r.prods_json) if r.prods_json else {},
         "contact": r.contact or "", "level": r.level or "",
         "type": r.record_type or "user",
+        "snapshotPeriod": r.snapshot_period or "",
     }
 
 
@@ -328,6 +340,7 @@ def get_potential_cust(db: Session = Depends(get_db)):
             "qty": r.qty or 0, "qtyPrev": r.qty_prev or 0, "qtyYoy": r.qty_yoy or "",
             "opps": r.opps or 0, "oppsPrev": r.opps_prev or 0, "oppsYoy": r.opps_yoy or "",
             "users": r.users or 0, "usersPrev": r.users_prev or 0, "usersYoy": r.users_yoy or "",
+            "snapshotPeriod": r.period or "",
         })
     return {"rows": result}
 
@@ -347,6 +360,7 @@ def get_potential_user(db: Session = Depends(get_db)):
             "opps": r.opps or 0, "oppsPrev": r.opps_prev or 0, "oppsYoy": r.opps_yoy or 0,
             "users": r.users or 0, "usersPrev": r.users_prev or 0, "usersYoy": r.users_yoy or 0,
             "custs": r.custs or 0, "custsPrev": r.custs_prev or 0, "custsYoy": r.custs_yoy or 0,
+            "snapshotPeriod": r.period or "",
         })
     return {"rows": result}
 

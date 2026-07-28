@@ -53,8 +53,27 @@ App.ImportData.parseGuishang = function(v) {
 
 App.ImportData.history = [];
 App.ImportData.init = function() {
-  // 恢复历史记录
-  try { var sh = localStorage.getItem('pa_w_history'); if (sh) App.ImportData.history = JSON.parse(sh); } catch(e) {}
+  // 月份选择器上限设为当前月（不可上传未来月份数据）
+  var now = new Date();
+  var thisMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  var snapInput = document.getElementById('wSnapshotPeriod');
+  if (snapInput) {
+    snapInput.max = thisMonth;
+    if (!snapInput.value) snapInput.value = thisMonth;
+  }
+  // 表内月份筛选默认当月
+  var periodSel = document.getElementById('wImportPeriodFilter');
+  if (periodSel && !periodSel.getAttribute('data-inited')) {
+    periodSel.setAttribute('data-inited', '1');
+    periodSel.value = thisMonth;
+  }
+  // 恢复历史记录（兼容旧格式 userCount/custCount → userNew/custNew）
+  try { var sh = localStorage.getItem('pa_w_history'); if (sh) {
+    App.ImportData.history = JSON.parse(sh);
+    App.ImportData.history.forEach(function(h) {
+      if (h.userCount !== undefined && h.userNew === undefined) { h.userNew = h.userCount; h.custNew = h.custCount; h.userUpd = 0; h.custUpd = 0; }
+    });
+  }} catch(e) {}
   // 先从 localStorage 缓存快速恢复（避免白屏等待）
   try {
     var cachedUser = localStorage.getItem('pa_width_user');
@@ -73,14 +92,14 @@ App.ImportData.init = function() {
   fetch('/api/import/width-records?type=user').then(function(r) { return r.json(); }).then(function(data) {
     if (data.rows && data.rows.length > 0) {
       App.ImportData.UserGS = data.rows.map(function(r) {
-        return { user: r.name, siebel: r.siebel, industry: r.industry, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level };
+        return { user: r.name, siebel: r.siebel, industry: r.industry, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level, snapshotPeriod: r.snapshotPeriod || '' };
       });
     }
   }).catch(function(){}).finally(function() {
     return fetch('/api/import/width-records?type=cust').then(function(r) { return r.json(); }).then(function(data) {
       if (data.rows && data.rows.length > 0) {
         App.ImportData.CustGS = data.rows.map(function(r) {
-          return { name: r.name, siebel: r.siebel, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level };
+          return { name: r.name, siebel: r.siebel, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level, snapshotPeriod: r.snapshotPeriod || '' };
         });
       }
     }).catch(function(){});
@@ -97,15 +116,17 @@ App.ImportData.init = function() {
 };
 
 // 保存快照到历史
-App.ImportData.saveToHistory = function(fileName) {
+App.ImportData.saveToHistory = function(fileName, nu, uu, nc, uc) {
   var now = new Date();
   var ds = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2) + ' ' + ('0'+now.getHours()).slice(-2) + ':' + ('0'+now.getMinutes()).slice(-2);
+  var snapInput = document.getElementById('wSnapshotPeriod');
   var entry = {
     id: Date.now(), file: fileName || '手动快照', time: ds,
-    userCount: (App.ImportData.UserGS || []).length,
-    custCount: (App.ImportData.CustGS || []).length,
-    total: (App.ImportData.UserGS || []).length + (App.ImportData.CustGS || []).length,
-    person: '当前用户',
+    userNew: nu || 0, userUpd: uu || 0,
+    custNew: nc || 0, custUpd: uc || 0,
+    total: (nu || 0) + (uu || 0) + (nc || 0) + (uc || 0),
+    person: (App.loggedInUser && App.loggedInUser.name) || '当前用户',
+    snapshotPeriod: snapInput ? snapInput.value : '',
     userSnap: JSON.parse(JSON.stringify(App.ImportData.UserGS || [])),
     custSnap: JSON.parse(JSON.stringify(App.ImportData.CustGS || []))
   };
@@ -115,7 +136,7 @@ App.ImportData.saveToHistory = function(fileName) {
   // 持久化到 localStorage（仅元数据，不含销售数据快照）
   try {
     var meta = App.ImportData.history.map(function(h) {
-      return {id:h.id, file:h.file, time:h.time, userCount:h.userCount, custCount:h.custCount, total:h.total, person:h.person};
+      return {id:h.id, file:h.file, time:h.time, userNew:h.userNew||0, userUpd:h.userUpd||0, custNew:h.custNew||0, custUpd:h.custUpd||0, total:h.total, person:h.person, snapshotPeriod:h.snapshotPeriod||''};
     });
     localStorage.setItem('pa_w_history', JSON.stringify(meta));
   } catch(e) {}
@@ -126,7 +147,7 @@ App.ImportData.renderHistory = function() {
   var tbody = document.getElementById('wImportHistoryTable');
   if (!tbody) return;
   if (App.ImportData.history.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8">暂无历史记录，上传文件后自动保存</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8">暂无历史记录，上传文件后自动保存</td></tr>';
     return;
   }
   var html = '';
@@ -135,12 +156,12 @@ App.ImportData.renderHistory = function() {
     html += '<td><span class="rn rn0">' + (i + 1) + '</span></td>';
     html += '<td><strong>' + h.file + '</strong></td>';
     html += '<td style="text-align:center;font-size:11px">' + h.time + '</td>';
-    html += '<td style="text-align:center;font-weight:600;color:#1e40af">' + h.userCount + '</td>';
-    html += '<td style="text-align:center;font-weight:600;color:#166534">' + h.custCount + '</td>';
+    html += '<td style="text-align:center;font-weight:600">' + (h.snapshotPeriod || '-') + '</td>';
+    html += '<td style="text-align:center;font-weight:600;color:#1e40af">' + (h.userNew||0) + '<span style="font-size:10px;color:#9ca3af">新</span>/' + (h.userUpd||0) + '<span style="font-size:10px;color:#9ca3af">更</span></td>';
+    html += '<td style="text-align:center;font-weight:600;color:#166534">' + (h.custNew||0) + '<span style="font-size:10px;color:#9ca3af">新</span>/' + (h.custUpd||0) + '<span style="font-size:10px;color:#9ca3af">更</span></td>';
     html += '<td style="text-align:center">' + h.total + '</td>';
     html += '<td style="font-size:11px">' + h.person + '</td>';
     html += '<td style="text-align:center">';
-    html += '<button class="btn-ghost" style="padding:2px 6px;font-size:10px" onclick="App.ImportData.restoreHistory(' + i + ')" title="恢复到此版本">🔄恢复</button> ';
     html += '<button class="btn-ghost" style="padding:2px 6px;font-size:10px;color:#dc2626" onclick="App.ImportData.deleteHistory(' + i + ')" title="删除此记录">✕</button>';
     html += '</td></tr>';
   });
@@ -163,19 +184,46 @@ App.ImportData.restoreHistory = function(idx) {
   try { localStorage.setItem('pa_w_history', JSON.stringify(App.ImportData.history)); } catch(e) {}
 };
 
-// 删除历史记录
+// 删除历史记录并回退数据到上一条快照状态
 App.ImportData.deleteHistory = function(idx) {
-  if (!confirm('确定删除此历史记录吗？')) return;
+  var h = App.ImportData.history[idx];
+  if (!h) return;
+  if (!confirm('确定删除「' + h.file + '」(' + (h.snapshotPeriod || h.time) + ') 的记录并回退数据吗？')) return;
+  // 删除该条历史
   App.ImportData.history.splice(idx, 1);
+  // 回退数据到前一条快照（如无则清空）
+  var prev = App.ImportData.history[idx] || App.ImportData.history[0];
+  if (prev && prev.userSnap && prev.custSnap) {
+    App.ImportData.UserGS = JSON.parse(JSON.stringify(prev.userSnap));
+    App.ImportData.CustGS = JSON.parse(JSON.stringify(prev.custSnap));
+  } else {
+    App.ImportData.UserGS = [];
+    App.ImportData.CustGS = [];
+  }
+  App.ImportData.persist();
+  App.ImportData.syncToRaw();
+  App.ImportData.updateTags();
+  App.ImportData.render();
   App.ImportData.renderHistory();
+  App.WidthDetail.clearCache();
+  App.updateWidth();
   try { localStorage.setItem('pa_w_history', JSON.stringify(App.ImportData.history)); } catch(e) {}
 };
 
 // 清空所有历史记录
 App.ImportData.clearAll = function() {
-  if (!confirm('确定清空所有历史记录吗？当前数据不会被影响。')) return;
+  if (!confirm('确定清空所有历史记录及数据吗？此操作不可撤销。')) return;
   App.ImportData.history = [];
+  App.ImportData.UserGS = [];
+  App.ImportData.CustGS = [];
+  App.ImportData.persist();
+  App.ImportData.syncToRaw();
+  App.ImportData.updateTags();
+  App.ImportData.render();
   App.ImportData.renderHistory();
+  App.WidthDetail.clearCache();
+  App.updateWidth();
+  try { localStorage.removeItem('pa_w_history'); } catch(e) {}
 };
 
 // 清空全部导入数据并重置平台
@@ -308,12 +356,12 @@ App.ImportData.refresh = function() {
   // 从后端 API 重新拉取数据
   fetch('/api/import/width-records?type=user').then(function(r){return r.json();}).then(function(d){
     if (d.rows && d.rows.length > 0) {
-      App.ImportData.UserGS = d.rows.map(function(r){return {user:r.name,siebel:r.siebel,industry:r.industry,sales:r.sales,group:r.group,dept:App.ImportData.resolveDept(r.group),guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level};});
+      App.ImportData.UserGS = d.rows.map(function(r){return {user:r.name,siebel:r.siebel,industry:r.industry,sales:r.sales,group:r.group,dept:App.ImportData.resolveDept(r.group),guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level,snapshotPeriod:r.snapshotPeriod||''};});
     }
   }).catch(function(){}).finally(function(){
     return fetch('/api/import/width-records?type=cust').then(function(r){return r.json();}).then(function(d){
       if (d.rows && d.rows.length > 0) {
-        App.ImportData.CustGS = d.rows.map(function(r){return {name:r.name,siebel:r.siebel,group:r.group,dept:App.ImportData.resolveDept(r.group),sales:r.sales,guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level};});
+        App.ImportData.CustGS = d.rows.map(function(r){return {name:r.name,siebel:r.siebel,group:r.group,dept:App.ImportData.resolveDept(r.group),sales:r.sales,guishang:r.guishang,width:r.width,prods:r.prods,contact:r.contact,level:r.level,snapshotPeriod:r.snapshotPeriod||''};});
       }
     }).catch(function(){});
   }).finally(function(){
@@ -328,6 +376,16 @@ App.ImportData.refresh = function() {
 
 App.ImportData.handleUpload = function(input) {
   var file = input.files && input.files[0]; if (!file) return;
+  // 重置 input 以便同一文件可再次触发 onchange
+  input.value = '';
+  // 确保月份已设置，弹窗确认
+  var snapInput = document.getElementById('wSnapshotPeriod');
+  if (snapInput && !snapInput.value) {
+    var now = new Date();
+    snapInput.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+  var snapVal = snapInput ? snapInput.value : '';
+  if (!confirm('数据月份：' + (snapVal || '未设置') + '\n\n确定导入「' + file.name + '」吗？\n\n如需修改月份，请点击"取消"后在页面上修改。')) return;
   var reader = new FileReader();
   reader.onload = function(e) {
     try {
@@ -349,17 +407,20 @@ App.ImportData.handleUpload = function(input) {
           foundUser = true;
           try { App.Field.detectSchema(hd, 'width.user'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'user');
-          // 按 siebel编码 去重（唯一标识）
-          var em = {}; App.ImportData.UserGS.forEach(function(r) { em[r.siebel] = r; });
+          // 按 siebel编码 + 数据月份 去重（同月同编码=更新，不同月=新增）
+          var snap = (document.getElementById('wSnapshotPeriod') || {}).value || '';
+          // 旧记录补上缺失的月份（防止 key 不匹配导致重复）
+          App.ImportData.UserGS.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = snap; });
+          var em = {}; App.ImportData.UserGS.forEach(function(r) { em[(r.siebel||'') + '|' + (r.snapshotPeriod||'')] = r; });
           j.slice(1).forEach(function(row) {
             var siebel = String(row[col.siebel] || '').trim();
             var nm = String(row[col.user] || '').trim();
             if (!siebel && !nm) return;
-            var key = siebel || nm;
+            var key = (siebel || nm) + '|' + snap;
             var salesName = String(row[col.sales] || '').trim();
             var deptInput = String(row[col.dept] || '').trim();
             var resolvedDept = App.ImportData.lookupDept(salesName, deptInput);
-            var e = { user: nm, siebel: siebel, industry: String(row[col.industry] || '').trim(), sales: salesName, group: deptInput, dept: resolvedDept, guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
+            var e = { user: nm, siebel: siebel, industry: String(row[col.industry] || '').trim(), sales: salesName, group: deptInput, dept: resolvedDept, guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim(), snapshotPeriod: snap };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
             if (em[key]) { uu++; Object.assign(em[key], e); } else { nu++; App.ImportData.UserGS.push(e); em[key] = e; }
           });
@@ -367,19 +428,22 @@ App.ImportData.handleUpload = function(input) {
           foundCust = true;
           try { App.Field.detectSchema(hd, 'width.cust'); } catch(e) {}
           var col = App.ImportData.mapCols(hd, 'cust');
-          // 按 siebel编码 去重（唯一标识）
-          var em = {}; App.ImportData.CustGS.forEach(function(r) { em[r.siebel] = r; });
+          // 按 siebel编码 + 数据月份 去重（同月同编码=更新，不同月=新增）
+          var snap2 = (document.getElementById('wSnapshotPeriod') || {}).value || '';
+          // 旧记录补上缺失的月份（防止 key 不匹配导致重复）
+          App.ImportData.CustGS.forEach(function(r) { if (!r.snapshotPeriod) r.snapshotPeriod = snap2; });
+          var em2 = {}; App.ImportData.CustGS.forEach(function(r) { em2[(r.siebel||'') + '|' + (r.snapshotPeriod||'')] = r; });
           j.slice(1).forEach(function(row) {
             var siebel = String(row[col.siebel] || '').trim();
             var nm = String(row[col.name] || '').trim();
             if (!siebel && !nm) return;
-            var key = siebel || nm;
+            var key = (siebel || nm) + '|' + snap2;
             var salesName = String(row[col.sales] || '').trim();
             var deptInput = String(row[col.dept] || '').trim();
             var resolvedDept = App.ImportData.lookupDept(salesName, deptInput);
-            var e = { name: nm, siebel: siebel, sales: salesName, group: deptInput, dept: resolvedDept, guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim() };
+            var e = { name: nm, siebel: siebel, sales: salesName, group: deptInput, dept: resolvedDept, guishang: App.ImportData.parseGuishang(row[col.guishang]), width: parseInt(row[col.width]) || 0, prods: {}, contact: String(row[col.contact] || '').trim(), level: String(row[col.level] || '').trim(), snapshotPeriod: snap2 };
             products.forEach(function(p, i) { e.prods[p] = (row[col.prodStart + i] === 1 || String(row[col.prodStart + i]).trim() === '1') ? 1 : 0; });
-            if (em[key]) { uc++; Object.assign(em[key], e); } else { nc++; App.ImportData.CustGS.push(e); em[key] = e; }
+            if (em2[key]) { uc++; Object.assign(em2[key], e); } else { nc++; App.ImportData.CustGS.push(e); em2[key] = e; }
           });
         }
       });
@@ -438,7 +502,7 @@ App.ImportData.handleUpload = function(input) {
         try { App.updatePotential(); } catch(e) {}
         try { App.updateOverview(); } catch(e) {}
       }
-      App.ImportData.saveToHistory(file.name);
+      App.ImportData.saveToHistory(file.name, nu, uu, nc, uc);
       try { App.Data.rebuildDerived(); } catch(e) { console.warn('rebuildDerived failed:', e); }
 
       // 发送到后端数据库
@@ -448,9 +512,10 @@ App.ImportData.handleUpload = function(input) {
       var custApiRows = App.ImportData.CustGS.map(function(r) {
         return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||''};
       });
+      var snapshot = (document.getElementById('wSnapshotPeriod') || {}).value || '';
       var apiCalls = [];
-      if (userApiRows.length > 0) apiCalls.push(App.API.sendWidth(userApiRows, 'user'));
-      if (custApiRows.length > 0) apiCalls.push(App.API.sendWidth(custApiRows, 'cust'));
+      if (userApiRows.length > 0) apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: userApiRows, type: 'user', snapshotPeriod: snapshot }) }));
+      if (custApiRows.length > 0) apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: custApiRows, type: 'cust', snapshotPeriod: snapshot }) }));
       var msg = '导入完成! 文件: ' + file.name;
       msg += '\n\n规上用户: 新增' + nu + ' / 更新' + uu + '（共' + App.ImportData.UserGS.length + '）';
       if (!foundUser) msg += '\n  ⚠ 未找到用户sheet';
@@ -569,10 +634,34 @@ App.ImportData.render = function() {
 
   var deptFilter = deptSel ? deptSel.value : 'all';
   var groupFilter = grpSel ? grpSel.value : 'all';
+  var periodSel = document.getElementById('wImportPeriodFilter');
+  var periodFilter = periodSel ? periodSel.value : 'all';
+
+  // 动态填充月份下拉（每次渲染都刷新，不显示"全部月份"）
+  if (periodSel) {
+    var periods = {};
+    (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []).forEach(function(r) {
+      var p = r.snapshotPeriod || '';
+      if (p) periods[p] = true;
+    });
+    var curVal = periodSel.value;
+    var monthList = Object.keys(periods).sort();
+    if (monthList.length === 0) {
+      periodSel.innerHTML = '<option value="">无数据</option>';
+    } else {
+      var latest = monthList[monthList.length - 1];
+      periodSel.innerHTML = monthList.map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+      periodSel.value = periods[curVal] ? curVal : latest;
+    }
+  }
 
   var pageSize = App.ImportData.getPageSize();
   if (pageSize === 0) pageSize = Math.max(data.length, 1);
-  // 应用筛选（value 为 'all' 时不过滤）
+  // 月份筛选（始终按选中月份过滤，无数据时不过滤）
+  if (periodFilter && periodFilter !== 'all') {
+    var filtered = data.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    if (filtered.length > 0) data = filtered;
+  }
   if (deptFilter !== 'all') data = data.filter(function(r) { return (r.dept || '') === deptFilter; });
   if (groupFilter !== 'all') data = data.filter(function(r) { return (r.group || r.dept || '') === groupFilter; });
   if (srch) data = data.filter(function(r) { return (r.user || r.name || '').toLowerCase().indexOf(srch) >= 0 || (r.sales || '').toLowerCase().indexOf(srch) >= 0; });
@@ -587,6 +676,18 @@ App.ImportData.render = function() {
   var start = (page - 1) * pageSize, paged = data.slice(start, start + pageSize);
 
   App.setText('w-import-view-title', (isU ? '规上用户产品宽度 (' : '规上客户产品宽度 (') + total + ' 条)');
+  // 同步更新右上角客户/用户数量标签（按当前筛选条件，筛空回退全部）
+  var filteredUser = App.ImportData.UserGS.slice();
+  var filteredCust = App.ImportData.CustGS.slice();
+  if (periodFilter && periodFilter !== 'all') {
+    var fu = filteredUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    var fc = filteredCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    if (fu.length > 0 || fc.length > 0) { filteredUser = fu; filteredCust = fc; }
+  }
+  if (deptFilter !== 'all') { filteredUser = filteredUser.filter(function(r) { return (r.dept || '') === deptFilter; }); filteredCust = filteredCust.filter(function(r) { return (r.dept || '') === deptFilter; }); }
+  if (groupFilter !== 'all') { filteredUser = filteredUser.filter(function(r) { return (r.group || r.dept || '') === groupFilter; }); filteredCust = filteredCust.filter(function(r) { return (r.group || r.dept || '') === groupFilter; }); }
+  App.setText('w-total-user-count', filteredUser.length);
+  App.setText('w-total-cust-count', filteredCust.length);
 
   var prods = App.ImportData.PRODS, sp = App.ImportData.shortProds;
   var thead = document.getElementById('wImportDataThead');
@@ -684,7 +785,7 @@ App.ImportData.batchDelete = function() {
           body: JSON.stringify({ rows: remaining.map(function(r) {
             var obj = { siebel: r.siebel || '', industry: r.industry || '', name: r.user || r.name || '', sales: r.sales || '', dept: r.group || r.dept || '', guishang: r.guishang || '否', width: r.width || 0, prods: r.prods || {}, contact: r.contact || '', level: r.level || '' };
             return obj;
-          }), type: type })
+          }), type: type, snapshotPeriod: (document.getElementById('wSnapshotPeriod') || {}).value || '' })
         });
       }
     });

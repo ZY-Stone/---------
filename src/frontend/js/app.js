@@ -573,6 +573,13 @@ App.updateOverview = function() {
   // ---- \u4ece\u5bfc\u5165\u6570\u636e\u76f4\u63a5\u8ba1\u7b97\u7b5b\u9009\u540e\u7684\u771f\u5b9e KPI\uff08\u4e0d\u518d\u7528\u7f29\u653e\u56e0\u5b50\u8fd1\u4f3c\uff09 ----
   var ovUser = (App.ImportData.UserGS || []).slice();
   var ovCust = (App.ImportData.CustGS || []).slice();
+  // \u6708\u4efd\u7b5b\u9009\uff08\u4ece\u8868\u5185\u4e0b\u62c9\u540c\u6b65\uff09
+  var ovPeriodSel = document.getElementById('wImportPeriodFilter');
+  var ovPeriod = ovPeriodSel ? (ovPeriodSel.value !== 'all' ? ovPeriodSel.value : '') : '';
+  if (ovPeriod) {
+    ovUser = ovUser.filter(function(r) { return (r.snapshotPeriod || '') === ovPeriod; });
+    ovCust = ovCust.filter(function(r) { return (r.snapshotPeriod || '') === ovPeriod; });
+  }
   // \u7ea7\u8054\u7b5b\u9009
   if (person !== 'all') {
     ovUser = ovUser.filter(function(r) { return r.sales === person; });
@@ -826,21 +833,32 @@ App._updateOvWidthTrend = function() {
   if (!chart) return;
   var state = App.getFilterState('page-overview');
   var team = state.team, group = state.group, person = state.person;
-  var sf = 1;
-  if (person !== 'all') sf = 0.03;
-  else if (group !== 'all') sf = 0.10;
-  else if (team !== 'all') sf = 0.28;
 
-  // 基础数据：平均、规上客户、规上用户 三条趋势线
-  var baseAvg  = [3.2, 3.3, 3.3, 3.4, 3.5, 3.5, 3.6, 3.7, 3.8, 3.8, 3.9, 3.96];
-  var baseCust = [5.1, 5.2, 5.2, 5.3, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 6.0];
-  var baseUser = [4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6];
+  // 从 snapshot_period 真实计算月度趋势
+  var all = (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []);
+  if (person !== 'all') all = all.filter(function(r) { return r.sales === person; });
+  else if (group !== 'all') all = all.filter(function(r) { return r.group === group; });
+  else if (team !== 'all') all = all.filter(function(r) { return r.dept === team; });
+  all = all.filter(function(r) { return r.snapshotPeriod; });
+  var months = {}; all.forEach(function(r) { months[r.snapshotPeriod] = true; });
+  var labels = Object.keys(months).sort();
+  if (labels.length === 0) { labels = ['暂无数据']; }
 
-  var s = function(arr) { return arr.map(function(v) { return +(v * (sf > 0.5 ? 1 : 0.85 + sf * 0.5)).toFixed(2); }); };
+  var avg=[], cust=[], user=[];
+  var isGs = function(r) { var g = (r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
+  labels.forEach(function(m) {
+    var mData = all.filter(function(r) { return r.snapshotPeriod === m; });
+    var mCust = mData.filter(function(r) { return r.name; });
+    var mUser = mData.filter(function(r) { return r.user; });
+    avg.push(mData.length > 0 ? parseFloat((mData.reduce(function(s,r){return s+r.width;},0) / mData.length).toFixed(2)) : null);
+    cust.push(mCust.length > 0 ? parseFloat((mCust.filter(isGs).length / mCust.length * 100).toFixed(1)) : null);
+    user.push(mUser.length > 0 ? parseFloat((mUser.filter(isGs).length / mUser.length * 100).toFixed(1)) : null);
+  });
 
-  chart.data.datasets[0].data = s(baseAvg);
-  chart.data.datasets[1].data = s(baseCust);
-  chart.data.datasets[2].data = s(baseUser);
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = avg;
+  chart.data.datasets[1].data = cust;
+  chart.data.datasets[2].data = user;
   chart.update();
 };
 
@@ -882,11 +900,21 @@ App.updateWidth = function() {
   var data = App.Data.getWidth(state.team);
   if (!data) return;
 
-  // ---- KPI 卡片：从导入数据直接计算筛选后的真实值（不再使用缩放因子近似） ----
+  // 同步表内月份筛选
+  var periodSel = document.getElementById('wImportPeriodFilter');
+  var periodFilter = periodSel ? (periodSel.value && periodSel.value !== 'all' ? periodSel.value : '') : '';
+
+  // ---- KPI 卡片：从导入数据直接计算筛选后的真实值 ----
   var userGS = (App.ImportData.UserGS || []);
   var custGS = (App.ImportData.CustGS || []);
   var fUser = userGS.slice();
   var fCust = custGS.slice();
+  // 月份筛选（优先当月；若筛后为空则回退全部数据）
+  if (periodFilter) {
+    var fUserM = fUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    var fCustM = fCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    if (fUserM.length > 0 || fCustM.length > 0) { fUser = fUserM; fCust = fCustM; }
+  }
   if (person !== 'all') {
     fUser = fUser.filter(function(r) { return r.sales === person; });
     fCust = fCust.filter(function(r) { return r.sales === person; });
@@ -1035,49 +1063,58 @@ App.updateWidth = function() {
   }
   // 按筛选维度的产品宽度柱状图（复用总览页同款逻辑）
   App._updateDimBarChart('page-width', 'wTeamAvg');
-  // 产品宽度历史趋势 — 跟随筛选维度（严格三层级联）
+  // 产品宽度历史趋势 — 从 snapshot_period 真实计算月度趋势
   if (App.charts.wWidthTrend) {
-    var twl, twSets;
-    if (person !== 'all') {
-      var tp = App.PERSONS.find(function(x) { return x.n === person; });
-      var b = tp ? (tp.aw || 3.0) : 3.0;
-      twl = ['08','09','10','11','12','01','02','03','04','05','06','07'];
-      twSets = [{ label: person, data: [b-0.3,b-0.25,b-0.2,b-0.15,b-0.1,b-0.05,b-0.03,b-0.02,b-0.01,b,b,b], color: '#3b82f6' }];
-    } else if (group !== 'all') {
-      var tpp = App.PERSONS.filter(function(x) { return x.grp === group; });
-      twl = ['08','09','10','11','12','01','02','03','04','05','06','07'];
-      twSets = tpp.length ? tpp.map(function(p, i) {
-        var b = p.aw || 3.0;
-        return { label: p.n, data: [b-0.5,b-0.4,b-0.35,b-0.3,b-0.25,b-0.2,b-0.15,b-0.1,b-0.05,b-0.02,b,b], color: ['#3b82f6','#10b981','#f59e0b'][i]||'#64748b' };
-      }) : [{ label: group, data: [2.5,2.6,2.7,2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.45,3.5], color: '#3b82f6' }];
-    } else if (team !== 'all') {
-      var tg = App.GROUPS.filter(function(g) { return g.dept === team; });
-      twl = ['08','09','10','11','12','01','02','03','04','05','06','07'];
-      if (tg.length) {
-        twSets = tg.map(function(g, i) {
-          var b = g.aw;
-          return { label: g.n, data: [b-0.6,b-0.5,b-0.45,b-0.4,b-0.3,b-0.25,b-0.2,b-0.15,b-0.1,b-0.05,b-0.02,b], color: ['#3b82f6','#10b981','#f59e0b','#ef4444','#7c3aed'][i%5]||'#64748b' };
-        });
-      } else {
-        var tdp = App.PERSONS.filter(function(p) { return p.dept === team; });
-        twSets = tdp.length ? tdp.map(function(p, i) {
-          var b = p.aw || 3.0;
-          return { label: p.n, data: [b-0.4,b-0.35,b-0.3,b-0.25,b-0.2,b-0.15,b-0.1,b-0.05,b-0.03,b-0.01,b,b], color: ['#3b82f6','#10b981','#f59e0b'][i]||'#64748b' };
-        }) : [{ label: team, data: [2.8,2.9,3.0,3.1,3.2,3.3,3.4,3.5,3.6,3.7,3.78,3.85], color: '#3b82f6' }];
-      }
-    } else {
-      // 全部部门 → 默认显示部门趋势
-      twl = ['08','09','10','11','12','01','02','03','04','05','06','07'];
-      twSets = App.BUSINESS_DEPTS.map(function(d, i) {
-        var b = d.aw;
-        return { label: d.n, data: [b-1.0,b-0.9,b-0.8,b-0.7,b-0.6,b-0.5,b-0.4,b-0.3,b-0.2,b-0.1,b-0.05,b], color: ['#3b82f6','#10b981','#f59e0b','#ef4444','#7c3aed','#0891b2'][i]||'#64748b' };
+    var trendBase = (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []);
+    // 应用当前筛选
+    if (person !== 'all') { trendBase = trendBase.filter(function(r) { return r.sales === person; }); }
+    else if (group !== 'all') { trendBase = trendBase.filter(function(r) { return r.group === group; }); }
+    else if (team !== 'all') { trendBase = trendBase.filter(function(r) { return r.dept === team; }); }
+    // 只保留有月份标签的数据
+    trendBase = trendBase.filter(function(r) { return r.snapshotPeriod; });
+    // 获取所有月份并排序
+    var months = {}; trendBase.forEach(function(r) { months[r.snapshotPeriod] = true; });
+    var twl = Object.keys(months).sort();
+    if (twl.length === 0) { twl = ['暂无数据']; }
+    var twSets = [];
+    // 按当前筛选层级分组
+    var groupFn;
+    if (person !== 'all') { groupFn = function() { return person; }; }
+    else if (group !== 'all') { groupFn = function() { return group; }; }
+    else if (team !== 'all') { groupFn = function(r) { return r.group || r.dept; }; }
+    else { groupFn = function(r) { return r.dept || '未知'; }; }
+    // 分组聚合
+    var groups = {};
+    trendBase.forEach(function(r) {
+      var g = groupFn(r);
+      if (!groups[g]) groups[g] = {};
+      if (!groups[g][r.snapshotPeriod]) groups[g][r.snapshotPeriod] = { total: 0, count: 0 };
+      groups[g][r.snapshotPeriod].total += (r.width || 0);
+      groups[g][r.snapshotPeriod].count++;
+    });
+    var colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#7c3aed','#0891b2','#ec4899','#06b6d4','#84cc16','#f97316'];
+    var ci = 0;
+    Object.keys(groups).sort().forEach(function(g) {
+      var series = twl.map(function(m) {
+        var d = groups[g][m];
+        return d && d.count > 0 ? parseFloat((d.total / d.count).toFixed(2)) : null;
       });
-    }
-    // Add average reference line
-    twSets.push({ label: '平均宽度', data: [3.2,3.3,3.3,3.4,3.5,3.5,3.6,3.7,3.8,3.8,3.9,3.96], color: '#94a3b8' });
+      twSets.push({ label: g, data: series, color: colors[ci % colors.length] });
+      ci++;
+    });
+    // 平均参考线
+    var avgLine = twl.map(function(m) {
+      var all = { total: 0, count: 0 };
+      Object.keys(groups).forEach(function(g) {
+        var d = groups[g][m];
+        if (d) { all.total += d.total; all.count += d.count; }
+      });
+      return all.count > 0 ? parseFloat((all.total / all.count).toFixed(2)) : null;
+    });
+    twSets.push({ label: '平均宽度', data: avgLine, color: '#94a3b8' });
     App.charts.wWidthTrend.data.labels = twl;
     App.charts.wWidthTrend.data.datasets = twSets.map(function(ds) {
-      return { label: ds.label, data: ds.data, borderColor: ds.color, backgroundColor: 'transparent', borderDash: ds.label === '平均宽度' ? [6,4] : undefined, tension: .3, fill: false, pointRadius: ds.label === '平均宽度' ? 3 : 4, pointBackgroundColor: ds.color };
+      return { label: ds.label, data: ds.data, borderColor: ds.color, backgroundColor: 'transparent', borderDash: ds.label === '平均宽度' ? [6,4] : undefined, tension: .3, fill: false, pointRadius: ds.label === '平均宽度' ? 3 : 4, pointBackgroundColor: ds.color, spanGaps: true };
     });
     App.charts.wWidthTrend.update();
   }
@@ -5087,6 +5124,13 @@ App.API.sendPotUser = async function(rows) {
 App.ImportPotential = App.ImportPotential || {};
 
 App.ImportPotential.init = function() {
+  // 月份选择器上限设为当前月
+  var snapInput = document.getElementById('pSnapshotPeriod');
+  if (snapInput) {
+    var now = new Date();
+    snapInput.max = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    if (!snapInput.value) snapInput.value = snapInput.max;
+  }
   // 先从 localStorage 恢复历史元数据（不含数据快照）
   try {
     var sh = localStorage.getItem('pa_p_history');
@@ -5194,6 +5238,16 @@ App.ImportPotential.USER_MAP = {
 App.ImportPotential.handleUpload = function(input) {
   var file = input.files[0];
   if (!file) return;
+  // 确保月份已设置，弹窗确认
+  var snapInput = document.getElementById('pSnapshotPeriod');
+  if (snapInput && !snapInput.value) {
+    var now = new Date();
+    snapInput.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+  var snapVal = snapInput ? snapInput.value : '';
+  // 重置 input 以便同一文件可再次触发 onchange
+  input.value = '';
+  if (!confirm('数据月份：' + (snapVal || '未设置') + '\n\n确定导入「' + file.name + '」吗？\n\n如需修改月份，请点击"取消"后在页面上修改。')) return;
   console.log('[潜力导入] 开始解析:', file.name);
   var reader = new FileReader();
   reader.onload = function(e) {
@@ -5223,7 +5277,8 @@ App.ImportPotential.handleUpload = function(input) {
               amount: parseFloat(r[cm.amount])||0, amountPrev: parseFloat(r[cm.amountPrev])||0, yoy: r[cm.yoy]||'',
               qty: parseInt(r[cm.qty])||0, qtyPrev: parseInt(r[cm.qtyPrev])||0, qtyYoy: r[cm.qtyYoy]||'',
               opps: parseInt(r[cm.opps])||0, oppsPrev: parseInt(r[cm.oppsPrev])||0, oppsYoy: r[cm.oppsYoy]||'',
-              users: parseInt(r[cm.users])||0, usersPrev: parseInt(r[cm.usersPrev])||0, usersYoy: r[cm.usersYoy]||''
+              users: parseInt(r[cm.users])||0, usersPrev: parseInt(r[cm.usersPrev])||0, usersYoy: r[cm.usersYoy]||'',
+              snapshotPeriod: (document.getElementById('pSnapshotPeriod') || {}).value || ''
             };
           }).filter(function(r) { return r.product; });
         }
@@ -5247,21 +5302,23 @@ App.ImportPotential.handleUpload = function(input) {
               outQty: parseInt(r[um.outQty])||0, outQtyPrev: parseInt(r[um.outQtyPrev])||0, outQtyYoy: r[um.outQtyYoy]||'',
               opps: parseInt(r[um.opps])||0, oppsPrev: parseInt(r[um.oppsPrev])||0, oppsYoy: r[um.oppsYoy]||'',
               users: parseInt(r[um.users])||0, usersPrev: parseInt(r[um.usersPrev])||0, usersYoy: r[um.usersYoy]||'',
-              custs: parseInt(r[um.custs])||0, custsPrev: parseInt(r[um.custsPrev])||0, custsYoy: r[um.custsYoy]||''
+              custs: parseInt(r[um.custs])||0, custsPrev: parseInt(r[um.custsPrev])||0, custsYoy: r[um.custsYoy]||'',
+              snapshotPeriod: (document.getElementById('pSnapshotPeriod') || {}).value || ''
             };
           }).filter(function(r) { return r.product; });
         }
       }
       console.log('[潜力导入] 解析完成: 客户', App.ImportPotential.CustRAW.length, '条, 用户', App.ImportPotential.UserRAW.length, '条');
 
-      // ── 合并去重：按 客户名+产品 / 用户名+产品 去重更新 ──
+      // ── 合并去重：按 客户名+产品+月份 / 用户名+产品+月份 去重 ──
+      var snap = (document.getElementById('pSnapshotPeriod') || {}).value || '';
       var custIdx = {}, custN = 0, custU = 0;
       var prevCust = App.ImportPotential.CustRAW || [];
-      prevCust.forEach(function(r, i) { custIdx[(r.custName||'') + '|' + (r.product||'')] = i; });
+      prevCust.forEach(function(r, i) { custIdx[(r.custName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'')] = i; });
       var newCustRows = App.ImportPotential.CustRAW;
       var mergedCust = prevCust.slice();
       newCustRows.forEach(function(r) {
-        var key = (r.custName||'') + '|' + (r.product||'');
+        var key = (r.custName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'');
         if (custIdx[key] !== undefined) { mergedCust[custIdx[key]] = r; custU++; }
         else { mergedCust.push(r); custN++; custIdx[key] = mergedCust.length - 1; }
       });
@@ -5269,11 +5326,11 @@ App.ImportPotential.handleUpload = function(input) {
 
       var userIdx = {}, userN = 0, userU = 0;
       var prevUser = App.ImportPotential.UserRAW || [];
-      prevUser.forEach(function(r, i) { userIdx[(r.userName||'') + '|' + (r.product||'')] = i; });
+      prevUser.forEach(function(r, i) { userIdx[(r.userName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'')] = i; });
       var newUserRows = App.ImportPotential.UserRAW;
       var mergedUser = prevUser.slice();
       newUserRows.forEach(function(r) {
-        var key = (r.userName||'') + '|' + (r.product||'');
+        var key = (r.userName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'');
         if (userIdx[key] !== undefined) { mergedUser[userIdx[key]] = r; userU++; }
         else { mergedUser.push(r); userN++; userIdx[key] = mergedUser.length - 1; }
       });
@@ -5322,12 +5379,14 @@ App.ImportPotential.history = [];
 App.ImportPotential.saveToHistory = function(fileName) {
   var now = new Date();
   var ds = now.getFullYear() + '-' + ('0'+(now.getMonth()+1)).slice(-2) + '-' + ('0'+now.getDate()).slice(-2) + ' ' + ('0'+now.getHours()).slice(-2) + ':' + ('0'+now.getMinutes()).slice(-2);
+  var snapInput = document.getElementById('pSnapshotPeriod');
   var entry = {
     id: Date.now(), file: fileName || '手动快照', time: ds,
     custCount: (App.ImportPotential.CustRAW || []).length,
     userCount: (App.ImportPotential.UserRAW || []).length,
     total: (App.ImportPotential.CustRAW || []).length + (App.ImportPotential.UserRAW || []).length,
-    person: '当前用户',
+    person: (App.loggedInUser && App.loggedInUser.name) || '当前用户',
+    snapshotPeriod: snapInput ? snapInput.value : '',
     custSnap: JSON.parse(JSON.stringify(App.ImportPotential.CustRAW || [])),
     userSnap: JSON.parse(JSON.stringify(App.ImportPotential.UserRAW || []))
   };
@@ -5337,7 +5396,7 @@ App.ImportPotential.saveToHistory = function(fileName) {
   // 持久化到 localStorage（只存元数据，不存数据快照）
   try {
     var meta = App.ImportPotential.history.map(function(h) {
-      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person };
+      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person, snapshotPeriod: h.snapshotPeriod||'' };
     });
     localStorage.setItem('pa_p_history', JSON.stringify(meta));
   } catch(e) {}
@@ -5346,7 +5405,7 @@ App.ImportPotential.renderHistory = function() {
   var tbody = document.getElementById('pImportHistoryTable');
   if (!tbody) return;
   if (App.ImportPotential.history.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8">暂无历史记录，上传文件后自动保存</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8">暂无历史记录，上传文件后自动保存</td></tr>';
     return;
   }
   var html = '';
@@ -5355,13 +5414,13 @@ App.ImportPotential.renderHistory = function() {
     html += '<td>' + (i + 1) + '</td>';
     html += '<td><strong>' + h.file + '</strong></td>';
     html += '<td style="text-align:center;font-size:11px">' + h.time + '</td>';
+    html += '<td style="text-align:center;font-weight:600">' + (h.snapshotPeriod || '-') + '</td>';
     html += '<td style="text-align:center;font-weight:600;color:#1e40af">' + h.custCount + '</td>';
     html += '<td style="text-align:center;font-weight:600;color:#166534">' + h.userCount + '</td>';
     html += '<td style="text-align:center">' + h.total + '</td>';
     html += '<td style="font-size:11px">' + h.person + '</td>';
     html += '<td style="text-align:center">';
-    html += '<button class="btn-ghost" style="padding:2px 6px;font-size:10px" onclick="App.ImportPotential.restoreHistory(' + i + ')">🔄</button> ';
-    html += '<button class="btn-ghost" style="padding:2px 6px;font-size:10px;color:#dc2626" onclick="App.ImportPotential.deleteHistory(' + i + ')">✕</button>';
+    html += '<button class="btn-ghost" style="padding:2px 6px;font-size:10px;color:#dc2626" onclick="App.ImportPotential.deleteHistory(' + i + ')" title="删除此记录">✕</button>';
     html += '</td></tr>';
   });
   tbody.innerHTML = html;
@@ -5381,10 +5440,38 @@ App.ImportPotential.deleteHistory = function(idx) {
   // 同步 localStorage
   try {
     var meta = App.ImportPotential.history.map(function(h) {
-      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person };
+      return { id: h.id, file: h.file, time: h.time, custCount: h.custCount, userCount: h.userCount, total: h.total, person: h.person, snapshotPeriod: h.snapshotPeriod||'' };
     });
     localStorage.setItem('pa_p_history', JSON.stringify(meta));
   } catch(e) {}
+};
+
+// 下载当前潜力产品数据为 Excel
+App.ImportPotential.exportCurrent = function() {
+  var cust = App.ImportPotential.CustRAW || [];
+  var user = App.ImportPotential.UserRAW || [];
+  if (cust.length === 0 && user.length === 0) { alert('暂无数据可下载'); return; }
+  var wb = XLSX.utils.book_new();
+  if (cust.length > 0) {
+    var custSheet = XLSX.utils.json_to_sheet(cust);
+    XLSX.utils.book_append_sheet(wb, custSheet, '潜力产品-客户');
+  }
+  if (user.length > 0) {
+    var userSheet = XLSX.utils.json_to_sheet(user);
+    XLSX.utils.book_append_sheet(wb, userSheet, '潜力产品-用户');
+  }
+  XLSX.writeFile(wb, '潜力产品数据_' + new Date().toISOString().slice(0,10) + '.xlsx');
+};
+
+// 清空潜力产品历史记录及数据
+App.ImportPotential.clearAll = function() {
+  if (!confirm('确定清空所有潜力产品历史记录及数据吗？此操作不可撤销。')) return;
+  App.ImportPotential.history = [];
+  App.ImportPotential.CustRAW = [];
+  App.ImportPotential.UserRAW = [];
+  App.ImportPotential.render();
+  App.ImportPotential.renderHistory();
+  try { localStorage.removeItem('pa_p_history'); } catch(e) {}
 };
 
 // ===== 小组列表（从当前数据源提取 dept5 字段） =====
@@ -5415,43 +5502,70 @@ App.ImportPotential.render = function() {
   var isCust = App.ImportPotential.currentDS === 'cust';
   var data = (isCust ? (App.ImportPotential.CustRAW || []) : (App.ImportPotential.UserRAW || [])).slice();
 
-  // 初始填充下拉（首次 options.length <= 1 时填充）
+  // 每次渲染都刷新下拉（保证数据变化后选项同步）
   var deptSel = document.getElementById('pImportDeptFilter');
-  if (deptSel && deptSel.options.length <= 1) {
+  if (deptSel) {
+    var curD = deptSel.value;
     deptSel.innerHTML = '<option value="all">全部部门</option>' +
       App.ImportPotential.getDepts().map(function(d) { return '<option value="' + d + '">' + d + '</option>'; }).join('');
-    // 同步顶部筛选状态（首次渲染时）
+    if (App.ImportPotential.getDepts().some(function(d) { return d === curD; })) deptSel.value = curD;
+  }
+  var grpSel = document.getElementById('pImportGroupFilter');
+  if (grpSel) {
+    var curG = grpSel.value;
+    grpSel.innerHTML = '<option value="all">全部小组</option>' +
+      App.ImportPotential.getGroups().map(function(g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
+    if (App.ImportPotential.getGroups().some(function(g) { return g === curG; })) grpSel.value = curG;
+    else grpSel.value = 'all';
+  }
+  var prodSel = document.getElementById('pImportProdFilter');
+  if (prodSel) {
+    var curP = prodSel.value;
+    prodSel.innerHTML = '<option value="all">全部产品</option>' +
+      App.ImportPotential.getProducts().map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+    if (App.ImportPotential.getProducts().some(function(p) { return p === curP; })) prodSel.value = curP;
+    else prodSel.value = 'all';
+  }
+  // 月份筛选（复制产品宽度表设计）
+  var periodSel = document.getElementById('pImportPeriodFilter');
+  if (periodSel) {
+    var periods = {};
+    (App.ImportPotential.CustRAW || []).concat(App.ImportPotential.UserRAW || []).forEach(function(r) {
+      var p = r.snapshotPeriod || '';
+      if (p) periods[p] = true;
+    });
+    var curPeriod = periodSel.value;
+    var monthList = Object.keys(periods).sort();
+    if (monthList.length === 0) {
+      periodSel.innerHTML = '<option value="">无数据</option>';
+    } else {
+      var latest = monthList[monthList.length - 1];
+      periodSel.innerHTML = monthList.map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
+      periodSel.value = periods[curPeriod] ? curPeriod : latest;
+    }
+  }
+
+  // 首次渲染时同步顶部筛选状态
+  if (deptSel && deptSel.value === 'all') {
     var topState = (typeof App.getFilterState === 'function') ? App.getFilterState('page-potential') : { team: 'all', group: 'all' };
     if (topState.team !== 'all' && deptSel.querySelector('option[value="' + topState.team + '"]')) {
       deptSel.value = topState.team;
-      // 触发级联刷新小组
       App.ImportPotential.onDeptChange(topState.team);
-      if (topState.group !== 'all') {
-        var grpSel2 = document.getElementById('pImportGroupFilter');
-        if (grpSel2 && grpSel2.querySelector('option[value="' + topState.group + '"]')) {
-          grpSel2.value = topState.group;
-        }
-      }
     }
-  }
-  var grpSel = document.getElementById('pImportGroupFilter');
-  if (grpSel && grpSel.options.length <= 1) {
-    grpSel.innerHTML = '<option value="all">全部小组</option>' +
-      App.ImportPotential.getGroups().map(function(g) { return '<option value="' + g + '">' + g + '</option>'; }).join('');
-  }
-  var prodSel = document.getElementById('pImportProdFilter');
-  if (prodSel && prodSel.options.length <= 1) {
-    prodSel.innerHTML = '<option value="all">全部产品</option>' +
-      App.ImportPotential.getProducts().map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('');
   }
 
   var deptFilter = (deptSel || {}).value || 'all';
   var grpFilter = (grpSel || {}).value || 'all';
   var prodFilter = (prodSel || {}).value || 'all';
+  var periodFilter = periodSel ? (periodSel.value && periodSel.value !== 'all' ? periodSel.value : '') : '';
   var search = ((document.getElementById('pImportSearch') || {}).value || '').trim().toLowerCase();
   var sort = ((document.getElementById('pImportSort') || {}).value || 'sales_desc');
 
   // 应用筛选
+  if (periodFilter && periodFilter !== 'all') {
+    var pFiltered = data.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    if (pFiltered.length > 0) data = pFiltered;
+  }
   if (deptFilter !== 'all') data = data.filter(function(r) { return (r.dept4 || r.dept3) === deptFilter; });
   if (grpFilter !== 'all') data = data.filter(function(r) { return r.dept5 === grpFilter; });
   if (prodFilter !== 'all') data = data.filter(function(r) { return r.product === prodFilter; });
@@ -5517,8 +5631,13 @@ App.ImportPotential.render = function() {
   var pStart = (App._pImportPage - 1) * pSize;
   var pData = data.slice(pStart, pStart + pSize);
 
-  var countEl = document.getElementById('p-import-ds-count');
-  if (countEl) countEl.textContent = data.length + ' 条记录';
+  // 更新客户/用户标签内的计数
+  var custCountEl = document.getElementById('p-import-cust-count');
+  var userCountEl = document.getElementById('p-import-user-count');
+  var allCust = (App.ImportPotential.CustRAW || []).length;
+  var allUser = (App.ImportPotential.UserRAW || []).length;
+  if (custCountEl) custCountEl.textContent = allCust;
+  if (userCountEl) userCountEl.textContent = allUser;
 
   // 表体（使用分页数据 pData）
   // 同比格式化：带颜色（红涨绿跌）
@@ -5613,17 +5732,17 @@ App.ImportPotential.render = function() {
   var tbody = document.getElementById('pImportDataTbody');
   if (tbody) tbody.innerHTML = html;
 
-  // 分页信息
+  // 分页信息（匹配产品宽度样式）
+  var page = App._pImportPage || 1;
   var pageInfo = document.getElementById('pImportPageInfo');
-  if (pageInfo) pageInfo.textContent = '共 ' + data.length + ' 条，第 ' + (App._pImportPage || 1) + '/' + (pPages || 1) + ' 页';
+  if (pageInfo) pageInfo.textContent = (pTotal > 0 ? ((page-1)*pSize+1 + '–' + Math.min(page*pSize, pTotal) + ' / ' + pTotal + ' 条') : '0 条');
   var pageBtns = document.getElementById('pImportPageBtns');
   if (pageBtns && pPages > 1) {
-    var btns = '';
-    for (var pg = 1; pg <= pPages; pg++) {
-      var ac = pg === (App._pImportPage || 1) ? 'style="background:#1a56db;color:#fff;font-weight:700;border-radius:3px"' : '';
-      btns += '<button ' + ac + ' onclick="App._pImportPage=' + pg + ';App.ImportPotential.render()" style="padding:2px 8px;border:1px solid #d1d5db;border-radius:3px;font-size:11px;cursor:pointer">' + pg + '</button>';
-    }
-    pageBtns.innerHTML = btns;
+    var ph = '';
+    if (page > 1) ph += '<button class="page-btn" onclick="App._pImportPage=' + (page-1) + ';App.ImportPotential.render()">←</button>';
+    for (var i = 1; i <= pPages && i <= 8; i++) ph += '<button class="page-btn' + (i === page ? ' active' : '') + '" onclick="App._pImportPage=' + i + ';App.ImportPotential.render()">' + i + '</button>';
+    if (page < pPages) ph += '<button class="page-btn" onclick="App._pImportPage=' + (page+1) + ';App.ImportPotential.render()">→</button>';
+    pageBtns.innerHTML = ph;
   } else if (pageBtns) { pageBtns.innerHTML = ''; }
 };
 
@@ -6880,100 +6999,104 @@ App._refreshOvBarCharts = function() {
 App.renderWidthProductTab = function() {
   var state = App.getFilterState('page-width');
   var team = state.team, group = state.group, person = state.person;
-  var sf = 1;
-  if (person !== 'all') sf = 0.03;
-  else if (group !== 'all') sf = 0.10;
-  else if (team !== 'all') sf = 0.28;
-
-  // 产品覆盖率排名 (规上客户) — 27品类
-  var custProds = [
-    { name:'IPC', cov:53.1, yoy:'+12.3%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'NVR', cov:36.7, yoy:'+18.5%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'门禁', cov:27.8, yoy:'-8.2%', yoyCls:'b-down', team:'公安交警行业组' },
-    { name:'球机', cov:24.6, yoy:'+5.1%', yoyCls:'b-up', team:'公安交警行业组' },
-    { name:'LCD与解码', cov:17.6, yoy:'+0.8%', yoyCls:'b-flat', team:'工业企业一组' },
-    { name:'新业务', cov:17.4, yoy:'新增', yoyCls:'b-new', team:'智慧建筑组' },
-    { name:'通用软件', cov:16.3, yoy:'+3.2%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'网络产品', cov:14.6, yoy:'-2.1%', yoyCls:'b-warn', team:'工业企业一组' },
-    { name:'存储', cov:11.5, yoy:'+8.4%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'专用摄像机', cov:9.3, yoy:'+3.2%', yoyCls:'b-up', team:'公安交警行业组' },
-    { name:'服务器', cov:8.9, yoy:'+1.5%', yoyCls:'b-flat', team:'大客户销售部' },
-    { name:'行业软件', cov:8.5, yoy:'-3.5%', yoyCls:'b-down', team:'工业企业一组' },
-    { name:'智能计算', cov:7.9, yoy:'+85%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'对讲', cov:7.6, yoy:'-2.8%', yoyCls:'b-warn', team:'智慧建筑组' },
-    { name:'报警', cov:7.4, yoy:'-5.1%', yoyCls:'b-down', team:'智慧建筑组' },
-    { name:'出入口停车', cov:7.4, yoy:'+15.2%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'人员通道', cov:6.4, yoy:'+2.1%', yoyCls:'b-flat', team:'客户销售一部' },
-    { name:'音频产品', cov:5.9, yoy:'-1.2%', yoyCls:'b-warn', team:'工业企业一组' },
-    { name:'PCP产品', cov:4.5, yoy:'新增', yoyCls:'b-new', team:'大客户销售部' },
-    { name:'LED与拼控', cov:4.5, yoy:'+0.5%', yoyCls:'b-flat', team:'场景数字化销售部' },
-    { name:'移动终端产品', cov:4.2, yoy:'+1.8%', yoyCls:'b-up', team:'公安交警行业组' },
-    { name:'智能交通', cov:4.0, yoy:'+18.4%', yoyCls:'b-up', team:'政府行业组' },
-    { name:'智慧屏与视频会议', cov:3.6, yoy:'+6.8%', yoyCls:'b-up', team:'智慧建筑组' },
-    { name:'综合布线与机柜', cov:3.6, yoy:'-0.5%', yoyCls:'b-flat', team:'客户销售二部' },
-    { name:'基础软件', cov:1.9, yoy:'+0.8%', yoyCls:'b-flat', team:'场景数字化销售部' },
-    { name:'网络安全', cov:1.7, yoy:'新增', yoyCls:'b-new', team:'大客户销售部' },
-    { name:'传感产品', cov:0.8, yoy:'-0.3%', yoyCls:'b-warn', team:'场景数字化销售部' }
-  ];
-  var custCovered = [472,326,247,218,156,155,145,130,102,83,79,76,70,68,66,66,57,52,40,40,37,36,32,32,17,15,7];
+  // 从导入数据计算覆盖率排名（跟随筛选联动）
+  var allProds = App.ImportData.PRODS || [];
+  var fCust2 = (App.ImportData.CustGS || []).slice();
+  var fUser2 = (App.ImportData.UserGS || []).slice();
+  // 级联筛选
+  var periodSel = document.getElementById('wImportPeriodFilter');
+  var periodFilter = periodSel ? (periodSel.value && periodSel.value !== 'all' ? periodSel.value : '') : '';
+  if (periodFilter) {
+    fCust2 = fCust2.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    fUser2 = fUser2.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+  }
+  if (person !== 'all') {
+    fCust2 = fCust2.filter(function(r) { return r.sales === person; });
+    fUser2 = fUser2.filter(function(r) { return r.sales === person; });
+  } else if (group !== 'all') {
+    fCust2 = fCust2.filter(function(r) { return r.group === group; });
+    fUser2 = fUser2.filter(function(r) { return r.group === group; });
+  } else if (team !== 'all') {
+    fCust2 = fCust2.filter(function(r) { return r.dept === team; });
+    fUser2 = fUser2.filter(function(r) { return r.dept === team; });
+  }
+  var custTotal = fCust2.length, userTotal = fUser2.length;
+  // 计算上月（环比）和去年同月（同比）
+  var prevPeriod = '', yoyPeriod = '';
+  if (periodFilter && periodFilter.indexOf('-') > 0) {
+    var parts = periodFilter.split('-');
+    var y = parseInt(parts[0]), m = parseInt(parts[1]);
+    // 上月
+    var py = y, pm = m;
+    if (pm === 1) { py--; pm = 12; } else { pm--; }
+    prevPeriod = py + '-' + String(pm).padStart(2, '0');
+    // 去年同月
+    yoyPeriod = (y - 1) + '-' + String(m).padStart(2, '0');
+  }
+  var fCustPrev = prevPeriod ? (App.ImportData.CustGS || []).filter(function(r) { return (r.snapshotPeriod || '') === prevPeriod; }) : [];
+  var fUserPrev = prevPeriod ? (App.ImportData.UserGS || []).filter(function(r) { return (r.snapshotPeriod || '') === prevPeriod; }) : [];
+  var fCustYoy = yoyPeriod ? (App.ImportData.CustGS || []).filter(function(r) { return (r.snapshotPeriod || '') === yoyPeriod; }) : [];
+  var fUserYoy = yoyPeriod ? (App.ImportData.UserGS || []).filter(function(r) { return (r.snapshotPeriod || '') === yoyPeriod; }) : [];
+  // 应用同样的部门/组/人员筛选
+  var applyFilter = function(arr) {
+    if (person !== 'all') return arr.filter(function(r) { return r.sales === person; });
+    if (group !== 'all') return arr.filter(function(r) { return r.group === group; });
+    if (team !== 'all') return arr.filter(function(r) { return r.dept === team; });
+    return arr;
+  };
+  fCustPrev = applyFilter(fCustPrev); fUserPrev = applyFilter(fUserPrev);
+  fCustYoy = applyFilter(fCustYoy); fUserYoy = applyFilter(fUserYoy);
+  var custPrevTotal = fCustPrev.length, userPrevTotal = fUserPrev.length;
+  var custYoyTotal = fCustYoy.length, userYoyTotal = fUserYoy.length;
+  // 计算每个产品的品类覆盖率 + 环比 + 同比
+  var custRank = allProds.map(function(p) {
+    var cnt = fCust2.filter(function(r) { return r.prods && r.prods[p]; }).length;
+    var rate = custTotal > 0 ? parseFloat((cnt / custTotal * 100).toFixed(1)) : 0;
+    var cntPrev = fCustPrev.filter(function(r) { return r.prods && r.prods[p]; }).length;
+    var ratePrev = custPrevTotal > 0 ? parseFloat((cntPrev / custPrevTotal * 100).toFixed(1)) : 0;
+    var cntYoy = fCustYoy.filter(function(r) { return r.prods && r.prods[p]; }).length;
+    var rateYoy = custYoyTotal > 0 ? parseFloat((cntYoy / custYoyTotal * 100).toFixed(1)) : 0;
+    return { name: p, count: cnt, rate: rate, diff: prevPeriod ? parseFloat((rate - ratePrev).toFixed(1)) : 0, yoy: yoyPeriod ? parseFloat((rate - rateYoy).toFixed(1)) : 0 };
+  }).sort(function(a, b) { return b.rate - a.rate; });
+  var userRank = allProds.map(function(p) {
+    var cnt = fUser2.filter(function(r) { return r.prods && r.prods[p]; }).length;
+    var rate = userTotal > 0 ? parseFloat((cnt / userTotal * 100).toFixed(1)) : 0;
+    var cntPrev = fUserPrev.filter(function(r) { return r.prods && r.prods[p]; }).length;
+    var ratePrev = userPrevTotal > 0 ? parseFloat((cntPrev / userPrevTotal * 100).toFixed(1)) : 0;
+    var cntYoy = fUserYoy.filter(function(r) { return r.prods && r.prods[p]; }).length;
+    var rateYoy = userYoyTotal > 0 ? parseFloat((cntYoy / userYoyTotal * 100).toFixed(1)) : 0;
+    return { name: p, count: cnt, rate: rate, diff: prevPeriod ? parseFloat((rate - ratePrev).toFixed(1)) : 0, yoy: yoyPeriod ? parseFloat((rate - rateYoy).toFixed(1)) : 0 };
+  }).sort(function(a, b) { return b.rate - a.rate; });
 
   var tbody1 = document.getElementById('wProdCovCustBody');
   if (tbody1) {
-    tbody1.innerHTML = custProds.map(function(p, i) {
+    tbody1.innerHTML = custRank.map(function(p, i) {
       var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-      var covScaled = Math.round(p.cov * sf);
-      var coveredScaled = Math.round(custCovered[i] * sf);
+      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
+      var yoyHtml = yoyPeriod ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
       return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'cust\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
         '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
-        '<td style="text-align:center">' + coveredScaled + '</td>' +
-        '<td style="text-align:center;font-weight:700;color:var(--success)">' + covScaled + '%</td>' +
-        '<td style="text-align:center"><span class="badge ' + p.yoyCls + '">' + p.yoy + '</span></td></tr>';
+        '<td style="text-align:center">' + p.count + '</td>' +
+        '<td style="text-align:center;font-weight:700;color:' + (p.rate >= 50 ? '#059669' : p.rate >= 20 ? '#d97706' : '#dc2626') + '">' + p.rate.toFixed(1) + '%</td>' +
+        '<td style="text-align:center;font-size:12px">' + diffHtml + '</td>' +
+        '<td style="text-align:center;font-size:12px">' + yoyHtml + '</td></tr>';
     }).join('');
   }
 
-  // 产品覆盖率排名 (规上用户) — 全部27品类
-  var userProds = [
-    { name:'IPC', cov:80.3, yoy:'+15.6%', yoyCls:'b-up' },
-    { name:'NVR', cov:69.4, yoy:'+22.1%', yoyCls:'b-up' },
-    { name:'门禁', cov:47.9, yoy:'-3.5%', yoyCls:'b-warn' },
-    { name:'球机', cov:54.4, yoy:'+8.3%', yoyCls:'b-up' },
-    { name:'LCD与解码', cov:31.1, yoy:'+6.8%', yoyCls:'b-up' },
-    { name:'新业务', cov:22.1, yoy:'+18.5%', yoyCls:'b-up' },
-    { name:'通用软件', cov:35.2, yoy:'+5.2%', yoyCls:'b-up' },
-    { name:'网络产品', cov:28.5, yoy:'-2.1%', yoyCls:'b-warn' },
-    { name:'存储', cov:36.8, yoy:'+11.2%', yoyCls:'b-up' },
-    { name:'专用摄像机', cov:19.8, yoy:'+3.2%', yoyCls:'b-up' },
-    { name:'服务器', cov:17.3, yoy:'+1.5%', yoyCls:'b-flat' },
-    { name:'行业软件', cov:15.6, yoy:'-3.5%', yoyCls:'b-down' },
-    { name:'智能计算', cov:14.2, yoy:'+85%', yoyCls:'b-up' },
-    { name:'对讲', cov:13.0, yoy:'-2.8%', yoyCls:'b-warn' },
-    { name:'报警', cov:11.5, yoy:'-5.1%', yoyCls:'b-down' },
-    { name:'出入口停车', cov:18.7, yoy:'新增', yoyCls:'b-new' },
-    { name:'人员通道', cov:10.8, yoy:'+2.1%', yoyCls:'b-flat' },
-    { name:'音频产品', cov:9.4, yoy:'-1.2%', yoyCls:'b-warn' },
-    { name:'PCP产品', cov:8.2, yoy:'新增', yoyCls:'b-new' },
-    { name:'LED与拼控', cov:7.8, yoy:'+0.5%', yoyCls:'b-flat' },
-    { name:'移动终端产品', cov:7.1, yoy:'+1.8%', yoyCls:'b-up' },
-    { name:'智能交通', cov:24.6, yoy:'+18.4%', yoyCls:'b-up' },
-    { name:'智慧屏与视频会议', cov:6.5, yoy:'+6.8%', yoyCls:'b-up' },
-    { name:'综合布线与机柜', cov:5.8, yoy:'-0.5%', yoyCls:'b-flat' },
-    { name:'基础软件', cov:4.3, yoy:'+0.8%', yoyCls:'b-flat' },
-    { name:'网络安全', cov:3.6, yoy:'新增', yoyCls:'b-new' },
-    { name:'传感产品', cov:2.1, yoy:'-0.3%', yoyCls:'b-warn' }
-  ];
-  var userCovered = [310,268,185,210,120,85,136,110,142,77,67,60,55,50,45,72,42,36,32,30,28,95,25,22,16,14,8];
-
   var tbody2 = document.getElementById('wProdCovUserBody');
   if (tbody2) {
-    tbody2.innerHTML = userProds.map(function(p, i) {
+    tbody2.innerHTML = userRank.map(function(p, i) {
       var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
+      var diffHtml = prevPeriod ? (p.diff > 0 ? '<span style="color:#dc2626">+' + p.diff + '%</span>' : p.diff < 0 ? '<span style="color:#16a34a">' + p.diff + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
+      var yoyHtml = yoyPeriod ? (p.yoy > 0 ? '<span style="color:#dc2626">+' + p.yoy + '%</span>' : p.yoy < 0 ? '<span style="color:#16a34a">' + p.yoy + '%</span>' : '<span style="color:#9ca3af">0</span>') : '<span style="color:#9ca3af">-</span>';
       return '<tr style="cursor:pointer" onclick="App.showProdCovDrill(\'' + p.name + '\',\'user\')">' +
         '<td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
         '<td>' + (i < 2 ? '<strong style="color:#1a56db">' + p.name + '</strong>' : '<span style="color:#1a56db">' + p.name + '</span>') + '</td>' +
-        '<td style="text-align:center">' + Math.round(userCovered[i] * sf) + '</td>' +
-        '<td style="text-align:center;font-weight:700;color:var(--success)">' + Math.round(p.cov * sf) + '%</td>' +
-        '<td style="text-align:center"><span class="badge ' + p.yoyCls + '">' + p.yoy + '</span></td></tr>';
+        '<td style="text-align:center">' + p.count + '</td>' +
+        '<td style="text-align:center;font-weight:700;color:' + (p.rate >= 50 ? '#059669' : p.rate >= 20 ? '#d97706' : '#dc2626') + '">' + p.rate.toFixed(1) + '%</td>' +
+        '<td style="text-align:center;font-size:12px">' + diffHtml + '</td>' +
+        '<td style="text-align:center;font-size:12px">' + yoyHtml + '</td></tr>';
     }).join('');
   }
 };
@@ -7001,34 +7124,42 @@ App._getProdCovStock = function(prodName) {
 };
 
 App.showProdCovDrill = function(prodName, type) {
-  var stock = App._getProdCovStock(prodName);
   var modalBox = document.getElementById('appModalBox');
   if (modalBox) { modalBox.style.maxWidth = '1000px'; modalBox.style.width = '92%'; }
+  // 从导入数据直接取覆盖该产品的记录，应用当前筛选
+  var state = App.getFilterState('page-width');
+  var raw = (type === 'cust') ? (App.ImportData.CustGS || []).slice() : (App.ImportData.UserGS || []).slice();
+  var periodSel2 = document.getElementById('wImportPeriodFilter');
+  var pf = periodSel2 ? (periodSel2.value !== 'all' ? periodSel2.value : '') : '';
+  if (pf) raw = raw.filter(function(r) { return (r.snapshotPeriod || '') === pf; });
+  if (state.person !== 'all') raw = raw.filter(function(r) { return r.sales === state.person; });
+  else if (state.group !== 'all') raw = raw.filter(function(r) { return r.group === state.group; });
+  else if (state.team !== 'all') raw = raw.filter(function(r) { return r.dept === state.team; });
+  var covered = raw.filter(function(r) { return r.prods && r.prods[prodName]; });
+  var label = type === 'cust' ? '客户' : '用户';
 
-  var tableHeader = '<thead><tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">' +
-    '<th style="text-align:left;padding:8px 10px;width:170px">' + (type==='cust'?'客户名称':'用户名称') + '</th>' +
-    '<th style="text-align:left;padding:8px 10px;width:110px">销售</th>' +
-    '<th style="text-align:left;padding:8px 10px;width:140px">团队</th>' +
-    '<th style="text-align:left;padding:8px 10px">覆盖品类</th></tr></thead>';
-
-  var title, html;
-  if (type === 'cust') {
-    var rows = (stock.custs||[]).map(function(c) {
-      return '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 10px"><strong>' + c.name + '</strong></td><td style="padding:8px 10px">' + (c.person||'-') + '</td><td style="padding:8px 10px;color:#6b7280">' + c.team + '</td><td style="padding:8px 10px;font-size:12px;color:#374151">' + c.covProds + '</td></tr>';
-    }).join('');
-    title = prodName + ' — 客户覆盖明细';
-    html = '<p style="margin:0 0 16px;color:#6b7280">已覆盖 <strong>' + (stock.custs||[]).length + '</strong> 个客户</p>' +
-      '<table style="width:100%;font-size:13px;border-collapse:collapse">' + tableHeader + '<tbody>' + rows + '</tbody></table>';
+  var html = '<p style="margin:0 0 12px;color:#6b7280">筛选范围内共 <strong>' + raw.length + '</strong> 个' + label + '，其中 <strong>' + covered.length + '</strong> 个覆盖了「' + prodName + '」</p>';
+  if (covered.length === 0) {
+    html += '<p style="text-align:center;padding:24px;color:#9ca3af">暂无覆盖记录</p>';
   } else {
-    var rows = (stock.users||[]).map(function(u) {
-      return '<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:8px 10px"><strong>' + u.name + '</strong></td><td style="padding:8px 10px">' + (u.person||'-') + '</td><td style="padding:8px 10px;color:#6b7280">' + u.team + '</td><td style="padding:8px 10px;font-size:12px;color:#374151">' + u.covProds + '</td></tr>';
-    }).join('');
-    title = prodName + ' — 用户覆盖明细';
-    html = '<p style="margin:0 0 16px;color:#6b7280">已覆盖 <strong>' + (stock.users||[]).length + '</strong> 个用户</p>' +
-      '<table style="width:100%;font-size:13px;border-collapse:collapse">' + tableHeader + '<tbody>' + rows + '</tbody></table>';
+    html += '<table style="width:100%;font-size:13px;border-collapse:collapse">' +
+      '<thead><tr style="border-bottom:2px solid #e5e7eb;background:#f9fafb">' +
+      '<th style="text-align:left;padding:8px 10px">' + label + '名称</th>' +
+      '<th style="text-align:left;padding:8px 10px">销售</th>' +
+      '<th style="text-align:left;padding:8px 10px">部门</th>' +
+      '<th style="text-align:left;padding:8px 10px">小组</th>' +
+      '<th style="text-align:center;padding:8px 10px">产品宽度</th></tr></thead><tbody>';
+    covered.forEach(function(r) {
+      html += '<tr style="border-bottom:1px solid #f3f4f6">' +
+        '<td style="padding:6px 10px;font-weight:600">' + (r.user || r.name || '-') + '</td>' +
+        '<td style="padding:6px 10px">' + (r.sales || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280">' + (r.dept || '-') + '</td>' +
+        '<td style="padding:6px 10px;color:#6b7280">' + (r.group || '-') + '</td>' +
+        '<td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a56db">' + (r.width || 0) + '</td></tr>';
+    });
+    html += '</tbody></table>';
   }
-
-  App.showModal(title, html);
+  App.showModal(prodName + ' — ' + label + '覆盖明细', html);
 };
 
 // ===== 潜力产品 · 产品维度 — 产品点击下钻（客户+用户明细） =====

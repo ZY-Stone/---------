@@ -23,6 +23,7 @@ class WidthRecord(Base):
     prods_json: Mapped[str | None] = mapped_column(String, default=None, comment="27产品 0/1 JSON")
     contact: Mapped[str] = mapped_column(String(50), default="", comment="接口人")
     level: Mapped[str] = mapped_column(String(50), default="", comment="用户/客户等级")
+    snapshot_period: Mapped[str] = mapped_column(String(7), default="", comment="数据快照月份 yyyy-MM")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
