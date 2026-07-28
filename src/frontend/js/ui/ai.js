@@ -85,17 +85,21 @@ App.AI = {
     return ctx;
   },
 
-  // 执行分析
+  // 执行分析（后台运行，切换页面不中断）
   analyze: function() {
     var question = document.getElementById('wAiPrompt').value.trim();
     if (!question) { alert('请输入分析问题'); return; }
     var btn = document.getElementById('wAiAnalyzeBtn');
-    btn.disabled = true; btn.textContent = '分析中...';
+    if (btn) { btn.disabled = true; btn.textContent = '分析中...'; }
 
     var resultDiv = document.getElementById('wAiResult');
     var resultBar = document.getElementById('wAiResultBar');
-    resultDiv.style.display = 'block'; resultBar.style.display = 'none';
-    resultDiv.innerHTML = '<div style="color:#888;padding:20px;text-align:center">AI正在读取产品宽度数据并分析...</div>';
+    if (resultDiv) { resultDiv.style.display = 'block'; resultDiv.innerHTML = '<div style="color:#888;padding:20px;text-align:center">AI正在读取产品宽度数据并分析...</div>'; }
+    if (resultBar) resultBar.style.display = 'none';
+
+    // 标记分析进行中
+    App.AI._running = true;
+    App.AI._pendingResult = null;
 
     var config = App.AI.loadConfig();
     var ctx = App.AI.buildContext();
@@ -125,7 +129,6 @@ App.AI = {
         var json = JSON.parse(raw);
         content = json.content || json.answer || (json.data && json.data.content) || '';
       } catch(e) {
-        // SSE format
         raw.split('\n').forEach(function(line) {
           if (line.startsWith('data:')) {
             try { var c = JSON.parse(line.slice(5).trim()); if (c.answer) content += c.answer; } catch(e2) {}
@@ -134,19 +137,132 @@ App.AI = {
       }
       var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
       if (content) {
-        resultDiv.innerHTML = content.replace(/</g, '&lt;').replace(/\n/g, '<br>');
-        document.getElementById('wAiElapsed').textContent = '⏱ 耗时 ' + elapsed + ' 秒';
-        resultBar.style.display = 'flex';
+        var html = content.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+        App.AI._pendingResult = { html: html, elapsed: elapsed };
+        // 如果结果区可见，直接渲染
+        var rd = document.getElementById('wAiResult');
+        if (rd && rd.offsetParent) { rd.innerHTML = html; }
+        var rb = document.getElementById('wAiResultBar');
+        if (rb && rd && rd.offsetParent) { rb.style.display = 'flex'; }
+        var el = document.getElementById('wAiElapsed');
+        if (el) el.textContent = '⏱ 耗时 ' + elapsed + ' 秒';
+        App.showToast('🤖 AI分析完成（耗时 ' + elapsed + ' 秒）', 5000);
       } else {
-        resultDiv.innerHTML = '<div style="color:#e53935">AI返回了空内容，请检查API配置或稍后重试</div>';
+        App.AI._pendingResult = { html: '<div style="color:#e53935">AI返回了空内容，请检查API配置或稍后重试</div>', elapsed: 0 };
+        var rd2 = document.getElementById('wAiResult');
+        if (rd2 && rd2.offsetParent) { rd2.innerHTML = App.AI._pendingResult.html; }
+        App.showToast('⚠ AI返回空内容，请检查API配置', 4000);
       }
     }).catch(function(e) {
       clearTimeout(timeoutId);
       var msg = e.name === 'AbortError' ? '⏰ 分析超时，请稍后重试' : '❌ 请求失败: ' + e.message;
-      resultDiv.innerHTML = '<div style="color:#e53935">' + msg + '</div>';
+      App.AI._pendingResult = { html: '<div style="color:#e53935">' + msg + '</div>', elapsed: 0 };
+      var rd3 = document.getElementById('wAiResult');
+      if (rd3 && rd3.offsetParent) { rd3.innerHTML = App.AI._pendingResult.html; }
+      App.showToast(msg, 4000);
     }).finally(function() {
-      btn.disabled = false; btn.textContent = '🚀 开始分析';
+      App.AI._running = false;
+      if (btn) { btn.disabled = false; btn.textContent = '🚀 开始分析'; }
     });
+  },
+
+  // 恢复未渲染的结果（切回 AI tab 时调用）
+  restoreResult: function() {
+    if (App.AI._pendingResult) {
+      var rd = document.getElementById('wAiResult');
+      if (rd) rd.innerHTML = App.AI._pendingResult.html;
+      var rb = document.getElementById('wAiResultBar');
+      if (rb) rb.style.display = 'flex';
+      if (App.AI._pendingResult.elapsed) {
+        var el = document.getElementById('wAiElapsed');
+        if (el) el.textContent = '⏱ 耗时 ' + App.AI._pendingResult.elapsed + ' 秒';
+      }
+    }
+    if (App.AI._running) {
+      var rd2 = document.getElementById('wAiResult');
+      if (rd2) { rd2.style.display = 'block'; rd2.innerHTML = '<div style="color:#888;padding:20px;text-align:center">AI正在读取产品宽度数据并分析...</div>'; }
+    }
+  },
+
+  // 获取结果 HTML（保留格式）
+  _getResultHtml: function() {
+    var rd = document.getElementById('wAiResult');
+    if (!rd) return '';
+    return rd.innerHTML || '';
+  },
+  _getResultText: function() {
+    var rd = document.getElementById('wAiResult');
+    if (!rd) return '';
+    return rd.innerText || rd.textContent || '';
+  },
+
+  // 构建报告 HTML 骨架
+  _buildReport: function(title, bodyHtml) {
+    var now = new Date();
+    var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' +
+      'body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:14px;line-height:1.9;color:#1e293b;padding:40px 50px;max-width:820px;margin:0 auto}' +
+      '.report-header{border-bottom:3px solid #2563eb;padding-bottom:16px;margin-bottom:24px}' +
+      '.report-header h1{font-size:22px;color:#1e40af;margin:0 0 6px 0}' +
+      '.report-meta{font-size:11px;color:#94a3b8;margin-top:4px}' +
+      '.report-body{font-size:14px}' +
+      '.report-body p{margin:8px 0}' +
+      '.report-body ul,.report-body ol{padding-left:22px}' +
+      '.report-body li{margin:4px 0}' +
+      '.report-body strong{color:#1a56db}' +
+      '.report-body table{width:100%;border-collapse:collapse;margin:12px 0}' +
+      '.report-body th{background:#2563eb;color:#fff;padding:8px 12px;font-size:12px;text-align:left}' +
+      '.report-body td{padding:7px 12px;border:1px solid #e5e7eb;font-size:12px}' +
+      '.report-body h2{font-size:16px;color:#374151;border-left:4px solid #2563eb;padding-left:10px;margin:16px 0 8px 0}' +
+      '.report-body h3{font-size:14px;color:#64748b;margin:12px 0 6px 0}' +
+      '.report-footer{margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8}' +
+      '@media print{body{padding:20px 30px}}' +
+      '</style></head><body>' +
+      '<div class="report-header"><h1>' + title + '</h1><div class="report-meta">📅 生成时间：' + dateStr + ' &nbsp;|&nbsp; 📊 数据来源：产品宽度导入数据 &nbsp;|&nbsp; 🤖 由 AI 自动分析生成</div></div>' +
+      '<div class="report-body">' + bodyHtml + '</div>' +
+      '<div class="report-footer">© ' + now.getFullYear() + ' 产品分析一体化平台 · AI 智能分析报告 · 生成时间 ' + dateStr + '</div>' +
+      '</body></html>';
+  },
+
+  // 复制结果
+  copyResult: function() {
+    var text = App.AI._getResultText();
+    if (!text) { alert('暂无分析结果'); return; }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(function() { App.showToast('📋 已复制到剪贴板', 2000); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      App.showToast('📋 已复制到剪贴板', 2000);
+    }
+  },
+
+  // 导出 PDF 报告
+  exportPDF: function() {
+    var bodyHtml = App.AI._getResultHtml();
+    if (!bodyHtml || bodyHtml === '<br>') { alert('暂无分析结果'); return; }
+    var html = App.AI._buildReport('🤖 产品宽度 AI 智能分析报告', bodyHtml);
+    var w = window.open('', '_blank');
+    w.document.write(html); w.document.close();
+    setTimeout(function() { w.print(); }, 600);
+  },
+
+  // 导出 Word 报告（.doc）
+  exportWord: function() {
+    var bodyHtml = App.AI._getResultHtml();
+    if (!bodyHtml || bodyHtml === '<br>') { alert('暂无分析结果'); return; }
+    var html = App.AI._buildReport('🤖 产品宽度 AI 智能分析报告', bodyHtml);
+    var blob = new Blob(['﻿' + html], { type: 'application/octet-stream' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '产品宽度AI分析报告_' + new Date().toISOString().slice(0,10) + '.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    App.showToast('📝 Word 报告下载中', 2000);
   },
 
   // 测试连接
@@ -250,10 +366,15 @@ App.PotAI = {
   },
   analyze: function() {
     var q = document.getElementById('pAiPrompt').value.trim(); if (!q) { alert('请输入分析问题'); return; }
-    var btn = document.getElementById('pAiAnalyzeBtn'), rd = document.getElementById('pAiResult'), rb = document.getElementById('pAiResultBar');
-    btn.disabled = true; btn.textContent = '分析中...';
-    rd.style.display = 'block'; rb.style.display = 'none';
-    rd.innerHTML = '<div style="color:#888;padding:20px;text-align:center">AI正在读取数据并分析...</div>';
+    var btn = document.getElementById('pAiAnalyzeBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '分析中...'; }
+    var rd = document.getElementById('pAiResult'), rb = document.getElementById('pAiResultBar');
+    if (rd) { rd.style.display = 'block'; rd.innerHTML = '<div style="color:#888;padding:20px;text-align:center">AI正在读取数据并分析...</div>'; }
+    if (rb) rb.style.display = 'none';
+
+    App.PotAI._running = true;
+    App.PotAI._pendingResult = null;
+
     var c = App.PotAI.loadConfig(), ctx = App.PotAI.buildContext();
     var prompt = '你是潜力产品分析助手。请根据以下产品宽度数据，用中文回答问题。回答要具体、可操作。\n问：' + q + '\n\n' + ctx;
     var base = (c.endpoint || 'https://maas.hikvision.com.cn').replace(/\/$/, ''); if (base.endsWith('/v1')) base = base.slice(0, -3);
@@ -264,13 +385,112 @@ App.PotAI = {
     .then(function(raw) {
       var content = '';
       try { content = JSON.parse(raw).content || JSON.parse(raw).answer || ''; } catch(e) {
-        raw.split('\n').forEach(function(l) { if (l.startsWith('data:')) try { var c = JSON.parse(l.slice(5).trim()); if (c.answer) content += c.answer; } catch(e2) {} });
+        raw.split('\n').forEach(function(l) { if (l.startsWith('data:')) try { var c2 = JSON.parse(l.slice(5).trim()); if (c2.answer) content += c2.answer; } catch(e2) {} });
       }
       var el = ((Date.now()-st)/1000).toFixed(1);
-      if (content) { rd.innerHTML = content.replace(/</g,'&lt;').replace(/\n/g,'<br>'); document.getElementById('pAiElapsed').textContent = '⏱ 耗时 ' + el + ' 秒'; rb.style.display = 'flex'; }
-      else rd.innerHTML = '<div style="color:#e53935">AI返回了空内容，请检查API配置</div>';
-    }).catch(function(e) { clearTimeout(tid); rd.innerHTML = '<div style="color:#e53935">' + (e.name==='AbortError'?'⏰ 分析超时':'❌ '+e.message) + '</div>'; })
-    .finally(function() { btn.disabled = false; btn.textContent = '🚀 开始分析'; });
+      if (content) {
+        var html = content.replace(/</g,'&lt;').replace(/\n/g,'<br>');
+        App.PotAI._pendingResult = { html: html, elapsed: el };
+        var rd2 = document.getElementById('pAiResult');
+        if (rd2 && rd2.offsetParent) { rd2.innerHTML = html; }
+        var rb2 = document.getElementById('pAiResultBar');
+        if (rb2 && rd2 && rd2.offsetParent) { rb2.style.display = 'flex'; }
+        var el2 = document.getElementById('pAiElapsed');
+        if (el2) el2.textContent = '⏱ 耗时 ' + el + ' 秒';
+        App.showToast('🤖 潜力产品AI分析完成（耗时 ' + el + ' 秒）', 5000);
+      } else {
+        App.PotAI._pendingResult = { html: '<div style="color:#e53935">AI返回了空内容，请检查API配置</div>', elapsed: 0 };
+        var rd3 = document.getElementById('pAiResult');
+        if (rd3 && rd3.offsetParent) rd3.innerHTML = App.PotAI._pendingResult.html;
+        App.showToast('⚠ 潜力产品AI返回空内容', 4000);
+      }
+    }).catch(function(e) { clearTimeout(tid);
+      var msg = e.name==='AbortError'?'⏰ 分析超时，请稍后重试':'❌ 请求失败: '+e.message;
+      App.PotAI._pendingResult = { html: '<div style="color:#e53935">'+msg+'</div>', elapsed: 0 };
+      var rd4 = document.getElementById('pAiResult');
+      if (rd4 && rd4.offsetParent) rd4.innerHTML = App.PotAI._pendingResult.html;
+      App.showToast(msg, 4000);
+    })
+    .finally(function() { App.PotAI._running = false; if (btn) { btn.disabled = false; btn.textContent = '🚀 开始分析'; } });
+  },
+  restoreResult: function() {
+    if (App.PotAI._pendingResult) {
+      var rd = document.getElementById('pAiResult');
+      if (rd) rd.innerHTML = App.PotAI._pendingResult.html;
+      var rb = document.getElementById('pAiResultBar');
+      if (rb) rb.style.display = 'flex';
+      if (App.PotAI._pendingResult.elapsed) {
+        var el = document.getElementById('pAiElapsed');
+        if (el) el.textContent = '⏱ 耗时 ' + App.PotAI._pendingResult.elapsed + ' 秒';
+      }
+    }
+    if (App.PotAI._running) {
+      var rd2 = document.getElementById('pAiResult');
+      if (rd2) { rd2.style.display = 'block'; rd2.innerHTML = '<div style="color:#888;padding:20px;text-align:center">AI正在读取数据并分析...</div>'; }
+    }
+  },
+  _getResultHtml: function() {
+    var rd = document.getElementById('pAiResult');
+    return rd ? (rd.innerHTML || '') : '';
+  },
+  _getResultText: function() {
+    var rd = document.getElementById('pAiResult');
+    return rd ? (rd.innerText || rd.textContent || '') : '';
+  },
+  _buildReport: function(title, bodyHtml) {
+    var now = new Date();
+    var dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + title + '</title><style>' +
+      'body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:14px;line-height:1.9;color:#1e293b;padding:40px 50px;max-width:820px;margin:0 auto}' +
+      '.report-header{border-bottom:3px solid #7c3aed;padding-bottom:16px;margin-bottom:24px}' +
+      '.report-header h1{font-size:22px;color:#5b21b6;margin:0 0 6px 0}' +
+      '.report-meta{font-size:11px;color:#94a3b8;margin-top:4px}' +
+      '.report-body{font-size:14px}' +
+      '.report-body p{margin:8px 0}' +
+      '.report-body ul,.report-body ol{padding-left:22px}' +
+      '.report-body li{margin:4px 0}' +
+      '.report-body strong{color:#7c3aed}' +
+      '.report-body table{width:100%;border-collapse:collapse;margin:12px 0}' +
+      '.report-body th{background:#7c3aed;color:#fff;padding:8px 12px;font-size:12px;text-align:left}' +
+      '.report-body td{padding:7px 12px;border:1px solid #e5e7eb;font-size:12px}' +
+      '.report-body h2{font-size:16px;color:#374151;border-left:4px solid #7c3aed;padding-left:10px;margin:16px 0 8px 0}' +
+      '.report-body h3{font-size:14px;color:#64748b;margin:12px 0 6px 0}' +
+      '.report-footer{margin-top:28px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#94a3b8}' +
+      '@media print{body{padding:20px 30px}}' +
+      '</style></head><body>' +
+      '<div class="report-header"><h1>' + title + '</h1><div class="report-meta">📅 生成时间：' + dateStr + ' &nbsp;|&nbsp; 📊 数据来源：潜力产品导入数据 &nbsp;|&nbsp; 🤖 由 AI 自动分析生成</div></div>' +
+      '<div class="report-body">' + bodyHtml + '</div>' +
+      '<div class="report-footer">© ' + now.getFullYear() + ' 产品分析一体化平台 · AI 智能分析报告 · 生成时间 ' + dateStr + '</div>' +
+      '</body></html>';
+  },
+  copyResult: function() {
+    var t = App.PotAI._getResultText();
+    if (!t) { alert('暂无分析结果'); return; }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(t).then(function() { App.showToast('📋 已复制到剪贴板', 2000); });
+    } else {
+      var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      App.showToast('📋 已复制到剪贴板', 2000);
+    }
+  },
+  exportPDF: function() {
+    var bodyHtml = App.PotAI._getResultHtml();
+    if (!bodyHtml || bodyHtml === '<br>') { alert('暂无分析结果'); return; }
+    var html = App.PotAI._buildReport('🤖 潜力产品 AI 智能分析报告', bodyHtml);
+    var w = window.open('','_blank'); w.document.write(html); w.document.close();
+    setTimeout(function(){w.print()},600);
+  },
+  exportWord: function() {
+    var bodyHtml = App.PotAI._getResultHtml();
+    if (!bodyHtml || bodyHtml === '<br>') { alert('暂无分析结果'); return; }
+    var html = App.PotAI._buildReport('🤖 潜力产品 AI 智能分析报告', bodyHtml);
+    var blob = new Blob(['﻿'+html],{type:'application/octet-stream'});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = '潜力产品AI分析报告_'+new Date().toISOString().slice(0,10)+'.doc';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    App.showToast('📝 Word 报告下载中', 2000);
   },
   testConnection: function() {
     var c = { endpoint: document.getElementById('pAiEndpoint').value.trim(), app_id: document.getElementById('pAiAppId').value.trim(), api_key: document.getElementById('pAiApiKey').value.trim() };
@@ -282,10 +502,6 @@ App.PotAI = {
     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text()})
     .then(function(){document.getElementById('pAiTestResult').innerHTML='<span style="color:#16a34a">✅ 连接成功</span>'})
     .catch(function(e){document.getElementById('pAiTestResult').innerHTML='<span style="color:#e53935">❌ '+(e.name==='AbortError'?'连接超时':e.message)+'</span>'});
-  },
-  copyResult: function() {
-    var t = (document.getElementById('pAiResult').textContent||'').trim();
-    if (t) navigator.clipboard.writeText(t).then(function(){alert('已复制')}).catch(function(){alert('复制失败')});
   },
   init: function() { App.PotAI.fillForm(App.PotAI.loadConfig()); }
 };

@@ -425,6 +425,13 @@ App.Data.getWidth = function(team) {
   var importedUser = (App.ImportData.UserGS && App.ImportData.UserGS.length > 0) ? App.ImportData.UserGS : null;
   var importedCust = (App.ImportData.CustGS && App.ImportData.CustGS.length > 0) ? App.ImportData.CustGS : null;
   if (importedUser || importedCust) {
+    // 应用月份筛选
+    var periodSel = document.getElementById('wImportPeriodFilter');
+    var periodFilter = periodSel ? (periodSel.value && periodSel.value !== 'all' ? periodSel.value : '') : '';
+    if (periodFilter) {
+      if (importedUser) importedUser = importedUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+      if (importedCust) importedCust = importedCust.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
+    }
     var data = (importedCust || []).concat(importedUser || []);  // 合并客户+用户数据
     if (team && team !== 'all') {
       data = data.filter(function(r) { return matchesTeam(r, team); });
@@ -523,7 +530,7 @@ App.Data.getWidth = function(team) {
           var covered = bProds.filter(function(p) { return r.prods && r.prods[p]; });
           var missing = bProds.filter(function(p) { return !r.prods || !r.prods[p]; });
           if (covered.length === 0 || missing.length === 0) return null;
-          return { name: r.user || r.name || '-', person: r.sales || '-', team: r.dept || '-', covered: covered.join('、'), missing: missing.join('、'), width: r.width || 0 };
+          return { name: r.user || r.name || '-', person: r.sales || '-', team: r.dept || '-', group: r.group || '', covered: covered.join('、'), missing: missing.join('、'), width: r.width || 0 };
         }).filter(Boolean);
       }
       topBundles.forEach(function(b, bi) {
@@ -655,6 +662,9 @@ App.WidthCustomer = {};
 App.WidthCustomer.PRODUCTS = ['IPC','NVR','门禁','球机','LCD与解码','新业务','通用软件','网络产品','存储','专用摄像机','服务器','智能交通','移动终端','出入口停车','行业软件','对讲','报警','音频产品','人员通道','LED与拼控','综合布线','智慧屏','基础软件','传感产品','网络安全','智能计算','消防'];
 
 App.WidthCustomer.RAW = [];
+App.WidthUser = App.WidthUser || {};
+App.WidthUser.RAW = [];
+App.WidthCustomer.RAW_MERGED = [];
 
 // 账号 → 中文姓名映射（用于个人维度展示）
 App.WidthCustomer.ACCOUNT_NAMES = {

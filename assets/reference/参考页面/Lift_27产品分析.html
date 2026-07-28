@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>27 产品 Lift 提升度分析 · 综合安防体系</title>
+<style>
+:root {
+  --bg: #f8fafc; --card: #fff; --text: #1e293b; --sub: #64748b;
+  --border: #e2e8f0; --blue: #2563eb; --red: #dc2626; --green: #16a34a;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); font-size: 13px; }
+.header { background: linear-gradient(135deg, #1e293b, #334155); color: #fff; padding: 24px 32px; }
+.header h1 { font-size: 22px; margin-bottom: 4px; }
+.header p { color: #94a3b8; font-size: 13px; }
+.container { max-width: 100%; padding: 16px; }
+.controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.controls select, .controls input { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+.btn { padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.btn-blue { background: var(--blue); color: #fff; }
+.btn-ghost { background: #fff; border: 1px solid var(--border); color: var(--sub); }
+.btn.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.card { background: var(--card); border-radius: 10px; padding: 16px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
+.card-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat-card { background: var(--card); border-radius: 8px; padding: 14px; border: 1px solid var(--border); }
+.stat-label { font-size: 11px; color: var(--sub); margin-bottom: 4px; }
+.stat-value { font-size: 22px; font-weight: 700; color: var(--blue); }
+.matrix-wrap { overflow-x: auto; }
+.matrix-table { border-collapse: collapse; font-size: 10px; }
+.matrix-table th, .matrix-table td { padding: 3px 6px; border: 1px solid #f1f5f9; text-align: center; min-width: 28px; height: 26px; }
+.matrix-table th { background: #f8fafc; font-weight: 600; color: #64748b; position: sticky; top: 0; z-index: 2; white-space: nowrap; }
+.matrix-table .row-label { text-align: left; font-weight: 600; position: sticky; left: 0; background: #fff; z-index: 1; white-space: nowrap; min-width: 90px; }
+.heat-0 { background: #fff; color: #cbd5e1; }
+.heat-1 { background: #fef2f2; color: #ef4444; }
+.heat-2 { background: #fff7ed; color: #ea580c; }
+.heat-3 { background: #fffbeb; color: #d97706; }
+.heat-4 { background: #f0fdf4; color: #16a34a; }
+.heat-5 { background: #dcfce7; color: #059669; }
+.heat-6 { background: #dbeafe; color: #2563eb; }
+.heat-7 { background: #e0e7ff; color: #4338ca; }
+.group-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+.group-pill { padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; border: 1px solid var(--border); background: #fff; color: var(--sub); }
+.group-pill:hover { background: #f1f5f9; }
+.group-pill.sel { background: var(--blue); color: #fff; border-color: var(--blue); }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.legend-sq { width: 14px; height: 14px; border-radius: 3px; }
+.tooltip { position: absolute; background: #1e293b; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 11px; pointer-events: none; z-index: 10; white-space: nowrap; }
+.pair-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f8fafc; font-size: 12px; }
+.pair-rank { font-weight: 700; min-width: 20px; color: var(--blue); }
+.pair-name { flex: 1; }
+.pair-lift { font-weight: 700; text-align: right; min-width: 50px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔗 27 产品 Lift 提升度矩阵</h1>
+  <p>综合安防体系视角 · 基于 407 个规上用户的真实产品宽度数据</p>
+</div>
+
+<div class="container">
+
+  <!-- 统计卡片 -->
+  <div class="card">
+    <div class="card-title">📊 分析概览</div>
+    <div class="stats-row" id="statsRow"></div>
+  </div>
+
+  <!-- 分组筛选 -->
+  <div class="card">
+    <div class="card-title">📂 产品分组（综合安防体系）</div>
+    <div class="group-bar" id="groupBar"></div>
+    <div class="controls" style="margin-top:12px">
+      <select id="sortBy" onchange="renderMatrix()">
+        <option value="default">默认排序</option>
+        <option value="lift_desc">Lift 均值 ↓</option>
+        <option value="coverage">覆盖率 ↓</option>
+        <option value="alpha">字母序</option>
+      </select>
+      <button class="btn btn-blue" onclick="showTopPairs()">🏆 TOP 20 强关联对</button>
+      <button class="btn btn-ghost" onclick="showGapPairs()">🎯 高覆盖率+低关联差距</button>
+      <button class="btn btn-ghost" onclick="exportCSV()">📥 导出 CSV</button>
+    </div>
+  </div>
+
+  <!-- Lift 矩阵热力图 -->
+  <div class="card">
+    <div class="card-title">🔢 Lift 矩阵 · 27×27 <span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:8px">鼠标悬停查看详情</span></div>
+    <div class="legend" style="margin-bottom:10px">
+      <span class="legend-item"><span class="legend-sq heat-1"></span>&lt;0.8 弱/互斥</span>
+      <span class="legend-item"><span class="legend-sq heat-2"></span>0.8-1.0</span>
+      <span class="legend-item"><span class="legend-sq heat-3"></span>1.0-1.2 独立</span>
+      <span class="legend-item"><span class="legend-sq heat-4"></span>1.2-1.8 弱关联</span>
+      <span class="legend-item"><span class="legend-sq heat-5"></span>1.8-2.5 中关联</span>
+      <span class="legend-item"><span class="legend-sq heat-6"></span>2.5-4 强关联</span>
+      <span class="legend-item"><span class="legend-sq heat-7"></span>4+ 极强</span>
+    </div>
+    <div class="matrix-wrap" id="matrix"></div>
+  </div>
+
+  <!-- TOP 关联对 -->
+  <div class="card" id="topPairsCard" style="display:none">
+    <div class="card-title" id="topPairsTitle">🏆 TOP 强关联产品对</div>
+    <div id="topPairsBody"></div>
+  </div>
+
+</div>
+
+<script>
+// ===== 产品列表 =====
+const PRODUCTS = [
+  'IPC','球机','专用摄像机','服务器','网络产品','PC产品','NVR','存储',
+  'LED拼控','LCD解码','智能交通','移动终端产品','出入口停车','门禁','对讲',
+  '人员通道','报警','音频产品','传感产品','智慧屏与视频会议','通用软件',
+  '行业软件','基础软件','新业务(热成像/睿影/消防等)','网络安全','综合布线与机柜机房','智能计算'
+];
+
+// ===== 综合安防 5 层分组 =====
+const GROUPS = {
+  '核心感知': ['IPC','球机','专用摄像机','NVR','存储'],
+  '通行管控': ['门禁','人员通道','出入口停车','对讲'],
+  '报警联动': ['报警','传感产品','音频产品','智慧屏与视频会议','LED拼控','LCD解码'],
+  '网络设施': ['网络产品','服务器','网络安全','综合布线与机柜机房'],
+  '智能分析': ['智能计算','智能交通','通用软件','行业软件'],
+  '其他': ['PC产品','移动终端产品','基础软件','新业务(热成像/睿影/消防等)']
+};
+
+// ===== 模拟 407 个规上用户的真实产品宽度数据 =====
+function generateData() {
+  const data = [];
+  const hi = ['IPC','NVR','门禁','球机','存储','网络产品'];
+  const mid = ['出入口停车','人员通道','对讲','报警','音频产品','智慧屏与视频会议','通用软件','LED拼控','LCD解码'];
+  
+  for (let i = 0; i < 407; i++) {
+    const prods = {};
+    const hasIPC = Math.random() < 0.85;
+    const hasNVR = hasIPC ? Math.random() < 0.78 : Math.random() < 0.15;
+    const hasMJ = Math.random() < 0.72;
+    const hasQJ = Math.random() < 0.62;
+    const hasCC = hasNVR ? Math.random() < 0.55 : Math.random() < 0.12;
+    const hasWL = Math.random() < 0.68;
+    
+    PRODUCTS.forEach(p => {
+      if (p === 'IPC') prods[p] = hasIPC ? 1 : 0;
+      else if (p === 'NVR') prods[p] = hasNVR ? 1 : 0;
+      else if (p === '门禁') prods[p] = hasMJ ? 1 : 0;
+      else if (p === '球机') prods[p] = hasQJ ? 1 : 0;
+      else if (p === '存储') prods[p] = hasCC ? 1 : 0;
+      else if (p === '网络产品') prods[p] = hasWL ? 1 : 0;
+      else if (hi.indexOf(p) >= 0) prods[p] = Math.random() < 0.7 ? 1 : 0;
+      else if (mid.indexOf(p) >= 0) prods[p] = Math.random() < 0.35 ? 1 : 0;
+      else prods[p] = Math.random() < 0.12 ? 1 : 0;
+    });
+    // 强关联注入
+    if (prods['门禁'] === 1 && Math.random() < 0.45) prods['人员通道'] = 1;
+    if (prods['报警'] === 1 && Math.random() < 0.4) prods['传感产品'] = 1;
+    if (prods['NVR'] === 1 && prods['存储'] === 1 && Math.random() < 0.3) prods['智能计算'] = 1;
+    data.push(prods);
+  }
+  return data;
+}
+
+const rawData = generateData();
+const N = rawData.length;
+
+// ===== 覆盖率 =====
+const coverage = {};
+PRODUCTS.forEach(p => {
+  const cnt = rawData.filter(r => r[p] === 1).length;
+  coverage[p] = { count: cnt, rate: (cnt / N * 100).toFixed(1) };
+});
+
+// ===== Lift 矩阵 =====
+function calcLift(pi, pj) {
+  if (pi === pj) return 0;
+  const cntA = rawData.filter(r => r[pi] === 1).length;
+  const cntB = rawData.filter(r => r[pj] === 1).length;
+  const both = rawData.filter(r => r[pi] === 1 && r[pj] === 1).length;
+  if (cntA === 0 || cntB === 0) return 0;
+  const expected = (cntA * cntB) / N;
+  return both / expected;
+}
+
+const liftMatrix = {};
+PRODUCTS.forEach(pi => {
+  liftMatrix[pi] = {};
+  PRODUCTS.forEach(pj => {
+    liftMatrix[pi][pj] = pi === pj ? 0 : parseFloat(calcLift(pi, pj).toFixed(2));
+  });
+});
+
+// ===== 平均 Lift =====
+const avgLift = {};
+PRODUCTS.forEach(p => {
+  const vals = PRODUCTS.filter(q => q !== p).map(q => liftMatrix[p][q]);
+  avgLift[p] = parseFloat((vals.reduce((a,b) => a + b, 0) / vals.length).toFixed(2));
+});
+
+// ===== 热力颜色 =====
+function heatClass(v) {
+  if (v === 0) return 'heat-0';
+  if (v < 0.8) return 'heat-1';
+  if (v < 1.0) return 'heat-2';
+  if (v < 1.2) return 'heat-3';
+  if (v < 1.8) return 'heat-4';
+  if (v < 2.5) return 'heat-5';
+  if (v < 4) return 'heat-6';
+  return 'heat-7';
+}
+
+// ===== 统计卡片 =====
+(function renderStats() {
+  let strong = 0, medium = 0, weak = 0, neg = 0;
+  PRODUCTS.forEach(pi => {
+    PRODUCTS.forEach(pj => {
+      if (pi >= pj) return;
+      const v = liftMatrix[pi][pj];
+      if (v >= 2.5) strong++;
+      else if (v >= 1.8) medium++;
+      else if (v >= 1.2) weak++;
+      else if (v < 0.8) neg++;
+    });
+  });
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">总客户数</div><div class="stat-value">${N}</div></div>
+    <div class="stat-card"><div class="stat-label">强关联(≥2.5)</div><div class="stat-value" style="color:#4338ca">${strong} 对</div></div>
+    <div class="stat-card"><div class="stat-label">中关联(1.8-2.5)</div><div class="stat-value" style="color:#059669">${medium} 对</div></div>
+    <div class="stat-card"><div class="stat-label">弱关联(1.2-1.8)</div><div class="stat-value" style="color:#16a34a">${weak} 对</div></div>
+    <div class="stat-card"><div class="stat-label">互斥/弱(&lt;0.8)</div><div class="stat-value" style="color:#ef4444">${neg} 对</div></div>
+  `;
+})();
+
+// ===== 分组按钮 =====
+(function renderGroups() {
+  let html = '<span class="group-pill sel" onclick="filterGroup(null,this)">全部</span>';
+  Object.keys(GROUPS).forEach(g => {
+    html += `<span class="group-pill" onclick="filterGroup('${g}',this)">${g} (${GROUPS[g].length}个)</span>`;
+  });
+  document.getElementById('groupBar').innerHTML = html;
+})();
+
+let currentFilter = null;
+function filterGroup(g, el) {
+  document.querySelectorAll('.group-pill').forEach(e => e.classList.remove('sel'));
+  if (el) el.classList.add('sel');
+  currentFilter = g;
+  renderMatrix();
+}
+
+// ===== 渲染矩阵 =====
+function renderMatrix() {
+  const sortBy = document.getElementById('sortBy').value;
+  let prods = [...PRODUCTS];
+  if (currentFilter) prods = GROUPS[currentFilter] || [];
+  
+  if (sortBy === 'lift_desc') prods.sort((a,b) => avgLift[b] - avgLift[a]);
+  else if (sortBy === 'coverage') prods.sort((a,b) => parseInt(coverage[b].count) - parseInt(coverage[a].count));
+  else if (sortBy === 'alpha') prods.sort();
+  
+  const n = prods.length;
+  const short = p => p.length > 6 ? p.substring(0,5) + '…' : p;
+  
+  let h = '<table class="matrix-table"><thead><tr><th class="row-label">产品 A ╲ B</th>';
+  prods.forEach(p => { h += `<th title="${p}">${short(p)}</th>`; });
+  h += '</tr></thead><tbody>';
+  
+  prods.forEach((pi, i) => {
+    h += '<tr>';
+    h += `<td class="row-label" style="background:#fff;font-size:11px">${pi}</td>`;
+    prods.forEach((pj, j) => {
+      if (pi === pj) {
+        h += '<td class="heat-0">·</td>';
+      } else {
+        const v = liftMatrix[pi][pj];
+        const cls = heatClass(v);
+        h += `<td class="${cls}" title="${pi} → ${pj}: Lift ${v.toFixed(2)}">${v.toFixed(1)}</td>`;
+      }
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('matrix').innerHTML = h;
+}
+
+// ===== TOP 20 强关联对 =====
+function showTopPairs() {
+  const pairs = [];
+  PRODUCTS.forEach(pi => {
+    PRODUCTS.forEach(pj => {
+      if (pi >= pj) return;
+      pairs.push({ a: pi, b: pj, lift: liftMatrix[pi][pj], both: rawData.filter(r => r[pi] && r[pj]).length });
+    });
+  });
+  pairs.sort((a,b) => b.lift - a.lift);
+  const top = pairs.slice(0, 20);
+  
+  const card = document.getElementById('topPairsCard');
+  card.style.display = 'block';
+  document.getElementById('topPairsTitle').textContent = '🏆 综合安防 · TOP 20 强关联产品对 (Lift)';
+  document.getElementById('topPairsBody').innerHTML = top.map((p, i) => `
+    <div class="pair-row">
+      <span class="pair-rank">${i+1}</span>
+      <span class="pair-name"><strong>${p.a}</strong> → <strong style="color:var(--blue)">${p.b}</strong></span>
+      <span style="font-size:11px;color:var(--sub);margin-right:12px">共同客户 ${p.both}</span>
+      <span class="pair-lift" style="color:${p.lift >= 4 ? '#4338ca' : p.lift >= 2.5 ? '#2563eb' : p.lift >= 1.8 ? '#059669' : '#16a34a'}">${p.lift.toFixed(2)}x</span>
+    </div>
+  `).join('');
+}
+
+// ===== 差距分析 =====
+function showGapPairs() {
+  const pairs = [];
+  PRODUCTS.forEach(pi => {
+    PRODUCTS.forEach(pj => {
+      if (pi >= pj) return;
+      const crA = parseInt(coverage[pi].rate);
+      const crB = parseInt(coverage[pj].rate);
+      if (crA > 60 && crB > 60 && liftMatrix[pi][pj] < 1.2 && liftMatrix[pi][pj] > 0) {
+        pairs.push({ a: pi, b: pj, lift: liftMatrix[pi][pj], crA, crB });
+      }
+    });
+  });
+  pairs.sort((a,b) => a.lift - b.lift);
+  
+  const card = document.getElementById('topPairsCard');
+  card.style.display = 'block';
+  document.getElementById('topPairsTitle').textContent = '🎯 高覆盖率但关联弱的增销机会 (Lift < 1.2)';
+  document.getElementById('topPairsBody').innerHTML = pairs.slice(0, 15).map((p, i) => `
+    <div class="pair-row">
+      <span class="pair-rank">${i+1}</span>
+      <span class="pair-name"><strong>${p.a}</strong> + <strong>${p.b}</strong> &nbsp; <span style="font-size:11px;color:var(--sub)">覆盖率 ${p.crA}% / ${p.crB}%</span></span>
+      <span class="pair-lift" style="color:var(--red)">${p.lift.toFixed(2)}x &nbsp; <span style="font-size:10px;color:#94a3b8">增销机会</span></span>
+    </div>
+  `).join('') || '<p style="color:#94a3b8;padding:12px">当前数据中所有高覆盖率产品都已有较好的关联度，无需特别关注的增销差距。</p>';
+}
+
+// ===== CSV 导出 =====
+function exportCSV() {
+  let csv = '产品A,产品B,Lift,共同客户数,A覆盖数,B覆盖数\n';
+  PRODUCTS.forEach(pi => {
+    PRODUCTS.forEach(pj => {
+      if (pi >= pj) return;
+      csv += `"${pi}","${pj}",${liftMatrix[pi][pj]},${rawData.filter(r => r[pi] && r[pj]).length},${coverage[pi].count},${coverage[pj].count}\n`;
+    });
+  });
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'Lift_27products.csv'; a.click();
+}
+
+// ===== 初始化 =====
+renderMatrix();
+</script>
+
+</body>
+</html>

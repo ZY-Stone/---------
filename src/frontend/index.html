@@ -168,6 +168,10 @@
 
         <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-width')"><option value="all">全部成员</option></select></div>
         <button class="btn-ghost" onclick="App.resetFilters('page-width')">🔄 重置</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+          <span id="w-granularity-tag" style="font-size:11px;color:#1a56db;font-weight:600;white-space:nowrap"></span>
+          <span id="w-baseline-tag" style="font-size:11px;color:#64748b;white-space:nowrap"></span>
+        </div>
       </div>
 
       <!-- ===== 1. 总览分析 ===== -->
@@ -246,17 +250,41 @@
           </div>
         </div>
 
+        <!-- 产品分组 -->
         <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">🔗 产品交叉销售关联矩阵 (Lift 提升度)</span><span class="tag">颜色越深=关联越强</span></div>
-          <div class="table-wrap" id="w-cross-sell-matrix" style="max-height:420px;overflow-x:auto"></div>
-          <div class="legend-row" style="margin-top:8px;font-size:11px;gap:10px">
-            <span>Lift级别:</span>
-            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fff"></span> &lt;1.5 弱关联
-            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fde68a"></span> 1.5-2.0
-            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#f59e0b"></span> 2.0-3.0
-            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#dc2626"></span> 3.0-4.0
-            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#7c3aed"></span> ≥4.0 极强
+          <div class="card-title"><span class="left">📂 产品分组（综合安防体系）</span></div>
+          <div class="group-bar" id="w-cross-group-bar" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px"></div>
+          <div class="controls" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <select id="w-cross-sort" onchange="App.renderCrossSellMatrix()" style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px">
+              <option value="default">默认排序</option>
+              <option value="lift_desc">Lift 均值 ↓</option>
+              <option value="coverage">覆盖率 ↓</option>
+              <option value="alpha">字母序</option>
+            </select>
+            <button id="w-cross-btn-top" class="btn btn-blue" onclick="App.showTopPairs()" style="padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;background:#2563eb;color:#fff">🏆 TOP 20 强关联对</button>
+            <button id="w-cross-btn-gap" class="btn btn-ghost" onclick="App.showGapPairs()" style="padding:6px 14px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:12px;background:#fff;color:#64748b">🎯 高覆盖率+低关联差距</button>
+            <button class="btn btn-ghost" onclick="App.exportLiftCSV()" style="padding:6px 14px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:12px;background:#fff;color:#64748b">📥 导出 CSV</button>
           </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <div class="card-title"><span class="left">🔢 产品交叉销售关联矩阵 (Lift 提升度)</span><span style="font-size:11px;color:#94a3b8;font-weight:400;margin-left:8px">鼠标悬停查看详情</span></div>
+          <div class="legend" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:11px">
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#fef2f2"></span>&lt;0.8 互斥</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#fff7ed"></span>0.8-1.0</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#fffbeb"></span>1.0-1.2 独立</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#f0fdf4"></span>1.2-1.8 弱关联</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#dcfce7"></span>1.8-2.5 中关联</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#dbeafe"></span>2.5-4 强关联</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:#e0e7ff"></span>4+ 极强</span>
+          </div>
+          <div class="matrix-wrap" id="w-cross-sell-matrix" style="overflow-x:auto;max-height:500px"></div>
+        </div>
+
+        <!-- TOP 关联对 / 差距分析 -->
+        <div class="card" id="w-cross-pairs-card" style="margin-top:16px;display:none">
+          <div class="card-title" id="w-cross-pairs-title">🏆 TOP 强关联产品对</div>
+          <div id="w-cross-pairs-body" style="font-size:12px"></div>
         </div>
 
         <div class="card" style="margin-top:16px">
@@ -356,7 +384,7 @@
           <div class="table-wrap" style="max-height:300px;margin-bottom:10px">
             <table class="team-dim-table">
               <thead><tr>
-                <th style="width:30px">#</th><th>客户名称</th><th style="text-align:center">团队</th><th style="text-align:center">销售</th><th style="text-align:center">宽度</th><th style="text-align:center">规上</th><th>已有产品</th><th>建议补充</th>
+                <th style="width:30px">#</th><th>客户名称</th><th style="text-align:center">团队</th><th style="text-align:center">销售</th><th style="text-align:center">宽度</th><th style="text-align:center">是否规上</th><th>已有产品</th><th>建议补充</th>
               </tr></thead>
               <tbody id="wLowCustTable"></tbody>
             </table>
@@ -610,7 +638,7 @@
               </select>
             </div>
             <div class="filter-group"><label>📅 月份</label>
-              <select id="wImportPeriodFilter" onchange="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
+              <select id="wImportPeriodFilter" onchange="App.ImportData.render();App.updateWidth()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
             </div>
             <input type="text" id="wImportSearch" placeholder="搜索名称..." oninput="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
             <select id="wImportSort" onchange="App.ImportData.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
@@ -737,7 +765,8 @@
             <div id="wAiResult" style="display:none;padding:14px;background:#f8f9fb;border-radius:8px;border:1px solid #e5e7eb;font-size:13px;line-height:1.8;max-height:500px;overflow-y:auto;white-space:pre-wrap"></div>
             <div id="wAiResultBar" style="display:none;align-items:center;gap:8px;margin-top:8px">
               <span id="wAiElapsed" style="font-size:11px;color:#94a3b8"></span>
-              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.AI.copyResult()">📋 复制结果</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.AI.copyResult()">📋 复制</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.AI.exportWord()">📝 导出Word</button>
             </div>
           </div>
 
@@ -794,7 +823,7 @@
 
         <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-potential')"><option value="all">全部成员</option></select></div>
         <button class="btn-ghost" onclick="App.resetFilters('page-potential')">🔄 重置</button>
-        <div class="right"><span style="font-size:11px;color:var(--text-sub)">基线: 2025年7月</span></div>
+        <div class="right"><span id="p-baseline-tag" style="font-size:11px;color:#64748b;white-space:nowrap"></span></div>
       </div>
 
       <!-- ===== 1. 总览分析 (整合自乔梦杰经营概览) ===== -->
@@ -1135,7 +1164,7 @@
               </select>
             </div>
             <div class="filter-group"><label>📅 月份</label>
-              <select id="pImportPeriodFilter" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
+              <select id="pImportPeriodFilter" onchange="App.ImportPotential.render();App.updatePotential()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px"></select>
             </div>
             <input type="text" id="pImportSearch" placeholder="搜索名称..." oninput="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;width:160px;margin-left:auto">
             <select id="pImportSort" onchange="App.ImportPotential.render()" style="padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px">
@@ -1196,7 +1225,8 @@
             <div id="pAiResult" style="display:none;padding:14px;background:#f8f9fb;border-radius:8px;border:1px solid #e5e7eb;font-size:13px;line-height:1.8;max-height:500px;overflow-y:auto;white-space:pre-wrap"></div>
             <div id="pAiResultBar" style="display:none;align-items:center;gap:8px;margin-top:8px">
               <span id="pAiElapsed" style="font-size:11px;color:#94a3b8"></span>
-              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.PotAI.copyResult()">📋 复制结果</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.PotAI.copyResult()">📋 复制</button>
+              <button class="btn-ghost" style="font-size:11px;padding:4px 10px" onclick="App.PotAI.exportWord()">📝 导出Word</button>
             </div>
           </div>
 

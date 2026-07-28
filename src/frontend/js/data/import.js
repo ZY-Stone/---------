@@ -230,6 +230,9 @@ App.ImportData.resetAll = function() {
   App.ImportData.CustGS = [];
   App.ImportData.history = [];
   App.WidthCustomer.RAW = [];
+  App.WidthUser = App.WidthUser || {};
+  App.WidthUser.RAW = [];
+  App.WidthCustomer.RAW_MERGED = [];
   if (App.ImportPotential) {
     App.ImportPotential.CustRAW = [];
     App.ImportPotential.UserRAW = [];
@@ -564,11 +567,42 @@ App.ImportData.mapCols = function(hd, tp) {
 };
 
 App.ImportData.syncToRaw = function() {
-  var nr = [], p = App.ImportData.PRODS;
-  var seenUsers = new Set();
-  App.ImportData.UserGS.forEach(function(u) { nr.push({ team: u.dept || '', account: u.sales || '', user: u.user, width: u.width, guishang: u.guishang === '是' ? 1 : 0, prods: u.prods }); seenUsers.add(u.user); });
-  App.ImportData.CustGS.forEach(function(c) { if (!seenUsers.has(c.name)) { nr.push({ team: c.dept || '', account: c.sales || '', user: c.name, width: c.width, guishang: c.guishang === '是' ? 1 : 0, prods: c.prods }); seenUsers.add(c.name); } });
-  App.WidthCustomer.RAW = nr;
+  var custRaw = [], userRaw = [], mergedRaw = [], p = App.ImportData.PRODS;
+  var seenMerged = new Set();
+
+  // 用户维度 RAW（全部用户数据）
+  App.ImportData.UserGS.forEach(function(u) {
+    var grp = u.group || u.dept || '';
+    var dept = u.dept || '';
+    var entry = { team: grp, dept: dept, account: u.sales || '', user: u.user, width: u.width, guishang: u.guishang === '是' ? 1 : 0, prods: u.prods, snapshotPeriod: u.snapshotPeriod || '' };
+    userRaw.push(entry);
+    mergedRaw.push(entry);
+    seenMerged.add(u.user);
+  });
+
+  // 客户维度 RAW（全部客户数据，独立不合并）
+  App.ImportData.CustGS.forEach(function(c) {
+    var grp = c.group || c.dept || '';
+    var dept = c.dept || '';
+    var entry = { team: grp, dept: dept, account: c.sales || '', user: c.name, width: c.width, guishang: c.guishang === '是' ? 1 : 0, prods: c.prods, snapshotPeriod: c.snapshotPeriod || '' };
+    custRaw.push(entry);
+    // 合并 RAW（团队维度用）：去重
+    if (!seenMerged.has(c.name)) {
+      mergedRaw.push(entry);
+      seenMerged.add(c.name);
+    }
+  });
+
+  // 分配数据源：客户维度 → CustRAW / 用户维度 → UserRAW / 团队维度 → 合并RAW
+  App.WidthCustomer.RAW = custRaw;
+  App.WidthUser.RAW = userRaw;
+  App.WidthCustomer.RAW_MERGED = mergedRaw;  // 团队维度数据明细用
+
+  // 同步产品列表到全局（供团队维度表头动态渲染）
+  if (App.ImportData.PRODS && App.ImportData.PRODS.length > 0) {
+    App.WidthCustomer.PRODUCTS = App.ImportData.PRODS.slice();
+    App.WidthDetail.PRODUCTS = App.ImportData.PRODS.slice();
+  }
 };
 
 App.ImportData._page = 1;
