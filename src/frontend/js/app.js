@@ -101,6 +101,10 @@ App.applyRoleUI = function(role, displayName, dept, group) {
   if (scope && scope !== '全部数据') scopeParts.push('🔒 ' + scope);
   App.setText('topbar-scope', scopeParts.join(' · '));
 
+  // 账号下拉菜单：数据备份（仅管理员 + 运营可见）
+  var umBackup = document.getElementById('um-backup');
+  if (umBackup) umBackup.style.display = App.hasPerm('data_backup') ? '' : 'none';
+
   // 权限 UI 显隐：隐藏无权限的顶级导航按钮和 Admin 子标签
   if (!App.hasPerm('user_manage') && !App.hasPerm('role_manage') && !App.hasPerm('audit_log') && !App.hasPerm('data_backup')) {
     var adminNav = document.querySelector('.topbar-nav-btn[data-page="admin"]');
@@ -108,8 +112,7 @@ App.applyRoleUI = function(role, displayName, dept, group) {
   }
   // 隐藏无权限的 Admin 子标签
   var adminTabs = {
-    'a-users': 'user_manage', 'a-roles': 'role_manage', 'a-audit': 'audit_log',
-    'a-backup': 'data_backup'
+    'a-users': 'user_manage', 'a-roles': 'role_manage', 'a-audit': 'audit_log'
   };
   Object.keys(adminTabs).forEach(function(tabId) {
     if (!App.hasPerm(adminTabs[tabId])) {
@@ -240,8 +243,6 @@ document.addEventListener('click', function(e) {
     if (tabName === 'p-user') {
       App.renderPotentialUserTab();
     }
-    // 记录子tab操作日志
-    App.addLog('页面切换', '产品宽度', '切换分析维度 → ' + tabName);
     if (tabName === 'p-import') {
       App.ImportPotential.render();
     }
@@ -295,11 +296,15 @@ App.showModal = function(title, bodyHtml, footerHtml) {
   var bodyEl = document.getElementById('appModalBody');
   if (titleEl) titleEl.textContent = title || '详情';
   if (bodyEl) bodyEl.innerHTML = bodyHtml || '';
-  // footer 默认保留关闭按钮，可追加额外按钮
+  // footer：显式传 null/'' 时不显示，否则保留默认关闭按钮
   var footerEl = document.querySelector('#appModalBox .modal-footer');
   if (footerEl) {
-    footerEl.innerHTML = (footerHtml || '') +
-      '<button class="btn-ghost" onclick="App.closeModal()" style="padding:6px 16px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px">关闭</button>';
+    if (footerHtml === null || footerHtml === '') {
+      footerEl.innerHTML = '';
+    } else {
+      footerEl.innerHTML = (footerHtml || '') +
+        '<button class="btn-ghost" onclick="App.closeModal()" style="padding:6px 16px;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px">关闭</button>';
+    }
   }
   overlay.style.display = 'flex';
 };
@@ -6262,9 +6267,11 @@ App.API.sendWidth = async function(rows, type) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({rows: rows, type: type})
   });
-  var data = await resp.json();
-  if (!data.ok) throw new Error(data.message || '导入失败');
-  return data;
+  if (!resp.ok) {
+    var text = await resp.text();
+    try { var e = JSON.parse(text); throw new Error(e.detail || '导入失败'); } catch(ex) { throw new Error(text.slice(0, 200) || '导入失败 (' + resp.status + ')'); }
+  }
+  return resp.json();
 };
 
 // 潜力产品-客户 → 后端
@@ -6273,9 +6280,11 @@ App.API.sendPotCust = async function(rows) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({rows: rows})
   });
-  var data = await resp.json();
-  if (!data.ok) throw new Error(data.message || '导入失败');
-  return data;
+  if (!resp.ok) {
+    var text = await resp.text();
+    try { var e = JSON.parse(text); throw new Error(e.detail || '导入失败'); } catch(ex) { throw new Error(text.slice(0, 200) || '导入失败 (' + resp.status + ')'); }
+  }
+  return resp.json();
 };
 
 // 潜力产品-用户 → 后端
@@ -6284,13 +6293,23 @@ App.API.sendPotUser = async function(rows) {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({rows: rows})
   });
-  var data = await resp.json();
-  if (!data.ok) throw new Error(data.message || '导入失败');
-  return data;
+  if (!resp.ok) {
+    var text = await resp.text();
+    try { var e = JSON.parse(text); throw new Error(e.detail || '导入失败'); } catch(ex) { throw new Error(text.slice(0, 200) || '导入失败 (' + resp.status + ')'); }
+  }
+  return resp.json();
 };
 
 // ===== 潜力产品 — 数据导入与管理 =====
 App.ImportPotential = App.ImportPotential || {};
+
+App.ImportPotential.persist = function() {
+  // localStorage 持久化（后端不可用时的兜底方案）
+  try {
+    localStorage.setItem('pa_potential_cust', JSON.stringify(App.ImportPotential.CustRAW || []));
+    localStorage.setItem('pa_potential_user', JSON.stringify(App.ImportPotential.UserRAW || []));
+  } catch(e) {}
+};
 
 App.ImportPotential.init = function() {
   // 月份选择器上限设为当前月
@@ -6303,16 +6322,23 @@ App.ImportPotential.init = function() {
   // 先从 localStorage 恢复历史元数据（不含数据快照）
   try {
     var sh = localStorage.getItem('pa_p_history');
-    if (sh) {
-      App.ImportPotential.history = JSON.parse(sh);
-    }
+    if (sh) App.ImportPotential.history = JSON.parse(sh);
   } catch(e) { App.ImportPotential.history = []; }
-  // 从后端 API 拉取已导入数据
+
+  // 优先从 localStorage 恢复数据（后端不可用时的兜底）
+  try {
+    var savedCust = localStorage.getItem('pa_potential_cust');
+    if (savedCust) App.ImportPotential.CustRAW = JSON.parse(savedCust);
+    var savedUser = localStorage.getItem('pa_potential_user');
+    if (savedUser) App.ImportPotential.UserRAW = JSON.parse(savedUser);
+  } catch(e) {}
+
+  // 从后端 API 拉取已导入数据（会覆盖 localStorage 的数据）
   fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
-    if (d.rows && d.rows.length > 0) App.ImportPotential.CustRAW = d.rows;
+    if (d.rows && d.rows.length > 0) { App.ImportPotential.CustRAW = d.rows; App.ImportPotential.persist(); }
   }).catch(function(){}).finally(function(){
     return fetch('/api/import/potential-user').then(function(r){return r.json();}).then(function(d){
-      if (d.rows && d.rows.length > 0) App.ImportPotential.UserRAW = d.rows;
+      if (d.rows && d.rows.length > 0) { App.ImportPotential.UserRAW = d.rows; App.ImportPotential.persist(); }
     }).catch(function(){});
   }).finally(function(){
     var deptSel = document.getElementById('pImportDeptFilter');
@@ -6532,6 +6558,7 @@ App.ImportPotential.handleUpload = function(input) {
         console.log('[潜力导入] 后端保存成功');
         App.ImportPotential.render();
         App.ImportPotential.saveToHistory(file.name, custN, custU, userN, userU);
+        App.ImportPotential.persist();  // localStorage 兜底
         try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
         App.addLog('数据导入', file.name, '导入客户' + mergedCust.length + '条 / 用户' + mergedUser.length + '条');
         var msg = '导入完成! 文件: ' + file.name;
@@ -6545,6 +6572,7 @@ App.ImportPotential.handleUpload = function(input) {
       }).catch(function(err) {
         console.error('[潜力导入] 后端保存失败:', err);
         App.ImportPotential.render();
+        App.ImportPotential.persist();  // localStorage 兜底
         App.addLog('数据导入', file.name, '导入客户' + mergedCust.length + '条 / 用户' + mergedUser.length + '条（后端保存失败）');
         var msg = '导入完成! 文件: ' + file.name;
         msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
@@ -6707,6 +6735,7 @@ App.ImportPotential.clearAll = function() {
   App.ImportPotential.UserRAW = [];
   App.ImportPotential.render();
   App.ImportPotential.renderHistory();
+  App.ImportPotential.persist();  // localStorage 同步清空
   try { localStorage.removeItem('pa_p_history'); } catch(e) {}
 };
 
@@ -7064,6 +7093,7 @@ App.ImportPotential.batchDelete = function() {
   } catch(e) {}
 
   try { App.addLog('删除数据', '潜力产品', '批量删除 ' + indices.length + ' 条' + (isCust ? '客户' : '用户') + '记录'); } catch(e) {}
+  App.ImportPotential.persist();  // localStorage 同步
   App.ImportPotential.render();
 };
 
@@ -7177,7 +7207,7 @@ App.showUserForm = function(id) {
   h += '<button onclick="App.showPermModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button>';
   h += '<button onclick="App.saveUser(' + (isEdit ? id : 'null') + ')" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">' + (isEdit ? '保存修改' : '确认新增') + '</button>';
   h += '</div>';
-  App.showModal(title, h);
+  App.showModal(title, h, '');  // 自带取消/保存按钮，不要默认关闭
 };
 
 // 保存用户
@@ -7265,7 +7295,7 @@ App.showPwdModal = function() {
   h += '<button onclick="App.closeModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button>';
   h += '<button onclick="App.changePwd()" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">确认修改</button>';
   h += '</div>';
-  App.showModal('🔑 修改密码', h);
+  App.showModal('🔑 修改密码', h, '');  // 传空字符串去掉默认关闭按钮，表单自带取消/确认
 };
 
 App.changePwd = function() {
@@ -7273,12 +7303,42 @@ App.changePwd = function() {
   var newPwd = (document.getElementById('cpNewPwd') || {}).value || '';
   var confirmPwd = (document.getElementById('cpConfirmPwd') || {}).value || '';
   if (!oldPwd) { alert('请输入当前密码'); return; }
-  if (oldPwd !== 'admin123') { alert('当前密码错误'); return; }
-  if (newPwd.length < 6) { alert('新密码至少6位'); return; }
+  if (newPwd.length < 6) { alert('新密码至少 6 位'); return; }
   if (newPwd !== confirmPwd) { alert('两次新密码不一致'); return; }
-  alert('✅ 密码修改成功！');
-  App.addLog('修改密码', App.loggedInUser.name, '修改了登录密码');
-  App.closeModal();
+
+  // 调后端验证
+  fetch('/api/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      // 同时更新本地 sessionStorage 中缓存的密码（用于本地 Mock 回退）
+      try {
+        var login = JSON.parse(sessionStorage.getItem('pa_login') || '{}');
+        login._pwd = newPwd;
+        sessionStorage.setItem('pa_login', JSON.stringify(login));
+      } catch(e) {}
+      App.addLog('修改密码', App.loggedInUser.name, '修改了登录密码');
+      alert('✅ 密码修改成功，下次登录请使用新密码');
+      App.closeModal();
+    } else {
+      alert('❌ ' + (d.message || '密码修改失败'));
+    }
+  })
+  .catch(function(e) {
+    // 后端不可用时尝试本地修改（仅适用于 Mock 模式）
+    if (oldPwd !== 'admin123') { alert('当前密码错误'); return; }
+    try {
+      var login = JSON.parse(sessionStorage.getItem('pa_login') || '{}');
+      login._pwd = newPwd;
+      sessionStorage.setItem('pa_login', JSON.stringify(login));
+    } catch(e) {}
+    alert('✅ 密码已在本地修改（后端不可用，重启后需重新设置）');
+    App.closeModal();
+  });
 };
 
 // ===== 潜力产品 — 客户维度：客户交易的用户分析（从导入数据聚合） =====
@@ -7900,27 +7960,17 @@ App.fetchAuditLogs = function() {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (data && data.data) {
-        // 合并本地缓存中还没有持久化的记录
-        var backendIds = {};
-        (data.data || []).forEach(function(l) { backendIds[l.id] = true; });
-        var merged = (data.data || []).slice();
-        App.operationLogs.forEach(function(l) {
-          if (!l._synced) {
-            merged.unshift(l);
-            l._synced = true;
-          }
-        });
-        App._auditData = merged;
-        App._auditTotal = (data.total || 0) + App.operationLogs.filter(function(l) { return !l._synced; }).length;
+        App._auditData = data.data;
+        App._auditTotal = data.total || 0;
       } else {
-        App._auditData = App.operationLogs.slice();
-        App._auditTotal = App.operationLogs.length;
+        App._auditData = [];
+        App._auditTotal = 0;
       }
       App.renderAuditLog();
     }).catch(function() {
-      // 后端不可用，回退到本地日志
-      App._auditData = App.operationLogs.slice();
-      App._auditTotal = App.operationLogs.length;
+      // 后端不可用，仅使用本地日志
+      App._auditData = [];
+      App._auditTotal = 0;
       App.renderAuditLog();
     });
 };
@@ -7929,8 +7979,39 @@ App.renderAuditLog = function() {
   var tbody = document.getElementById('aAuditTableBody');
   if (!tbody) return;
 
-  var data = App._auditData || App.operationLogs;
-  var total = App._auditTotal || data.length;
+  // 始终合并实时本地日志（避免 fetchAuditLogs 的缓存副本漏掉新增日志）
+  var liveLogs = App.operationLogs || [];
+  var backendData = App._auditData || [];
+  var seen = {};
+  backendData.forEach(function(l) { seen[l.time + l.user + l.action] = true; });
+  var merged = backendData.slice();
+  liveLogs.forEach(function(l) {
+    if (!seen[l.time + l.user + l.action]) {
+      merged.unshift(l);
+      seen[l.time + l.user + l.action] = true;
+    }
+  });
+  // 按时间倒序
+  merged.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+
+  // 客户端筛选（始终生效：后端返回的数据已筛选，这里再筛本地合并的日志 + 兜底）
+  var selAction = (document.getElementById('aAuditActionSel') || {}).value || '';
+  var selKeyword = ((document.getElementById('aAuditSearch') || {}).value || '').trim().toLowerCase();
+
+  if (selAction) {
+    merged = merged.filter(function(l) { return l.action === selAction; });
+  }
+  if (selKeyword) {
+    merged = merged.filter(function(l) {
+      return (l.user || '').toLowerCase().indexOf(selKeyword) >= 0 ||
+             (l.name || '').toLowerCase().indexOf(selKeyword) >= 0 ||
+             (l.target || '').toLowerCase().indexOf(selKeyword) >= 0 ||
+             (l.detail || '').toLowerCase().indexOf(selKeyword) >= 0;
+    });
+  }
+
+  var data = merged;
+  var total = data.length;
   var countEl = document.getElementById('aAuditCount');
   if (countEl) countEl.textContent = total + ' 条记录';
 
@@ -8188,7 +8269,7 @@ App.drillProductDetail = function(productName) {
 App.initAdminTabs = function() {
   App.renderRoles();
   App.renderAdminUsers();
-  App.renderAuditLog();
+  App.fetchAuditLogs();  // 每次打开 Admin 面板时重新拉取 + 合并本地日志
 };
 App.operationLogs = [];
 
@@ -8213,12 +8294,25 @@ App.addLog = function(action, target, detail) {
 
   // 写入本地内存缓存
   App.operationLogs.unshift(entry);
-  if (App.operationLogs.length > 100) App.operationLogs.length = 100;
+  if (App.operationLogs.length > 500) App.operationLogs.length = 500;
 
-  // 持久化到后端
+  // 持久化到 localStorage（刷新不丢失）
+  try {
+    var stored = JSON.parse(localStorage.getItem('pa_audit_logs') || '[]');
+    stored.unshift(entry);
+    if (stored.length > 500) stored = stored.slice(0, 500);
+    localStorage.setItem('pa_audit_logs', JSON.stringify(stored));
+  } catch(e) {}
+
+  // 持久化到后端（带认证 token）
+  var headers = { 'Content-Type': 'application/json' };
+  try {
+    var token = sessionStorage.getItem('pa_token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+  } catch(e) {}
   fetch('/api/audit/logs', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: headers,
     body: JSON.stringify({ action: action, target: target || '', detail: detail || '', time: t })
   }).catch(function() {});
 
@@ -8230,16 +8324,6 @@ App.addLog = function(action, target, detail) {
 
 // 自动记录关键操作
 (function() {
-  var origDoLogin = App.doLogin;
-  App.doLogin = function() {
-    var userEl = document.getElementById('loginUser');
-    var username = userEl ? userEl.value : '';
-    origDoLogin.apply(this, arguments);
-    if (App.loggedInUser) {
-      App.addLog('用户登录', '系统', App.loggedInUser.name + '（' + App.USER_ROLES[App.loggedInUser.role].badge + '）登录系统');
-    }
-  };
-
   var origDoLogout = App.doLogout;
   App.doLogout = function() {
     if (App.loggedInUser) {
@@ -8247,24 +8331,140 @@ App.addLog = function(action, target, detail) {
     }
     origDoLogout.apply(this, arguments);
   };
-
-  var origShowPage = App.showPage;
-  App.showPage = function(p) {
-    var pageNames = { overview: '数据总览', width: '产品宽度', potential: '潜力产品', admin: '账号管理' };
-    App.addLog('页面切换', pageNames[p] || p, '进入「' + (pageNames[p] || p) + '」页面');
-    origShowPage.apply(this, arguments);
-  };
 })();
 
 // ===== 数据备份与导出辅助函数 =====
-App.createBackup = function() {
-  App.API.createBackup().then(function(r) {
-    alert('备份创建成功!\n文件: ' + r.filename + '\n大小: ' + (r.size_bytes / 1024).toFixed(1) + ' KB');
-    App.addLog('创建备份', r.filename, '创建数据备份，大小 ' + (r.size_bytes / 1024).toFixed(1) + ' KB');
-    App.loadBackupList();
+App.createBackup = function(btype) {
+  btype = btype || 'full';
+  var labels = { accounts: '账号备份', data: '数据备份', full: '全量备份' };
+  App.API.createBackup(btype).then(function(r) {
+    alert('✅ ' + labels[btype] + ' 创建成功!\n\n文件: ' + r.filename + '\n大小: ' + (r.size_bytes / 1024).toFixed(1) + ' KB\n类型: ' + (r.type || btype));
+    App.addLog('创建备份', r.filename, '创建' + labels[btype] + '，大小 ' + (r.size_bytes / 1024).toFixed(1) + ' KB');
+    App.showBackupModal();
   }).catch(function(err) {
-    alert('备份失败: ' + err.message + '\n请确保后端服务已启动');
+    alert('❌ 备份失败: ' + (err.message || '未知错误') + '\n\n请检查:\n1. 后端服务是否已启动 (python start.py)\n2. 当前账号是否有管理员权限\n3. backups 目录是否存在');
   });
+};
+
+// 备份管理弹窗
+App.showBackupModal = function() {
+  var h = '<div style="margin-bottom:12px;font-size:13px;color:#64748b">选择备份范围，创建后将保存到服务器并可下载到本地</div>';
+  h += '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">';
+
+  // 三种备份按钮
+  h += '<button onclick="App.createBackup(\'accounts\')" style="padding:10px 16px;background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500" title="部门、小组、用户账号">👤 账号备份</button>';
+  h += '<button onclick="App.createBackup(\'data\')" style="padding:10px 16px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500" title="产品字典、销售数据、导入记录">📊 数据备份</button>';
+  h += '<button onclick="App.createBackup(\'full\')" style="padding:10px 16px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500" title="账号+数据+审计日志">📦 全量备份</button>';
+
+  // 导入
+  h += '<label style="padding:10px 16px;background:#eff6ff;color:#2563eb;border:1px solid #dbeafe;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;display:inline-flex;align-items:center">📥 导入恢复<input type="file" accept=".json" onchange="App.importBackupFile(this)" style="display:none"></label>';
+
+  h += '</div>';
+
+  // 备份列表
+  h += '<div id="backupModalList" style="max-height:300px;overflow-y:auto;font-size:13px">加载中...</div>';
+
+  App.showModal('💾 数据备份与恢复', h, '');
+  App.loadBackupModalList();
+};
+
+// 加载备份列表到弹窗
+App.loadBackupModalList = function() {
+  var area = document.getElementById('backupModalList');
+  if (!area) return;
+  App.API.listBackups().then(function(list) {
+    if (!Array.isArray(list) || list.length === 0) {
+      area.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8">暂无备份记录</div>';
+      return;
+    }
+    var typeBadge = function(t, label) {
+      var map = { accounts: { bg:'#dbeafe',c:'#1e40af',l:'👤 账号' }, data: { bg:'#fef3c7',c:'#92400e',l:'📊 数据' }, full: { bg:'#dcfce7',c:'#16a34a',l:'📦 全量' } };
+      var s = map[t] || { bg:'#f1f5f9',c:'#64748b',l: label || t || '未知' };
+      return '<span style="display:inline-block;padding:2px 8px;background:'+s.bg+';color:'+s.c+';border-radius:4px;font-size:10px;font-weight:600">'+s.l+'</span>';
+    };
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:2px solid #e5e7eb">';
+    html += '<th style="padding:8px;text-align:left">类型</th><th style="padding:8px;text-align:left">文件名</th><th style="padding:8px;text-align:left;width:80px">大小</th><th style="padding:8px;text-align:right;width:180px">操作</th></tr></thead><tbody>';
+    list.forEach(function(b) {
+      html += '<tr style="border-bottom:1px solid #f1f5f9">';
+      html += '<td style="padding:8px">' + typeBadge(b.type || 'full', b.type_label) + '</td>';
+      html += '<td style="padding:8px;font-size:11px">' + b.filename + '</td>';
+      html += '<td style="padding:8px">' + (b.size_bytes / 1024).toFixed(1) + ' KB</td>';
+      html += '<td style="padding:8px;text-align:right">';
+      html += '<a style="color:#2563eb;cursor:pointer;margin-right:8px;font-size:11px" onclick="App.downloadBackup(\'' + b.filename + '\')">📥 下载</a>';
+      html += '<a style="color:#16a34a;cursor:pointer;margin-right:8px;font-size:11px" onclick="App.restoreBackupModal(\'' + b.filename + '\')">🔄 恢复</a>';
+      html += '<a style="color:#dc2626;cursor:pointer;font-size:11px" onclick="App.removeBackupModal(\'' + b.filename + '\')">🗑 删除</a>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    area.innerHTML = html;
+  }).catch(function() {
+    area.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8">⚠️ 无法连接后端，无法获取备份列表</div>';
+  });
+};
+
+// 下载备份文件（用 fetch + blob 方式，可带 auth header）
+App.downloadBackup = function(filename) {
+  var token = null;
+  try { token = sessionStorage.getItem('pa_token'); } catch(e) {}
+  var headers = {};
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  fetch('/api/backup/download/' + encodeURIComponent(filename), { headers: headers })
+    .then(function(r) {
+      if (!r.ok) throw new Error('下载失败 (' + r.status + ')');
+      return r.blob();
+    })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      App.addLog('数据导出', filename, '下载备份文件');
+    })
+    .catch(function(err) {
+      alert('❌ 下载失败: ' + err.message + '\n\n请确保后端服务已启动且你有管理员权限');
+    });
+};
+
+// 恢复备份（从弹窗）
+App.restoreBackupModal = function(filename) {
+  if (!confirm('确定从备份 ' + filename + ' 恢复数据？当前数据将被覆盖！')) return;
+  App.API.restoreBackup(filename).then(function() {
+    App.addLog('恢复备份', filename, '从备份文件恢复数据');
+    alert('✅ 数据恢复成功！页面将刷新。');
+    location.reload();
+  }).catch(function(err) {
+    alert('恢复失败: ' + err.message);
+  });
+};
+
+// 删除备份（从弹窗）
+App.removeBackupModal = function(filename) {
+  if (!confirm('确定删除备份 ' + filename + '？')) return;
+  App.API.deleteBackup(filename).then(function() {
+    App.addLog('删除备份', filename, '删除备份文件');
+    App.loadBackupModalList();
+  }).catch(function(err) {
+    alert('删除失败: ' + err.message);
+  });
+};
+
+// 导入备份文件
+App.importBackupFile = function(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (!confirm('确定从文件 ' + file.name + ' 恢复数据？当前数据将被覆盖！')) { input.value = ''; return; }
+  App.API.uploadBackup(file).then(function(r) {
+    App.addLog('恢复备份', file.name, '从上传文件恢复数据');
+    alert('✅ 数据恢复成功！页面将刷新。');
+    location.reload();
+  }).catch(function(err) {
+    alert('❌ 导入失败: ' + err.message);
+  });
+  input.value = '';
 };
 
 App.loadBackupList = function() {
@@ -10143,6 +10343,30 @@ App.refreshAllSubTabs = function() {
 };
 
 App.initAll = function() {
+  // 从 localStorage 恢复审计日志（必须在 addLog 之前，否则旧日志被覆盖）
+  try {
+    var savedLogs = JSON.parse(localStorage.getItem('pa_audit_logs') || '[]');
+    if (savedLogs.length > 0) {
+      // 合并：localStorage 日志 + 当前内存日志，按时间倒序去重
+      var seen = {};
+      App.operationLogs.forEach(function(l) { seen[l.time + l.user + l.action] = true; });
+      savedLogs.forEach(function(l) {
+        if (!seen[l.time + l.user + l.action]) {
+          App.operationLogs.push(l);
+          seen[l.time + l.user + l.action] = true;
+        }
+      });
+      App.operationLogs.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
+      if (App.operationLogs.length > 500) App.operationLogs = App.operationLogs.slice(0, 500);
+    }
+  } catch(e) {}
+
+  // 登录日志（必须在这里记录，因为 doLogin 是异步的，wrapper 中 loggedInUser 尚未设置）
+  if (App.loggedInUser && !App._loginLogged) {
+    App._loginLogged = true;
+    App.addLog('用户登录', '系统', App.loggedInUser.name + '登录系统');
+  }
+
   // 从 localStorage 恢复权限配置（持久化存储）
   try {
     var saved = localStorage.getItem('pa_role_perms');

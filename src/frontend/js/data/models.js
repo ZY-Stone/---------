@@ -967,7 +967,7 @@ App.Data.rebuildDerived = function() {
 App.PERM_MATRIX = {
   admin:     ['user_manage','role_manage','audit_log','data_backup','data_export','data_import','overview','product_width','potential_product'],
   gm:        ['audit_log','data_export','data_import','overview','product_width','potential_product'],
-  operation: ['audit_log','data_export','data_import','overview','product_width','potential_product'],
+  operation: ['audit_log','data_backup','data_export','data_import','overview','product_width','potential_product'],
   director:  ['data_export','overview','product_width','potential_product'],
   manager:   ['data_export','overview','product_width','potential_product'],
   interface: ['overview','product_width','potential_product'],
@@ -985,8 +985,7 @@ App.guardRoute = function(pageId) {
   var required = {
     'a-users': 'user_manage',
     'a-roles': 'role_manage',
-    'a-audit': 'audit_log',
-    'a-backup': 'data_backup'
+    'a-audit': 'audit_log'
   };
   var perm = required[pageId];
   if (perm && !App.hasPerm(perm)) {
@@ -1004,8 +1003,7 @@ App.bootstrapPermissions = function() {
   var adminTabs = {
     'a-users': 'user_manage',
     'a-roles': 'role_manage',
-    'a-audit': 'audit_log',
-    'a-backup': 'data_backup'
+    'a-audit': 'audit_log'
   };
   Object.keys(adminTabs).forEach(function(tabId) {
     if (!App.hasPerm(adminTabs[tabId])) {

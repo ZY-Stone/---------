@@ -5,7 +5,10 @@
 window.App = window.App || {};
 
 App.API = (function() {
-  var BASE = 'http://localhost:8800';
+  // 动态 BASE：与当前页面同源，避免 127.0.0.1 vs localhost 跨域问题
+  var BASE = (window.location.protocol === 'file:')
+    ? 'http://localhost:8800'
+    : window.location.origin;
   var TOKEN = null;
   var _available = null;  // null=未检测, true=可用, false=不可用
 
@@ -23,7 +26,15 @@ App.API = (function() {
       body: opts.body ? JSON.stringify(opts.body) : undefined
     }).then(function(r) {
       if (!r.ok) {
-        return r.json().then(function(e) { throw new Error(e.detail || '请求失败 (' + r.status + ')'); });
+        return r.text().then(function(text) {
+          try {
+            var err = JSON.parse(text);
+            throw new Error(err.detail || '请求失败 (' + r.status + ')');
+          } catch(e) {
+            if (e.message && e.message.indexOf('请求失败') === 0) throw e;
+            throw new Error(text.slice(0, 200) || '请求失败 (' + r.status + ')');
+          }
+        });
       }
       var ct = r.headers.get('content-type') || '';
       if (ct.indexOf('application/json') !== -1) return r.json();
@@ -146,8 +157,9 @@ App.API = (function() {
   }
 
   // ── 备份 ──
-  function createBackup() {
-    return request('/api/backup/create', { method: 'POST' });
+  function createBackup(btype) {
+    btype = btype || 'full';
+    return request('/api/backup/create?btype=' + btype, { method: 'POST' });
   }
 
   function listBackups() {
@@ -160,6 +172,30 @@ App.API = (function() {
 
   function deleteBackup(filename) {
     return request('/api/backup/' + filename, { method: 'DELETE' });
+  }
+
+  function getDownloadUrl(filename) {
+    return BASE + '/api/backup/download/' + encodeURIComponent(filename) + '?token=' + encodeURIComponent(TOKEN || '');
+  }
+
+  function uploadBackup(file) {
+    var formData = new FormData();
+    formData.append('file', file);
+    var headers = {};
+    if (TOKEN) headers['Authorization'] = 'Bearer ' + TOKEN;
+    return fetch(BASE + '/api/backup/upload', {
+      method: 'POST',
+      headers: headers,
+      body: formData
+    }).then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(text) {
+          try { var e = JSON.parse(text); throw new Error(e.detail || '上传失败'); }
+          catch(ex) { throw new Error(text.slice(0, 200) || '上传失败 (' + r.status + ')'); }
+        });
+      }
+      return r.json();
+    });
   }
 
   // ── 公开 API ──
@@ -207,5 +243,7 @@ App.API = (function() {
     listBackups: listBackups,
     restoreBackup: restoreBackup,
     deleteBackup: deleteBackup,
+    getDownloadUrl: getDownloadUrl,
+    uploadBackup: uploadBackup,
   };
 })();

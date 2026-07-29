@@ -45,6 +45,7 @@
       <div class="um-item" onclick="App.showPwdModal()">🔑 修改密码</div>
       <div class="um-item" onclick="App.showHelp()">❓ 帮助说明</div>
       <div class="um-divider"></div>
+      <div class="um-item" id="um-backup" onclick="App.showBackupModal()" style="display:none">💾 数据备份</div>
       <div class="um-item" onclick="App.doLogout()">⏻ 退出登录</div>
     </div>
   </div>
@@ -1271,7 +1272,6 @@
         <button class="subtab active" data-tab="a-users">👥 用户管理</button>
         <button class="subtab" data-tab="a-roles">🔐 角色权限</button>
         <button class="subtab" data-tab="a-audit">📋 审计日志</button>
-        <button class="subtab" data-tab="a-backup">💾 数据备份与导出</button>
       </div>
 
       <!-- ===== Tab: 用户管理 ===== -->
@@ -1315,7 +1315,7 @@
       <div data-tab-content="a-audit" style="display:none">
         <div class="filter-bar">
           <div class="filter-group"><label>搜索</label><input type="text" id="aAuditSearch" placeholder="用户名 / 操作对象 / 详情" oninput="App._auditPage=1;App.fetchAuditLogs()"></div>
-          <div class="filter-group"><label>操作类型</label><select id="aAuditActionSel" onchange="App._auditPage=1;App.fetchAuditLogs()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="用户登出">用户登出</option><option value="页面切换">页面切换</option><option value="数据导入">数据导入</option><option value="数据导出">数据导出</option><option value="新增用户">新增用户</option><option value="编辑用户">编辑用户</option><option value="删除用户">删除用户</option><option value="修改密码">修改密码</option><option value="角色保存">角色保存</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="筛选查询">筛选查询</option></select></div>
+          <div class="filter-group"><label>操作类型</label><select id="aAuditActionSel" onchange="App._auditPage=1;App.fetchAuditLogs()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="用户登出">用户登出</option><option value="页面切换">页面切换</option><option value="数据导入">数据导入</option><option value="数据导出">数据导出</option><option value="新增用户">新增用户</option><option value="编辑用户">编辑用户</option><option value="删除用户">删除用户</option><option value="修改密码">修改密码</option><option value="角色保存">角色保存</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="筛选查询">筛选查询</option><option value="删除数据">删除数据</option><option value="修改参数">修改参数</option><option value="系统启动">系统启动</option></select></div>
           <button class="btn-ghost" onclick="App.exportAuditLog()">📥 导出</button>
           <button class="btn-ghost" style="font-size:11px" onclick="App._auditPage=1;App.fetchAuditLogs()">🔄 刷新</button>
           <span class="right" style="font-size:12px;color:var(--text-muted)" id="aAuditCount">0 条记录</span>
@@ -1331,28 +1331,6 @@
         </div>
       </div>
 
-      <!-- ===== Tab: 数据备份与导出 ===== -->
-      <div data-tab-content="a-backup" style="display:none">
-        <div class="grid2">
-          <div class="card">
-            <div class="card-title"><span class="left">📥 数据导出</span></div>
-            <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
-              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('width'), '_blank')" style="justify-content:flex-start;padding:10px 14px">📊 导出产品宽度数据 (Excel)</button>
-              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('potential'), '_blank')" style="justify-content:flex-start;padding:10px 14px">🚀 导出潜力产品数据 (Excel)</button>
-              <button class="btn-ghost" onclick="window.open(App.API.getExportUrl('audit'), '_blank')" style="justify-content:flex-start;padding:10px 14px">📋 导出审计日志 (Excel)</button>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:4px">提示: 需要有管理员权限；后端服务需在运行中</div>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title"><span class="left">💾 数据备份</span></div>
-            <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
-              <button class="btn-ghost" onclick="App.createBackup()" style="justify-content:flex-start;padding:10px 14px;background:#f0fdf4">➕ 创建全量备份</button>
-              <button class="btn-ghost" onclick="App.loadBackupList()" style="justify-content:flex-start;padding:10px 14px">📋 查看备份列表</button>
-              <div id="backupListArea" style="font-size:12px;color:var(--text-muted);margin-top:4px"></div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
   </div>
@@ -1389,10 +1367,20 @@
         <tbody>
           <tr><td><b>数据总览</b></td><td>快速掌握全局经营态势，查看销售额排名、产品构成、同比变化</td><td>总销售额、同比%、量价四象限分类</td></tr>
           <tr><td><b>产品宽度分析</b></td><td>分析客户/用户覆盖了多少产品品类，识别覆盖率短板</td><td>客户宽度（品类数）、覆盖率%、人均宽度</td></tr>
-          <tr><td><b>潜力产品分析</b></td><td>聚焦11个核心潜力品类的深度分析，多维度对比</td><td>销售额、覆盖率、四象限、增长类型</td></tr>
+          <tr><td><b>潜力产品分析</b></td><td>聚焦27个核心潜力品类的深度分析，多维度对比</td><td>销售额、覆盖率、四象限、增长类型</td></tr>
           <tr><td><b>账号管理</b></td><td>管理用户权限、角色</td><td>角色权限矩阵、数据范围</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🚀 快速跳转</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
+        <button onclick="App.showPage('overview')" style="padding:10px;background:#eff6ff;color:#2563eb;border:1px solid #dbeafe;border-radius:6px;cursor:pointer;font-size:13px">📊 数据总览</button>
+        <button onclick="App.showPage('width')" style="padding:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;cursor:pointer;font-size:13px">📏 产品宽度</button>
+        <button onclick="App.showPage('potential')" style="padding:10px;background:#f5f3ff;color:#722ed1;border:1px solid #e9d5ff;border-radius:6px;cursor:pointer;font-size:13px">🚀 潜力产品</button>
+        <button onclick="App.showPage('admin')" style="padding:10px;background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:6px;cursor:pointer;font-size:13px">👤 账号管理</button>
+        <button onclick="App.showPwdModal()" style="padding:10px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;cursor:pointer;font-size:13px">🔑 修改密码</button>
+      </div>
     </div>
 
     <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🔍 使用方法</span></div>
@@ -1416,14 +1404,39 @@
           <tr><td><b>客单价</b></td><td>客户总销售额 ÷ 客户数</td></tr>
           <tr><td><b>同比(YoY)</b></td><td>（本期 - 同期）÷ 同期 × 100%</td></tr>
           <tr><td><b>量价四象限</b></td><td>X轴=数量同比，Y轴=金额同比；右上=量价齐升/左上=量跌价增/左下=量价齐跌</td></tr>
-          <tr><td><b>潜力产品</b></td><td>平台定义的11个核心品类，作为重点分析对象</td></tr>
+          <tr><td><b>潜力产品</b></td><td>平台定义的 <b>27 个核心品类</b>（IPC、NVR、球机、门禁、出入口停车、综合布线、网络产品等），作为重点分析对象</td></tr>
           <tr><td><b>售达方(客户)</b></td><td>合同签订方/付款方，一个客户可对应多个最终用户</td></tr>
           <tr><td><b>最终用户</b></td><td>产品实际使用方</td></tr>
-          <tr><td><b>规上客户</b></td><td>年销售额达到一定规模以上的重点客户</td></tr>
-          <tr><td><b>集中度</b></td><td>TOP N客户销售额 ÷ 总销售额，衡量业绩依赖程度</td></tr>
+          <tr><td><b>规上客户</b></td><td>年销售额 ≥ <b>50 万元</b> 的重点客户（可在系统设置中调整阈值）</td></tr>
+          <tr><td><b>集中度</b></td><td><b>TOP 10</b> 客户销售额 ÷ 总销售额，衡量业绩依赖程度。&gt;60% 高度集中，30-60% 中等，&lt;30% 健康</td></tr>
           <tr><td><b>归因分析</b></td><td>量增价增=需求驱动；量跌价增=结构升级；量增价跌=以价换量；量价双跌=市场萎缩</td></tr>
+          <tr><td><b>二级部门</b></td><td>公司组织架构第一级（如客户销售部、行业部、管理部）</td></tr>
+          <tr><td><b>三级部门</b></td><td>二级部门下的子部门（如客户销售一部、客户销售二部）</td></tr>
+          <tr><td><b>四级部门</b></td><td>三级部门下的团队小组（如客户销售一组、客户销售二组）</td></tr>
+          <tr><td><b>五级部门</b></td><td>小组下的具体销售员（如张栋柱、陈刚）</td></tr>
+          <tr><td><b>对接人</b></td><td>负责客户日常维护的销售/技术接口人</td></tr>
+          <tr><td><b>客户等级</b></td><td>VIP / A / B / C / 普通（系统根据销售额自动评定）</td></tr>
+          <tr><td><b>同期</b></td><td>去年同期数据（用于同比计算）</td></tr>
+          <tr><td><b>环比</b></td><td>本周期与上一周期对比</td></tr>
+          <tr><td><b>数量 / 商机数</b></td><td>产品的销售件数 / 商机转化条数</td></tr>
+          <tr><td><b>用户数</b></td><td>同一客户下关联的最终用户数量（多部门共用客户）</td></tr>
+          <tr><td><b>销售雇员</b></td><td>负责该客户的销售员工（如张栋柱、陈刚）</td></tr>
+          <tr><td><b>售达方 / 最终用户</b></td><td>售达方=合同签订方（付款方）；最终用户=产品使用方；可一对多</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🔗 数据流向</span></div>
+      <div style="display:flex;gap:8px;align-items:center;padding:16px;background:#f8fafc;border-radius:6px;margin:12px 0;flex-wrap:wrap">
+        <div style="padding:8px 14px;background:#dbeafe;color:#1e40af;border-radius:4px;font-size:12px;font-weight:600">售达方（客户）</div>
+        <span style="color:#94a3b8;font-size:18px">→</span>
+        <div style="padding:8px 14px;background:#dcfce7;color:#166534;border-radius:4px;font-size:12px;font-weight:600">合同（销售）</div>
+        <span style="color:#94a3b8;font-size:18px">→</span>
+        <div style="padding:8px 14px;background:#fef3c7;color:#92400e;border-radius:4px;font-size:12px;font-weight:600">最终用户</div>
+        <span style="color:#94a3b8;font-size:18px">→</span>
+        <div style="padding:8px 14px;background:#f3e8ff;color:#722ed1;border-radius:4px;font-size:12px;font-weight:600">产品使用</div>
+      </div>
+      <p style="font-size:12px;color:#6b7280;margin:8px 0 0">关系：1 个客户 → 1..n 个用户 → n 个产品品类。客户 = 付款方，用户 = 使用方</p>
     </div>
 
     <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">👥 角色与权限</span></div>

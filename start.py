@@ -18,7 +18,7 @@ FRONTEND_FILE = os.path.join(BASE_DIR, "src", "frontend", "index.html")
 # 配置
 HOST = "127.0.0.1"
 PORT = 8800
-URL = f"http://{HOST}:{PORT}"
+URL = f"http://localhost:{PORT}"  # 浏览器用 localhost，但监听所有接口
 
 
 def print_banner():
@@ -150,10 +150,13 @@ def start_server():
 
 
 def open_browser():
-    """打开前端页面（由后端直接托管）"""
+    """打开前端页面（由后端直接托管，带 cache-bust 参数）"""
     try:
-        webbrowser.open(URL)
+        import time as _time
+        cache_buster = f"?v={int(_time.time())}"
+        webbrowser.open(URL + cache_buster)
         print_step("6/6", f"浏览器已打开 → {URL}", "ok")
+        print("         ⚠️ 如页面显示异常，请手动清除浏览器缓存（Ctrl+Shift+Del）")
     except Exception:
         print_step("6/6", f"请手动打开: {URL}", "warn")
 

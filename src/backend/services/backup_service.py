@@ -1,9 +1,8 @@
 """
-backend/services/backup_service.py — 数据备份与恢复
+backend/services/backup_service.py — 数据备份与恢复（三种类型）
 """
 import json
 import os
-import shutil
 from datetime import datetime
 from sqlalchemy.orm import Session
 from config import BACKUP_DIR
@@ -12,50 +11,75 @@ from models.user import User
 from models.department import Department
 from models.group import Group
 from models.product_dict import ProductDict
-from models.sales_data import SalesWidth, SalesPotential
+from models.sales_data import SalesWidth, SalesPotential, WidthRecord, PotentialCust, PotentialUser
 from models.import_record import ImportRecord
 from models.audit_log import AuditLog
 
 os.makedirs(BACKUP_DIR, exist_ok=True)
 
+# 备份类型定义
+ACCOUNT_MODELS = [Tenant, Department, Group, User]                             # 账号备份
+DATA_MODELS    = [ProductDict, WidthRecord, SalesWidth, PotentialCust, PotentialUser, SalesPotential, ImportRecord]  # 数据备份
+ALL_MODELS     = ACCOUNT_MODELS + DATA_MODELS + [AuditLog]                     # 全量备份
 
-def create_backup(db: Session, tenant_id: int, user_id: int) -> dict:
-    """创建全量备份（JSON dump）"""
+TYPE_LABELS = {
+    "accounts": "账号备份",
+    "data": "数据备份",
+    "full": "全量备份",
+}
+TYPE_PREFIX = {"accounts": "acct", "data": "data", "full": "full"}
+
+
+def _row_to_dict(row) -> dict:
+    d = {}
+    for col in row.__table__.columns:
+        val = getattr(row, col.name)
+        if isinstance(val, datetime):
+            val = val.isoformat()
+        d[col.name] = val
+    return d
+
+
+def _get_models(btype: str) -> list:
+    if btype == "accounts":
+        return ACCOUNT_MODELS
+    elif btype == "data":
+        return DATA_MODELS
+    else:
+        return ALL_MODELS
+
+
+def create_backup(db: Session, tenant_id: int, user_id: int, btype: str = "full") -> dict:
+    """创建指定类型的备份"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"backup_{timestamp}.json"
+    prefix = TYPE_PREFIX.get(btype, "full")
+    filename = f"backup_{prefix}_{timestamp}.json"
     filepath = os.path.join(BACKUP_DIR, filename)
-
-    def row_to_dict(row):
-        d = {}
-        for col in row.__table__.columns:
-            val = getattr(row, col.name)
-            if isinstance(val, datetime):
-                val = val.isoformat()
-            d[col.name] = val
-        return d
+    models = _get_models(btype)
 
     data = {
         "meta": {
+            "backup_type": btype,
+            "type_label": TYPE_LABELS.get(btype, "全量备份"),
             "created_at": timestamp,
             "tenant_id": tenant_id,
             "user_id": user_id,
         },
-        "tenants": [row_to_dict(r) for r in db.query(Tenant).filter(Tenant.id == tenant_id).all()],
-        "departments": [row_to_dict(r) for r in db.query(Department).filter(Department.tenant_id == tenant_id).all()],
-        "groups": [row_to_dict(r) for r in db.query(Group).filter(Group.tenant_id == tenant_id).all()],
-        "users": [row_to_dict(r) for r in db.query(User).filter(User.tenant_id == tenant_id).all()],
-        "products": [row_to_dict(r) for r in db.query(ProductDict).filter(ProductDict.tenant_id == tenant_id).all()],
-        "sales_width": [row_to_dict(r) for r in db.query(SalesWidth).filter(SalesWidth.tenant_id == tenant_id).all()],
-        "sales_potential": [row_to_dict(r) for r in db.query(SalesPotential).filter(SalesPotential.tenant_id == tenant_id).all()],
-        "import_records": [row_to_dict(r) for r in db.query(ImportRecord).filter(ImportRecord.tenant_id == tenant_id).all()],
-        "audit_logs": [row_to_dict(r) for r in db.query(AuditLog).filter(AuditLog.tenant_id == tenant_id).all()],
     }
+    for model in models:
+        key = model.__tablename__
+        # Tenant 表用 id，其他表用 tenant_id
+        if key == "tenants":
+            rows = db.query(model).filter(model.id == tenant_id).all()
+        else:
+            rows = db.query(model).filter(model.tenant_id == tenant_id).all()
+        data[key] = [_row_to_dict(r) for r in rows]
 
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     size = os.path.getsize(filepath)
-    return {"filename": filename, "path": filepath, "size_bytes": size}
+    return {"filename": filename, "path": filepath, "size_bytes": size, "type": btype}
 
 
 def list_backups() -> list:
@@ -66,16 +90,23 @@ def list_backups() -> list:
     for f in sorted(os.listdir(BACKUP_DIR), reverse=True):
         if f.endswith(".json"):
             fp = os.path.join(BACKUP_DIR, f)
+            btype = "full"
+            for key, prefix in TYPE_PREFIX.items():
+                if f.startswith(f"backup_{prefix}_"):
+                    btype = key
+                    break
             files.append({
                 "filename": f,
                 "size_bytes": os.path.getsize(fp),
-                "created_at": f.replace("backup_", "").replace(".json", ""),
+                "created_at": f.rsplit("_", 1)[-1].replace(".json", "") if "_" in f else "",
+                "type": btype,
+                "type_label": TYPE_LABELS.get(btype, "全量备份"),
             })
     return files
 
 
-def restore_backup(db: Session, filename: str) -> bool:
-    """从备份恢复数据"""
+def restore_backup(db: Session, filename: str, btype: str = "full") -> bool:
+    """恢复指定类型的备份数据"""
     filepath = os.path.join(BACKUP_DIR, filename)
     if not os.path.isfile(filepath):
         return False
@@ -83,33 +114,31 @@ def restore_backup(db: Session, filename: str) -> bool:
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # 清空现有数据（按租户）
-    tenant_id = data["meta"].get("tenant_id", 1)
-    for model in [SalesPotential, SalesWidth, ImportRecord, AuditLog]:
-        db.query(model).filter(model.tenant_id == tenant_id).delete()
-    db.query(ProductDict).filter(ProductDict.tenant_id == tenant_id).delete()
-    db.query(Group).filter(Group.tenant_id == tenant_id).delete()
-    db.query(Department).filter(Department.tenant_id == tenant_id).delete()
-    db.query(User).filter(User.tenant_id == tenant_id).delete()
+    tenant_id = data.get("meta", {}).get("tenant_id", 1)
+    # 使用备份文件中记录的类型
+    actual_type = data.get("meta", {}).get("backup_type", btype)
+    models = _get_models(actual_type)
+
+    # 清空该类型的现有数据
+    for model in reversed(models):
+        try:
+            if model.__tablename__ == "tenants":
+                pass  # 不删除租户记录
+            elif model.__tablename__ == "audit_logs":
+                db.query(model).filter(model.tenant_id == tenant_id).delete()
+            elif hasattr(model, 'tenant_id'):
+                db.query(model).filter(model.tenant_id == tenant_id).delete()
+            else:
+                pass  # 没有 tenant_id 的表跳过
+        except Exception:
+            pass
     db.commit()
 
     # 恢复数据
-    for row_dict in data.get("departments", []):
-        _insert_from_dict(db, Department, row_dict)
-    for row_dict in data.get("groups", []):
-        _insert_from_dict(db, Group, row_dict)
-    for row_dict in data.get("users", []):
-        _insert_from_dict(db, User, row_dict)
-    for row_dict in data.get("products", []):
-        _insert_from_dict(db, ProductDict, row_dict)
-    for row_dict in data.get("sales_width", []):
-        _insert_from_dict(db, SalesWidth, row_dict)
-    for row_dict in data.get("sales_potential", []):
-        _insert_from_dict(db, SalesPotential, row_dict)
-    for row_dict in data.get("import_records", []):
-        _insert_from_dict(db, ImportRecord, row_dict)
-    for row_dict in data.get("audit_logs", []):
-        _insert_from_dict(db, AuditLog, row_dict)
+    for model in models:
+        key = model.__tablename__
+        for row_dict in data.get(key, []):
+            _insert_from_dict(db, model, row_dict)
 
     db.commit()
     return True
@@ -129,7 +158,6 @@ def _insert_from_dict(db: Session, model, d: dict):
     obj = model()
     for k, v in d.items():
         if hasattr(obj, k):
-            # 跳过 server_default 字段
             if k in ("created_at",):
                 continue
             setattr(obj, k, v)
