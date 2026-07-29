@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from database import init_db
 from utils.security import decode_access_token
-from seed import seed
+from seed import seed, seed_role_permissions
 from config import CORS_ORIGINS
 
 # 前端静态文件路径
@@ -31,6 +31,11 @@ FRONTEND_DIR = os.path.join(SRC_DIR, "frontend")  # Vanilla JS SPA
 async def lifespan(app: FastAPI):
     init_db()
     seed()
+    # 每次启动都重新初始化角色权限配置
+    try:
+        seed_role_permissions()
+    except Exception:
+        pass
     yield
 
 
@@ -59,6 +64,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
                     "dept_id": payload.get("dept_id"),
                     "group_id": payload.get("group_id"),
                     "username": payload.get("sub"),
+                    "data_scope": payload.get("data_scope", "all"),
                 }
             else:
                 request.state.user = {}
@@ -120,6 +126,7 @@ from routers.potential_query import router as potential_query_router
 from routers.analytics import router as analytics_router
 from routers.products import router as products_router
 from routers.audit import router as audit_router
+from routers.permission import router as permission_router
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -134,6 +141,7 @@ app.include_router(potential_query_router)
 app.include_router(analytics_router)
 app.include_router(products_router)
 app.include_router(audit_router)
+app.include_router(permission_router)
 
 # ── 静态文件托管（最后注册，确保 API 路由优先） ──
 if os.path.isdir(FRONTEND_DIR):

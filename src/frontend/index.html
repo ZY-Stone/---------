@@ -36,10 +36,10 @@
     <button class="topbar-nav-btn" data-page="potential" onclick="App.showPage('potential')">🚀 潜力产品分析</button>
     <button class="topbar-nav-btn" data-page="admin" onclick="App.showPage('admin')">⚙ 账号管理</button>
   </div>
-  <div class="user-menu" style="position:relative;cursor:pointer;margin-left:auto">
+  <div class="user-menu" style="position:relative;cursor:pointer;margin-left:auto" onclick="App.toggleUserMenu()">
     <span class="name" id="topbar-name">廖贝贝</span>
     <span class="role-badge" id="topbar-role">主管</span>
-    <span style="opacity:.8;margin-left:6px;font-size:16px;cursor:pointer;font-weight:700;color:#333" onclick="App.toggleUserMenu()" title="用户菜单">▼</span>
+    <span style="opacity:.8;margin-left:6px;font-size:16px;font-weight:700;color:#333;pointer-events:none" title="用户菜单">▼</span>
     <!-- 用户下拉菜单 -->
     <div class="user-menu-dropdown" id="userDropdown" style="display:none">
       <div class="um-item" onclick="App.showPwdModal()">🔑 修改密码</div>
@@ -1288,7 +1288,7 @@
           </div>
           <div class="table-wrap" style="max-height:520px">
             <table class="table">
-              <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>角色代码</th><th>部门</th><th>所属组</th><th style="width:200px">操作</th></tr></thead>
+              <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>角色代码</th><th>部门</th><th>所属组</th><th>数据范围</th><th style="width:200px">操作</th></tr></thead>
               <tbody id="aUsersTableBody"></tbody>
             </table>
           </div>

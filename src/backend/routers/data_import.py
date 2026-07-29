@@ -1,5 +1,5 @@
 """
-backend/routers/data_import.py — 批量数据导入 API
+backend/routers/data_import.py — 批量数据导入 API（含 RBAC 权限）
 """
 from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from models.import_record import ImportRecord
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
+from utils.scope import require_perm
 
 router = APIRouter(prefix="/api/import", tags=["数据导入"])
 
@@ -44,6 +45,7 @@ def _user(request: Request) -> dict:
     return getattr(request.state, "user", {})
 
 @router.post("/width")
+@require_perm("import_data")
 def import_width(data: List[WidthRow], request: Request, db: Session = Depends(get_db)):
     u = _user(request)
     tenant_id = u.get("tenant_id", 1)
@@ -89,6 +91,7 @@ def import_width(data: List[WidthRow], request: Request, db: Session = Depends(g
     return {"status": "ok", "count": count, "period": period, "columns": columns}
 
 @router.post("/potential")
+@require_perm("import_data")
 def import_potential(data: List[PotentialRow], request: Request, db: Session = Depends(get_db)):
     u = _user(request)
     tenant_id = u.get("tenant_id", 1)

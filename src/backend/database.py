@@ -23,7 +23,7 @@ def _ensure_columns() -> None:
     SQLAlchemy create_all() 不会修改已存在的表，新加的列需要手动补齐。
     这个函数对比 ORM 模型字段与数据库实际列，自动 ALTER TABLE ADD COLUMN。
     """
-    from models import tenant, department, group, user, product_dict, sales_data, import_record, audit_log  # noqa: F401
+    from models import tenant, department, group, user, product_dict, sales_data, import_record, audit_log, permission  # noqa: F401
     inspector = inspect(engine)
     table_names = inspector.get_table_names()
 
@@ -61,6 +61,6 @@ def _ensure_columns() -> None:
 
 def init_db() -> None:
     """Create all tables from ORM metadata, then auto-add missing columns."""
-    from models import tenant, department, group, user, product_dict, sales_data, import_record, audit_log  # noqa: F401
+    from models import tenant, department, group, user, product_dict, sales_data, import_record, audit_log, permission  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _ensure_columns()

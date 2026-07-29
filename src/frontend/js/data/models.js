@@ -818,13 +818,13 @@ App.ImportPotential.UserRAW = [];
 
 // ===== 角色权限数据 =====
 App.ROLE_PERMISSIONS = [
-  { role: 'admin',     name: '管理员',     modules: { overview:1, width:1, potential:1, users:1, roles:1, audit:1, backup:1, export:1, import:1 }, desc: '全部功能 + 用户管理' },
-  { role: 'gm',        name: '总经理',     modules: { overview:1, width:1, potential:1, users:1, roles:0, audit:1, backup:1, export:1, import:1 }, desc: '全局查看 + 导出备份' },
-  { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:1, backup:0, export:1, import:1 }, desc: '全局查看 + 导出' },
-  { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:1, import:1 }, desc: '本部门数据查看' },
-  { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:0, import:0 }, desc: '本组数据查看' },
-  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:0, import:0 }, desc: '数据对接查看' },
-  { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:0, import:0 }, desc: '本人数据查看' }
+  { role: 'admin',     name: '管理员',     modules: { overview:1, width:1, potential:1, users_mgmt:1, roles_mgmt:1, audit_log:1, backup:1, export_data:1, import_data:1 }, data_scope: 'all', desc: '全部功能 + 用户管理' },
+  { role: 'gm',        name: '总经理',     modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:1, backup:0, export_data:1, import_data:1 }, data_scope: 'all', desc: '全局查看 + 导出备份' },
+  { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:1, backup:1, export_data:1, import_data:1 }, data_scope: 'all', desc: '全局查看 + 导入导出' },
+  { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:0, backup:0, export_data:1, import_data:1 }, data_scope: 'dept', desc: '本部门数据查看' },
+  { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, users_mgmt:1, roles_mgmt:0, audit_log:0, backup:0, export_data:1, import_data:1 }, data_scope: 'group', desc: '本组数据 + 用户管理' },
+  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, users_mgmt:1, roles_mgmt:0, audit_log:0, backup:0, export_data:0, import_data:0 }, data_scope: 'dept', desc: '数据对接 + 用户管理' },
+  { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:0, backup:0, export_data:0, import_data:0 }, data_scope: 'self', desc: '本人数据查看' }
 ];
 
 // ===== 业务参数数据 =====
@@ -963,19 +963,41 @@ App.Data.rebuildDerived = function() {
 };
 
 // ===== 权限控制 =====
-// 权限矩阵（每个角色可执行的操作）
+// 前端权限键名 → 后端权限键名映射
+App.PERM_KEY_MAP = {
+  'data_backup': 'backup',
+  'user_manage': 'users_mgmt',
+  'role_manage': 'roles_mgmt',
+  'audit_log': 'audit_log',
+  'data_import': 'import_data',
+  'data_export': 'export_data',
+  'overview': 'overview',
+  'product_width': 'width',
+  'potential_product': 'potential',
+};
+// 存储后端返回的权限数据
+App.myPerms = null;        // { overview: true, width: true, ... }
+App.myDataScope = 'all';   // 从后端获取的数据范围
+
+// 权限矩阵（每个角色可执行的操作）— 前端硬编码兜底
 App.PERM_MATRIX = {
   admin:     ['user_manage','role_manage','audit_log','data_backup','data_export','data_import','overview','product_width','potential_product'],
   gm:        ['audit_log','data_export','data_import','overview','product_width','potential_product'],
   operation: ['audit_log','data_backup','data_export','data_import','overview','product_width','potential_product'],
   director:  ['data_export','overview','product_width','potential_product'],
-  manager:   ['data_export','overview','product_width','potential_product'],
-  interface: ['overview','product_width','potential_product'],
+  manager:   ['user_manage','data_export','overview','product_width','potential_product'],
+  interface: ['user_manage','overview','product_width','potential_product'],
   sales:     ['overview','product_width']
 };
 
-// 检查当前用户是否有某项权限
+// 检查当前用户是否有某项权限（优先后端 RolePermission 表，fallback 前端矩阵）
 App.hasPerm = function(perm) {
+  // 如果已加载后端权限数据，优先使用
+  if (App.myPerms) {
+    var bk = App.PERM_KEY_MAP[perm] || perm;
+    return App.myPerms[bk] === true;
+  }
+  // 兜底：使用前端硬编码矩阵
   var role = (App.loggedInUser || {}).role || 'admin';
   return (App.PERM_MATRIX[role] || []).indexOf(perm) >= 0;
 };
@@ -985,20 +1007,38 @@ App.guardRoute = function(pageId) {
   var required = {
     'a-users': 'user_manage',
     'a-roles': 'role_manage',
-    'a-audit': 'audit_log'
+    'a-audit': 'audit_log',
+    'page-admin': 'user_manage',  // 至少需要用户管理权限才能看到账号管理页
   };
   var perm = required[pageId];
   if (perm && !App.hasPerm(perm)) {
+    App.showToast('🚫 无权访问此页面');
     return false;
   }
   return true;
 };
 
-// 登录后初始化权限：隐藏无权限菜单 + 锁定筛选下拉
+// 登录后初始化权限：从后端拉取权限 → 隐藏无权限菜单 + 锁定筛选下拉
 App.bootstrapPermissions = function() {
   var role = (App.loggedInUser || {}).role || 'admin';
   var user = App.loggedInUser || {};
 
+  // 从后端拉取权限配置（异步）
+  App.API.getMyPerms().then(function(d) {
+    App.myPerms = d.perms || {};
+    App.myDataScope = d.data_scope || 'all';
+    // 拿到后端权限后重新应用 UI
+    _applyPermissionUI(role, user);
+  }).catch(function() {
+    // 后端不可用，使用前端矩阵兜底
+    App.myPerms = null;
+    App.myDataScope = 'all';
+    _applyPermissionUI(role, user);
+  });
+};
+
+// 内部：应用权限 UI 变更
+function _applyPermissionUI(role, user) {
   // ── 隐藏 Admin 子标签 ──
   var adminTabs = {
     'a-users': 'user_manage',
@@ -1012,10 +1052,23 @@ App.bootstrapPermissions = function() {
     }
   });
 
+  // ── 只有拥有用户管理或角色管理权限才显示「账号管理」导航 ──
+  if (!App.hasPerm('user_manage') && !App.hasPerm('role_manage')) {
+    var adminNav = document.querySelector('.topbar-nav-btn[data-page="admin"]');
+    if (adminNav) adminNav.style.display = 'none';
+  }
+
+  // ── 隐藏数据备份菜单项 ──
+  var umBackup = document.getElementById('um-backup');
+  if (umBackup) umBackup.style.display = App.hasPerm('data_backup') ? '' : 'none';
+
   // ── 隐藏导入/导出按钮 ──
   if (!App.hasPerm('data_import')) {
     var impBtns = document.querySelectorAll('#btn-import, [id$="-import-btn"]');
     impBtns.forEach(function(b) { b.style.display = 'none'; });
+    // 同时隐藏导入子标签
+    var impTabs = document.querySelectorAll('.subtab[data-tab="w-import"], .subtab[data-tab="p-import"]');
+    impTabs.forEach(function(t) { t.style.display = 'none'; });
   }
   if (!App.hasPerm('data_export')) {
     var expBtns = document.querySelectorAll('#btn-export, [id$="-export-btn"]');
@@ -1023,19 +1076,23 @@ App.bootstrapPermissions = function() {
   }
 
   // ── 角色级锁定顶部筛选下拉 ──
+  var scope = App.myDataScope || 'all';
   ['page-overview','page-width','page-potential'].forEach(function(pageId) {
     var teamSel  = document.querySelector('#' + pageId + ' .filter-dept');
     var groupSel = document.querySelector('#' + pageId + ' .filter-group-sel');
     var personSel = document.querySelector('#' + pageId + ' .filter-person');
 
-    if (role === 'director' || role === 'interface') {
+    if (scope === 'dept') {
+      // director / interface: 部门锁定
       if (teamSel && user.dept) { teamSel.value = user.dept; teamSel.disabled = true; }
     }
-    if (role === 'manager') {
+    if (scope === 'group') {
+      // manager: 部门和小组锁定
       if (teamSel && user.dept) { teamSel.value = user.dept; teamSel.disabled = true; }
       if (groupSel && user.group) { groupSel.value = user.group; groupSel.disabled = true; }
     }
-    if (role === 'sales') {
+    if (scope === 'self') {
+      // sales: 全部锁定，个人锁定
       if (teamSel) teamSel.disabled = true;
       if (groupSel) groupSel.disabled = true;
       if (personSel && user.username) personSel.value = user.username;
@@ -1048,12 +1105,23 @@ App.bootstrapPermissions = function() {
     App.populateGrpDropdown(pageId);
     App.populatePersonDropdown(pageId);
   });
-};
+}
 
 // 登出清理
 App._origLogout = App.doLogout;
 App.doLogout = function() {
   App.loggedInUser = null;
+  App.myPerms = null;
+  App.myDataScope = 'all';
   sessionStorage.removeItem('pa_login');
-  if (App._origLogout) App._origLogout();
+  sessionStorage.removeItem('pa_token');
+  App.API.logout();
+  var overlay = document.getElementById('loginOverlay');
+  if (overlay) overlay.classList.remove('hidden');
+  var loginUser = document.getElementById('loginUser');
+  if (loginUser) loginUser.value = '';
+  var loginPwd = document.getElementById('loginPwd');
+  if (loginPwd) loginPwd.value = '';
+  var loginError = document.getElementById('loginError');
+  if (loginError) loginError.style.display = 'none';
 };

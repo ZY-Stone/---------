@@ -22,6 +22,7 @@ class UserInfo(BaseModel):
     dept_id: int | None = None
     group_id: int | None = None
     tenant_id: int
+    data_scope: str = "self"
     must_change_pwd: bool = False
 
 class LoginResponse(BaseModel):

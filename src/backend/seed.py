@@ -21,6 +21,7 @@ from models.product_dict import ProductDict
 from models.sales_data import SalesWidth, SalesPotential
 from models.import_record import ImportRecord
 from models.audit_log import AuditLog
+from models.permission import RolePermission
 from utils.security import hash_password
 
 random.seed(42)
@@ -404,6 +405,65 @@ def seed():
     print(f"  导入记录: {len(import_data)}")
     print(f"  审计日志: {len(audit_data)}")
     print(f"  API 文档: http://localhost:8800/docs")
+
+
+def seed_role_permissions():
+    """初始化所有角色权限配置 — 每次启动都执行以确保配置是最新的"""
+    from models.permission import RolePermission
+    from database import SessionLocal
+    db = SessionLocal()
+
+    configs = [
+        # (role, role_name, overview, width, potential, users_mgmt, roles_mgmt,
+        #  products_mgmt, audit_log, backup, import_data, export_data, data_scope)
+        ("admin",     "管理员",  True,  True,  True,  True,  True,  True,  True,  True,  True,  True,  "all"),
+        ("gm",        "总经理",  True,  True,  True,  False, False, False, True,  False, True,  True,  "all"),
+        ("operation", "运营",    True,  True,  True,  False, False, False, True,  True,  True,  True,  "all"),
+        ("director",  "总监",    True,  True,  True,  False, False, False, False, False, True,  True,  "dept"),
+        ("manager",   "主管",    True,  True,  True,  True,  False, False, False, False, True,  True,  "group"),
+        ("interface", "接口人",  True,  True,  True,  True,  False, False, False, False, False, False, "dept"),
+        ("sales",     "一线销售",True,  True,  True,  False, False, False, False, False, False, False, "self"),
+    ]
+
+    for (role, role_name, overview, width, potential, users_mgmt, roles_mgmt,
+         products_mgmt, audit_log, backup, import_data, export_data, data_scope) in configs:
+
+        existing = db.query(RolePermission).filter(RolePermission.role == role).first()
+        if existing:
+            # 更新已有配置
+            existing.role_name = role_name
+            existing.overview = overview
+            existing.width = width
+            existing.potential = potential
+            existing.users_mgmt = users_mgmt
+            existing.roles_mgmt = roles_mgmt
+            existing.products_mgmt = products_mgmt
+            existing.audit_log = audit_log
+            existing.backup = backup
+            existing.import_data = import_data
+            existing.export_data = export_data
+            existing.data_scope = data_scope
+        else:
+            db.add(RolePermission(
+                tenant_id=1,
+                role=role,
+                role_name=role_name,
+                overview=overview,
+                width=width,
+                potential=potential,
+                users_mgmt=users_mgmt,
+                roles_mgmt=roles_mgmt,
+                products_mgmt=products_mgmt,
+                audit_log=audit_log,
+                backup=backup,
+                import_data=import_data,
+                export_data=export_data,
+                data_scope=data_scope,
+            ))
+
+    db.commit()
+    db.close()
+    print("  ✓ 角色权限配置已初始化")
 
 
 if __name__ == "__main__":

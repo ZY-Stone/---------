@@ -1,5 +1,5 @@
 """
-backend/routers/admin.py — 用户管理/部门/组 CRUD
+backend/routers/admin.py — 用户管理/部门/组 CRUD（含 RBAC 权限 + 数据隔离）
 """
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -9,43 +9,60 @@ from models.department import Department
 from models.group import Group
 from schemas.admin import UserCreate, UserUpdate, UserOut
 from utils.security import hash_password
+from utils.scope import scope_user_from_request, require_perm, filter_by_scope
+from models.permission import RolePermission
 
 router = APIRouter(prefix="/api/admin", tags=["管理"])
 
 
-def _get_user_from_request(request: Request) -> dict | None:
-    return getattr(request.state, "user", None)
+def _get_user_from_request(request: Request) -> dict:
+    return getattr(request.state, "user", None) or {}
 
 
 # ── 用户管理 ──
 @router.get("/users")
+@require_perm("users_mgmt")
 def list_users(request: Request, db: Session = Depends(get_db)):
     u = _get_user_from_request(request)
-    if not u or u.get("role") not in ("admin", "gm", "operation"):
-        raise HTTPException(status_code=403, detail="无权限")
+    tenant_id = u.get("tenant_id", 1)
 
-    users = db.query(User).filter(User.tenant_id == u["tenant_id"]).all()
+    q = db.query(User).filter(User.tenant_id == tenant_id)
+
+    # 数据范围：主管只看本组用户，总监/接口人只看本部门用户
+    role = u.get("role", "")
+    if role == "manager":
+        q = q.filter(User.group_id == u.get("group_id"))
+    elif role in ("director", "interface"):
+        q = q.filter(User.dept_id == u.get("dept_id"))
+
+    users = q.all()
+    # 批量查询角色权限
+    role_perms = {rp.role: rp for rp in db.query(RolePermission).all()}
     result = []
     for user in users:
         dept = db.query(Department).filter(Department.id == user.dept_id).first() if user.dept_id else None
         grp = db.query(Group).filter(Group.id == user.group_id).first() if user.group_id else None
+        rp = role_perms.get(user.role)
+        data_scope = rp.data_scope if rp else "self"
         result.append({
             "id": user.id,
             "username": user.username,
             "name": user.name,
             "role": user.role,
             "dept_name": dept.name if dept else "-",
+            "dept_id": user.dept_id,
             "group_name": grp.name if grp else "-",
+            "group_id": user.group_id,
             "status": user.status,
+            "data_scope": data_scope,
         })
     return result
 
 
 @router.post("/users")
+@require_perm("users_mgmt")
 def create_user(req: UserCreate, request: Request, db: Session = Depends(get_db)):
     u = _get_user_from_request(request)
-    if not u or u.get("role") not in ("admin", "gm"):
-        raise HTTPException(status_code=403, detail="无权限")
 
     exists = db.query(User).filter(User.username == req.username).first()
     if exists:
@@ -68,14 +85,22 @@ def create_user(req: UserCreate, request: Request, db: Session = Depends(get_db)
 
 
 @router.put("/users/{user_id}")
+@require_perm("users_mgmt")
 def update_user(user_id: int, req: UserUpdate, request: Request, db: Session = Depends(get_db)):
     current = _get_user_from_request(request)
-    if not current or current.get("role") not in ("admin", "gm"):
-        raise HTTPException(status_code=403, detail="无权限")
+    tenant_id = current.get("tenant_id", 1)
 
-    user = db.query(User).filter(User.id == user_id, User.tenant_id == current["tenant_id"]).first()
+    # 检查目标用户是否在自己数据范围内
+    role = current.get("role", "")
+    user_q = db.query(User).filter(User.id == user_id, User.tenant_id == tenant_id)
+    if role == "manager":
+        user_q = user_q.filter(User.group_id == current.get("group_id"))
+    elif role in ("director", "interface"):
+        user_q = user_q.filter(User.dept_id == current.get("dept_id"))
+
+    user = user_q.first()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise HTTPException(status_code=404, detail="用户不存在或不在您管辖范围内")
 
     if req.name is not None:
         user.name = req.name
@@ -92,16 +117,24 @@ def update_user(user_id: int, req: UserUpdate, request: Request, db: Session = D
 
 
 @router.delete("/users/{user_id}")
+@require_perm("users_mgmt")
 def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     current = _get_user_from_request(request)
-    if not current or current.get("role") not in ("admin", "gm"):
-        raise HTTPException(status_code=403, detail="无权限")
+    tenant_id = current.get("tenant_id", 1)
     if user_id == current.get("user_id"):
         raise HTTPException(status_code=400, detail="不能删除自己")
 
-    user = db.query(User).filter(User.id == user_id, User.tenant_id == current["tenant_id"]).first()
+    # 检查目标用户是否在自己数据范围内
+    role = current.get("role", "")
+    user_q = db.query(User).filter(User.id == user_id, User.tenant_id == tenant_id)
+    if role == "manager":
+        user_q = user_q.filter(User.group_id == current.get("group_id"))
+    elif role in ("director", "interface"):
+        user_q = user_q.filter(User.dept_id == current.get("dept_id"))
+
+    user = user_q.first()
     if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+        raise HTTPException(status_code=404, detail="用户不存在或不在您管辖范围内")
     if user.role == "admin":
         raise HTTPException(status_code=400, detail="不可删除管理员")
 

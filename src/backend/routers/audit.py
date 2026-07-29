@@ -1,10 +1,11 @@
-"""审计日志 API"""
+"""审计日志 API（含 RBAC 权限）"""
 from fastapi import APIRouter, Depends, Request, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from database import get_db
 from models.audit_log import AuditLog
 from models.user import User
+from utils.scope import scope_user_from_request, require_perm
 import logging
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ class AuditLogCreate(BaseModel):
 
 # GET /api/audit/logs — 查询审计日志
 @router.get("/logs")
+@require_perm("audit_log")
 def list_audit_logs(
     request: Request,
     page: int = Query(1, ge=1),
@@ -58,9 +60,6 @@ def list_audit_logs(
     db: Session = Depends(get_db),
 ):
     u = _user(request)
-    role = u.get("role", "")
-    if role and role not in ("admin", "gm", "operation"):
-        return {"data": [], "total": 0, "page": page, "size": size}
 
     q = db.query(AuditLog).filter(AuditLog.tenant_id == u.get("tenant_id", 1))
 

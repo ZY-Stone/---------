@@ -1,4 +1,4 @@
-"""潜力产品导入 API — 写入 potential_cust / potential_user 表"""
+"""潜力产品导入 API — 写入 potential_cust / potential_user 表（含 RBAC 权限 + 数据隔离）"""
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -8,6 +8,7 @@ from models.sales_data import PotentialCust, PotentialUser
 from models.product_dict import ProductDict
 from models.group import Group
 from models.audit_log import AuditLog
+from utils.scope import scope_user_from_request, require_perm, filter_by_scope, scope_data_scope
 
 router = APIRouter(prefix="/api/import", tags=["潜力产品导入"])
 
@@ -54,6 +55,7 @@ def resolve_dept_group(db: Session, dept3: str, dept4: str, dept5: str) -> tuple
     return (dept3 or dept4 or ''), (dept4 or dept3 or '')
 
 @router.post("/potential-cust")
+@require_perm("import_data")
 async def import_potential_cust(request: Request, db: Session = Depends(get_db)):
     """批量导入客户维度数据"""
     body = await request.json()
@@ -139,6 +141,7 @@ async def import_potential_cust(request: Request, db: Session = Depends(get_db))
 
 
 @router.post("/potential-user")
+@require_perm("import_data")
 async def import_potential_user(request: Request, db: Session = Depends(get_db)):
     """批量导入用户维度数据 v2 — parse_yoy 版本"""
     body = await request.json()
@@ -246,6 +249,7 @@ def resolve_width_dept_group(db: Session, raw_group: str) -> tuple[str, str]:
     return raw_group, raw_group
 
 @router.post("/width-records")
+@require_perm("import_data")
 async def import_width_records(request: Request, db: Session = Depends(get_db)):
     """批量导入产品宽度数据（用户+客户）"""
     body = await request.json()
@@ -323,8 +327,11 @@ def _width_row_to_dict(r: WidthRecord) -> dict:
 
 
 @router.get("/width-records")
-def get_width_records(type: str = "", db: Session = Depends(get_db)):
-    q = db.query(WidthRecord).filter(WidthRecord.tenant_id == 1)
+def get_width_records(type: str = "", request: Request = None, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    tid = u.get("tenant_id", 1)
+    q = db.query(WidthRecord).filter(WidthRecord.tenant_id == tid)
+    q = filter_by_scope(q, WidthRecord, u, dept_field="dept", group_field="group_name", sales_field="sales")
     if type:
         q = q.filter(WidthRecord.record_type == type)
     rows = q.all()
@@ -332,8 +339,12 @@ def get_width_records(type: str = "", db: Session = Depends(get_db)):
 
 
 @router.get("/potential-cust")
-def get_potential_cust(db: Session = Depends(get_db)):
-    rows = db.query(PotentialCust).filter(PotentialCust.tenant_id == 1).all()
+def get_potential_cust(request: Request = None, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    tid = u.get("tenant_id", 1)
+    q = db.query(PotentialCust).filter(PotentialCust.tenant_id == tid)
+    q = filter_by_scope(q, PotentialCust, u)
+    rows = q.all()
     result = []
     for r in rows:
         result.append({
@@ -350,8 +361,12 @@ def get_potential_cust(db: Session = Depends(get_db)):
 
 
 @router.get("/potential-user")
-def get_potential_user(db: Session = Depends(get_db)):
-    rows = db.query(PotentialUser).filter(PotentialUser.tenant_id == 1).all()
+def get_potential_user(request: Request = None, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    tid = u.get("tenant_id", 1)
+    q = db.query(PotentialUser).filter(PotentialUser.tenant_id == tid)
+    q = filter_by_scope(q, PotentialUser, u)
+    rows = q.all()
     result = []
     for r in rows:
         result.append({

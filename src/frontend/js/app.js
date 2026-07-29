@@ -26,8 +26,9 @@ App.doLogin = function() {
       id: u.id, username: u.username, name: u.name, role: u.role,
       dept: u.dept_name || '-', group: u.group_name || '-',
       dept_id: u.dept_id, group_id: u.group_id, tenant_id: u.tenant_id,
+      data_scope: u.data_scope || 'all',
     };
-    sessionStorage.setItem('pa_login', JSON.stringify({ username: u.username, role: u.role, name: u.name, token: apiData.token }));
+    sessionStorage.setItem('pa_login', JSON.stringify({ username: u.username, role: u.role, name: u.name, dept: u.dept_name || '', group: u.group_name || '', dept_id: u.dept_id, group_id: u.group_id, tenant_id: u.tenant_id, data_scope: u.data_scope || 'all', token: apiData.token }));
     App.API.restoreToken();
     if (errEl) errEl.style.display = 'none';
     document.getElementById('loginOverlay').classList.add('hidden');
@@ -86,8 +87,8 @@ App.applyRoleUI = function(role, displayName, dept, group) {
   var umBackup = document.getElementById('um-backup');
   if (umBackup) umBackup.style.display = App.hasPerm('data_backup') ? '' : 'none';
 
-  // 权限 UI 显隐：隐藏无权限的顶级导航按钮和 Admin 子标签
-  if (!App.hasPerm('user_manage') && !App.hasPerm('role_manage') && !App.hasPerm('audit_log') && !App.hasPerm('data_backup')) {
+  // 权限 UI 显隐：只有拥有用户管理或角色管理权限才显示「账号管理」页
+  if (!App.hasPerm('user_manage') && !App.hasPerm('role_manage')) {
     var adminNav = document.querySelector('.topbar-nav-btn[data-page="admin"]');
     if (adminNav) adminNav.style.display = 'none';
   }
@@ -101,10 +102,62 @@ App.applyRoleUI = function(role, displayName, dept, group) {
       if (tab) tab.style.display = 'none';
     }
   });
+
+  // ── 立即锁定筛选下拉（同步，不等待后端权限接口）──
+  _lockFilterDropdowns(role, dept, group);
 };
+
+// 根据角色立即锁定筛选下拉（在 admin/gm/operation 之外锁定）
+function _lockFilterDropdowns(role, dept, group) {
+  var user = App.loggedInUser || {};
+  ['page-overview','page-width','page-potential'].forEach(function(pageId) {
+    var teamSel  = document.querySelector('#' + pageId + ' .filter-dept');
+    var groupSel = document.querySelector('#' + pageId + ' .filter-group-sel');
+    var personSel = document.querySelector('#' + pageId + ' .filter-person');
+
+    if (role === 'admin' || role === 'gm' || role === 'operation') {
+      // 全量权限：所有下拉可选，不锁定
+      App.populateDeptDropdown(pageId);
+      App.populateGrpDropdown(pageId);
+      App.populatePersonDropdown(pageId);
+      return;
+    }
+
+    // 部门锁定：director / interface / manager / sales 只能看自己部门
+    if (teamSel && dept && dept !== '-' && dept !== 'undefined') {
+      teamSel.value = dept;
+      teamSel.disabled = true;
+    }
+
+    // 小组锁定：manager 锁定到自己的组；director/interface 看到部门内所有组
+    if (role === 'manager') {
+      if (groupSel && group) {
+        groupSel.value = group;
+        groupSel.disabled = true;
+      }
+    }
+
+    // 个人锁定：sales 只能看自己
+    if (role === 'sales') {
+      if (groupSel) groupSel.disabled = true;
+      if (personSel && user.username) {
+        personSel.value = user.username;
+        personSel.disabled = true;
+      }
+    }
+
+    // 填充过滤后的下拉选项
+    App.populateDeptDropdown(pageId);
+    App.populateGrpDropdown(pageId);
+    App.populatePersonDropdown(pageId);
+  });
+}
 
 // ===== SPA 页面路由 =====
 App.showPage = function(p) {
+  // 路由守卫：检查是否有权限访问
+  if (!App.guardRoute('page-' + p)) return;
+
   document.querySelectorAll('.page').forEach(function(el) { el.classList.remove('active'); });
   document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 
@@ -332,23 +385,26 @@ App.getVisibleDepts = function() {
   var u = App.loggedInUser;
   if (!u) return [];
   if (u.role === 'admin' || u.role === 'gm' || u.role === 'operation') return App.BUSINESS_DEPTS.map(function(d) { return d.n; });
-  if (u.role === 'director' || u.role === 'manager') return [u.dept];
+  // director / interface / manager / sales 只能看到自己的部门
+  if (u.dept) return [u.dept];
   return [];
 };
 App.getVisibleGroups = function() {
   var u = App.loggedInUser;
   if (!u) return [];
   if (u.role === 'admin' || u.role === 'gm' || u.role === 'operation') return App.GROUPS.map(function(g) { return g.n; });
-  if (u.role === 'director') return App.GROUPS.filter(function(g) { return g.dept === u.dept; }).map(function(g) { return g.n; });
+  if (u.role === 'director' || u.role === 'interface') return App.GROUPS.filter(function(g) { return g.dept === u.dept; }).map(function(g) { return g.n; });
   if (u.role === 'manager') return [u.group];
+  if (u.group) return [u.group];
   return [];
 };
 App.getVisiblePersons = function() {
   var u = App.loggedInUser;
   if (!u) return [];
   if (u.role === 'admin' || u.role === 'gm' || u.role === 'operation') return App.PERSONS.map(function(p) { return p.n; });
-  if (u.role === 'director') return App.PERSONS.filter(function(p) { return p.dept === u.dept; }).map(function(p) { return p.n; });
+  if (u.role === 'director' || u.role === 'interface') return App.PERSONS.filter(function(p) { return p.dept === u.dept; }).map(function(p) { return p.n; });
   if (u.role === 'manager') return App.PERSONS.filter(function(p) { return p.grp === u.group; }).map(function(p) { return p.n; });
+  if (u.role === 'sales') return [u.username];
   return [];
 };
 App.getDataScope = function() {
@@ -380,7 +436,8 @@ App.getFilteredGroups = function(deptVal) {
   var u = App.loggedInUser;
   var groups = App.GROUPS;
   if (u && u.role === 'manager') { groups = groups.filter(function(g) { return g.dept === u.dept && g.n === u.group; }); }
-  else if (u && u.role === 'director') { groups = groups.filter(function(g) { return g.dept === u.dept; }); }
+  else if (u && (u.role === 'director' || u.role === 'interface')) { groups = groups.filter(function(g) { return g.dept === u.dept; }); }
+  else if (u && u.role === 'sales') { groups = groups.filter(function(g) { return g.dept === u.dept && g.n === u.group; }); }
   if (deptVal) { groups = groups.filter(function(g) { return g.dept === deptVal; }); }
   return groups;
 };
@@ -388,7 +445,8 @@ App.getFilteredPersons = function(deptVal, grpVal) {
   var u = App.loggedInUser;
   var persons = App.PERSONS;
   if (u && u.role === 'manager') { persons = persons.filter(function(p) { return p.dept === u.dept && p.grp === u.group; }); }
-  else if (u && u.role === 'director') { persons = persons.filter(function(p) { return p.dept === u.dept; }); }
+  else if (u && (u.role === 'director' || u.role === 'interface')) { persons = persons.filter(function(p) { return p.dept === u.dept; }); }
+  else if (u && u.role === 'sales') { persons = persons.filter(function(p) { return p.n === u.username; }); }
   if (deptVal) { persons = persons.filter(function(p) { return p.dept === deptVal; }); }
   if (grpVal) { persons = persons.filter(function(p) { return p.grp === grpVal; }); }
   return persons;
@@ -400,6 +458,21 @@ App.populateDeptDropdown = function(pageId) {
   if (!sel) return;
   var curVal = sel.value;
   var depts = App.getFilteredDepts();
+  var u = App.loggedInUser || {};
+  var role = u.role || '';
+
+  // 受限角色：不显示「全部部门」选项，并锁定下拉
+  if (role && role !== 'admin' && role !== 'gm' && role !== 'operation') {
+    sel.innerHTML = depts.map(function(d) { return '<option value="' + d.n + '">' + d.n + '</option>'; }).join('');
+    // 只有一个部门时自动选中并锁定
+    if (depts.length === 1) {
+      sel.value = depts[0].n;
+      sel.disabled = true;
+    }
+    return;
+  }
+
+  // 全量权限：显示全部部门
   sel.innerHTML = '<option value="all">全部部门</option>' + depts.map(function(d) { return '<option value="' + d.n + '">' + d.n + '</option>'; }).join('');
   if (depts.some(function(d) { return d.n === curVal; })) sel.value = curVal;
 };
@@ -409,6 +482,27 @@ App.populateGrpDropdown = function(pageId) {
   var curVal = sel.value;
   var deptVal = (document.querySelector('#' + pageId + ' .filter-dept') || {}).value || 'all';
   var groups = App.getFilteredGroups(deptVal !== 'all' ? deptVal : null);
+  var u = App.loggedInUser || {};
+  var role = u.role || '';
+
+  // 主管：组锁定为唯一值，不显示「全部小组」
+  if (role === 'manager') {
+    sel.innerHTML = groups.map(function(g) { return '<option value="' + g.n + '">' + g.n + '</option>'; }).join('');
+    if (groups.length === 1) {
+      sel.value = groups[0].n;
+      sel.disabled = true;
+    }
+    return;
+  }
+
+  // 销售：组锁定
+  if (role === 'sales') {
+    sel.innerHTML = groups.map(function(g) { return '<option value="' + g.n + '">' + g.n + '</option>'; }).join('');
+    sel.disabled = true;
+    return;
+  }
+
+  // 总监/接口人/全量权限：显示「全部小组」
   sel.innerHTML = '<option value="all">全部小组</option>' + groups.map(function(g) { return '<option value="' + g.n + '">' + g.n + '</option>'; }).join('');
   if (groups.some(function(g) { return g.n === curVal; })) sel.value = curVal;
   else sel.value = 'all';
@@ -420,6 +514,18 @@ App.populatePersonDropdown = function(pageId) {
   var deptVal = (document.querySelector('#' + pageId + ' .filter-dept') || {}).value || 'all';
   var grpVal = (document.querySelector('#' + pageId + ' .filter-group-sel') || {}).value || 'all';
   var persons = App.getFilteredPersons(deptVal !== 'all' ? deptVal : null, grpVal !== 'all' ? grpVal : null);
+  var u = App.loggedInUser || {};
+  var role = u.role || '';
+
+  // 销售：个人锁定为自己
+  if (role === 'sales') {
+    sel.innerHTML = persons.map(function(p) { return '<option value="' + p.n + '">' + p.n + '</option>'; }).join('');
+    if (u.username) { sel.value = u.username; }
+    sel.disabled = true;
+    return;
+  }
+
+  // 其他角色：显示「全部成员」
   sel.innerHTML = '<option value="all">全部成员</option>' + persons.map(function(p) { return '<option value="' + p.n + '">' + p.n + '</option>'; }).join('');
   if (persons.some(function(p) { return p.n === curVal; })) sel.value = curVal;
   else sel.value = 'all';
@@ -7086,60 +7192,98 @@ App.ImportPotential.batchDelete = function() {
 
 // ===== 账号管理-用户管理Tab渲染 =====
 App.renderAdminUsers = function() {
-  var users = App.MOCK_USERS.slice();
+  var tbody = document.getElementById('aUsersTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8">加载中...</td></tr>';
+
+  // 尝试从后端 API 拉取用户列表
+  App.API.getUsers().then(function(users) {
+    _renderUserTable(users);
+  }).catch(function() {
+    // 后端不可用，使用 MOCK_USERS 兜底
+    _renderUserTable(App.MOCK_USERS.slice());
+  });
+};
+
+// 内部：渲染用户表格
+function _renderUserTable(users) {
+  var tbody = document.getElementById('aUsersTableBody');
+  if (!tbody) return;
   var roles = App.USER_ROLES;
   // 按部门顺序排列
   var deptOrder = App.DEPT_LIST || [];
   users.sort(function(a, b) {
-    var da = deptOrder.indexOf(a.dept), db = deptOrder.indexOf(b.dept);
+    var da = deptOrder.indexOf(a.dept_name || a.dept), db = deptOrder.indexOf(b.dept_name || b.dept);
     if (da < 0) da = 99; if (db < 0) db = 99;
     if (da !== db) return da - db;
-    // 总监置顶，然后按角色权重排
     var roleWeight = { admin:0, gm:1, operation:2, director:3, manager:4, interface:5, sales:6 };
     var wa = roleWeight[a.role] || 9, wb = roleWeight[b.role] || 9;
     if (wa !== wb) return wa - wb;
-    return a.username.localeCompare(b.username);
+    return (a.username || '').localeCompare(b.username || '');
   });
-  var tbody = document.getElementById('aUsersTableBody');
-  if (!tbody) return;
+  var canEdit = App.hasPerm('user_manage');
   var h = '';
+  var scopeLabels = { all: '全部', dept: '本部门', group: '本小组', self: '本人' };
   users.forEach(function(u) {
+    var deptName = u.dept_name || u.dept || '-';
+    var groupName = u.group_name || u.group || '-';
     var r = roles[u.role] || {};
+    var scope = u.data_scope || r.scope || 'self';
+    var scopeLabel = scopeLabels[scope] || scope;
+    var scopeColor = scope === 'all' ? '#059669' : scope === 'dept' ? '#2563eb' : scope === 'group' ? '#ea580c' : '#64748b';
     var roleTag = '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:' + (r.color || '#64748b') + '18;color:' + (r.color || '#64748b') + '">' + (r.badge || u.role) + '</span>';
-    h += '<tr><td><strong>' + u.username + '</strong></td><td>' + u.name + '</td><td>' + roleTag + '</td><td style="font-size:10px;color:#94a3b8">' + u.role + '</td><td style="color:#64748b;font-size:12px">' + u.dept + '</td><td style="color:#64748b;font-size:12px">' + (u.group !== '-' ? u.group : '<span style="color:#cbd5e1">-</span>') + '</td><td style="white-space:nowrap">';
-    h += '<select onchange="App.changeUserRole(' + u.id + ',this.value)" style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;margin-right:4px">';
-    for (var rk in roles) { h += '<option value="' + rk + '"' + (u.role === rk ? ' selected' : '') + '>' + roles[rk].badge + '</option>'; }
-    h += '</select>';
-    h += '<button onclick="App.showUserForm(' + u.id + ')" style="padding:3px 7px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;color:#2563eb;margin-right:2px" title="编辑">✎</button>';
-    if (u.username !== 'admin') { h += '<button onclick="App.deleteUser(' + u.id + ')" style="padding:3px 7px;border:1px solid #fee2e2;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;color:#dc2626" title="删除">✕</button>'; }
-    else { h += '<span style="font-size:10px;color:#94a3b8;margin-left:4px">内置</span>'; }
+    h += '<tr><td><strong>' + u.username + '</strong></td><td>' + (u.name || '') + '</td><td>' + roleTag + '</td><td style="font-size:10px;color:#94a3b8">' + u.role + '</td><td style="color:#64748b;font-size:12px">' + deptName + '</td><td style="color:#64748b;font-size:12px">' + (groupName !== '-' ? groupName : '<span style="color:#cbd5e1">-</span>') + '</td><td style="font-size:11px;color:' + scopeColor + ';font-weight:500">' + scopeLabel + '</td><td style="white-space:nowrap">';
+    if (canEdit) {
+      h += '<select onchange="App.changeUserRole(' + u.id + ',this.value)" style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;margin-right:4px">';
+      for (var rk in roles) { h += '<option value="' + rk + '"' + (u.role === rk ? ' selected' : '') + '>' + roles[rk].badge + '</option>'; }
+      h += '</select>';
+      h += '<button onclick="App.showUserForm(' + u.id + ')" style="padding:3px 7px;border:1px solid #e2e8f0;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;color:#2563eb;margin-right:2px" title="编辑">✎</button>';
+    }
+    if (u.username !== 'admin' && canEdit) { h += '<button onclick="App.deleteUser(' + u.id + ')" style="padding:3px 7px;border:1px solid #fee2e2;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;color:#dc2626" title="删除">✕</button>'; }
+    else if (u.username === 'admin') { h += '<span style="font-size:10px;color:#94a3b8;margin-left:4px">内置</span>'; }
     h += '</td></tr>';
   });
   tbody.innerHTML = h;
   var countEl = document.getElementById('aUsersCount');
   if (countEl) countEl.textContent = '共 ' + users.length + ' 个用户 · admin 为内置管理员不可删除';
-};
+}
 
-// ===== 权限设置模态框（商机预测版） =====
+// ===== 权限设置模态框 =====
 App.showPermModal = function() {
-  var users = App.MOCK_USERS;
   var roles = App.USER_ROLES;
   var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">';
   h += '<h3 style="margin:0;font-size:16px">⚙️ 用户权限设置</h3>';
   h += '<button onclick="App.showUserForm()" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">＋ 新增用户</button>';
   h += '</div>';
-  h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  h += '<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:left;color:#64748b;font-size:12px"><th style="padding:8px 6px">用户名</th><th style="padding:8px 6px">姓名</th><th style="padding:8px 6px">角色</th><th style="padding:8px 6px">部门</th><th style="padding:8px 6px">所属组</th><th style="padding:8px 6px;width:200px">操作</th></tr></thead><tbody>';
+  h += '<div id="permModalUserTable" style="max-height:60vh;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">';
+  h += '<thead><tr style="border-bottom:2px solid #e2e8f0;text-align:left;color:#64748b;font-size:12px"><th style="padding:8px 6px">用户名</th><th style="padding:8px 6px">姓名</th><th style="padding:8px 6px">角色</th><th style="padding:8px 6px">部门</th><th style="padding:8px 6px">所属组</th><th style="padding:8px 6px;width:200px">操作</th></tr></thead><tbody id="permModalTbody"><tr><td colspan="6" style="text-align:center;color:#94a3b8">加载中...</td></tr></tbody>';
+  h += '</table></div>';
+  h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:right"><button onclick="App.closeModal()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">关闭</button></div>';
+  App.showModal('⚙️ 用户权限设置', h);
 
+  // 异步拉取用户数据填充模态框表格
+  App.API.getUsers().then(function(users) {
+    _renderPermModalUsers(users, roles);
+  }).catch(function() {
+    _renderPermModalUsers(App.MOCK_USERS.slice(), roles);
+  });
+};
+
+function _renderPermModalUsers(users, roles) {
+  var tbody = document.getElementById('permModalTbody');
+  if (!tbody) return;
+  var h = '';
   users.forEach(function(u) {
+    var deptName = u.dept_name || u.dept || '-';
+    var groupName = u.group_name || u.group || '-';
     var r = roles[u.role] || {};
     var roleTag = '<span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:' + (r.color || '#64748b') + '18;color:' + (r.color || '#64748b') + '">' + (r.badge || u.role) + '</span>';
     h += '<tr style="border-bottom:1px solid #f1f5f9">';
     h += '<td style="padding:8px 6px"><strong>' + u.username + '</strong></td>';
-    h += '<td style="padding:8px 6px">' + u.name + '</td>';
+    h += '<td style="padding:8px 6px">' + (u.name || '') + '</td>';
     h += '<td style="padding:8px 6px">' + roleTag + '</td>';
-    h += '<td style="padding:8px 6px;color:#64748b;font-size:12px">' + u.dept + '</td>';
-    h += '<td style="padding:8px 6px;color:#64748b;font-size:12px">' + (u.group !== '-' ? u.group : '<span style="color:#cbd5e1">-</span>') + '</td>';
+    h += '<td style="padding:8px 6px;color:#64748b;font-size:12px">' + deptName + '</td>';
+    h += '<td style="padding:8px 6px;color:#64748b;font-size:12px">' + (groupName !== '-' ? groupName : '<span style="color:#cbd5e1">-</span>') + '</td>';
     h += '<td style="padding:8px 6px;white-space:nowrap">';
     h += '<select onchange="App.changeUserRole(' + u.id + ',this.value)" style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:4px;font-size:11px;margin-right:4px">';
     for (var rk in roles) {
@@ -7154,111 +7298,190 @@ App.showPermModal = function() {
     }
     h += '</td></tr>';
   });
-
-  h += '</tbody></table>';
-  h += '<div style="margin-top:12px;font-size:11px;color:#94a3b8">共 ' + users.length + ' 个用户 · admin 为内置管理员不可删除</div>';
-  h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0;text-align:right"><button onclick="App.closeModal()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">关闭</button></div>';
-  App.showModal('⚙️ 用户权限设置', h);
-};
+  tbody.innerHTML = h;
+}
 
 // 新增/编辑用户
 App.showUserForm = function(id) {
   var isEdit = (typeof id !== 'undefined');
-  var u = isEdit ? App.MOCK_USERS.find(function(x) { return x.id === id; }) : null;
-  var title = isEdit ? '✎ 编辑用户 — ' + u.name : '＋ 新增用户';
   var roles = App.USER_ROLES;
-  var depts = App.DEPT_LIST;
+
+  // 异步拉取部门列表
+  var modalBodyPromise = App.API.getDepartments().then(function(depts) {
+    return depts;
+  }).catch(function() {
+    return App.DEPT_LIST.map(function(d) { return { id: 0, name: d }; });
+  });
+
+  if (isEdit) {
+    // 编辑模式：先加载用户数据
+    App.API.getUsers().then(function(users) {
+      var u = users.find(function(x) { return x.id === id; });
+      if (!u) {
+        // 兜底
+        u = App.MOCK_USERS.find(function(x) { return x.id === id; });
+      }
+      modalBodyPromise.then(function(depts) {
+        _renderUserForm(isEdit, u, depts, roles);
+      });
+    }).catch(function() {
+      var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
+      modalBodyPromise.then(function(depts) {
+        _renderUserForm(isEdit, u, depts, roles);
+      });
+    });
+  } else {
+    modalBodyPromise.then(function(depts) {
+      _renderUserForm(false, null, depts, roles);
+    });
+  }
+};
+
+function _renderUserForm(isEdit, u, depts, roles) {
+  var title = isEdit && u ? '✎ 编辑用户 — ' + u.name : '＋ 新增用户';
+  var deptName = (u && (u.dept_name || u.dept)) || '';
+  var groupName = (u && (u.group_name || u.group)) || '';
+  var selDeptId = (u && u.dept_id) || 0;
+  var selGroupId = (u && u.group_id) || 0;
 
   var h = '<h3 style="margin:0 0 16px;font-size:16px">' + title + '</h3>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">用户名 <span style="color:#dc2626">*</span></label>';
-  h += '<input id="ufUsername" value="' + (isEdit ? u.username : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="英文+数字"' + (isEdit ? ' disabled' : '') + '></div>';
+  h += '<input id="ufUsername" value="' + (isEdit && u ? u.username : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="英文+数字"' + (isEdit ? ' disabled' : '') + '></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">显示姓名 <span style="color:#dc2626">*</span></label>';
-  h += '<input id="ufName" value="' + (isEdit ? u.name : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="中文姓名"></div>';
+  h += '<input id="ufName" value="' + (isEdit && u ? u.name || '' : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="中文姓名"></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">' + (isEdit ? '新密码（留空不修改）' : '登录密码 <span style="color:#dc2626">*</span>') + '</label>';
   h += '<input id="ufPwd" type="password" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="' + (isEdit ? '留空则不修改密码' : '至少6位') + '"></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">角色 <span style="color:#dc2626">*</span></label>';
   h += '<select id="ufRole" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;background:#fff;cursor:pointer;color:#1e293b">';
   for (var rk in roles) {
     var r = roles[rk];
-    h += '<option value="' + rk + '"' + (isEdit && u.role === rk ? ' selected' : '') + '>' + r.badge + ' · ' + r.perms + '</option>';
+    h += '<option value="' + rk + '"' + (isEdit && u && u.role === rk ? ' selected' : '') + '>' + r.badge + ' · ' + r.perms + '</option>';
   }
   h += '</select></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">所属部门</label>';
-  h += '<select id="ufDept" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;background:#fff;cursor:pointer;color:#1e293b">';
-  depts.forEach(function(d) { h += '<option value="' + d + '"' + (isEdit && u.dept === d ? ' selected' : '') + '>' + d + '</option>'; });
+  h += '<select id="ufDept" onchange="App.onUserFormDeptChange()" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;background:#fff;cursor:pointer;color:#1e293b">';
+  depts.forEach(function(d) { h += '<option value="' + (d.name || d) + '" data-id="' + (d.id || 0) + '"' + (isEdit && u && deptName === (d.name || d) ? ' selected' : '') + '>' + (d.name || d) + '</option>'; });
   h += '</select></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">所属组</label>';
-  h += '<input id="ufGroup" value="' + (isEdit && u.group !== '-' ? u.group : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="组名（可选）"></div>';
+  h += '<select id="ufGroup" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;background:#fff;cursor:pointer;color:#1e293b">';
+  h += '<option value="">-- 请先选择部门 --</option>';
+  h += '</select></div>';
   h += '</div>';
   h += '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">';
-  h += '<button onclick="App.showPermModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button>';
-  h += '<button onclick="App.saveUser(' + (isEdit ? id : 'null') + ')" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">' + (isEdit ? '保存修改' : '确认新增') + '</button>';
+  h += '<button onclick="App.closeModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button>';
+  h += '<button onclick="App.saveUser(' + (isEdit && u ? u.id : 'null') + ')" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">' + (isEdit ? '保存修改' : '确认新增') + '</button>';
   h += '</div>';
-  App.showModal(title, h, '');  // 自带取消/保存按钮，不要默认关闭
+  App.showModal(title, h, '');
+
+  // 填充组下拉 + 选中当前组
+  setTimeout(function() {
+    App.onUserFormDeptChange(selGroupId);
+  }, 100);
+}
+
+// 用户表单：部门变更时联动刷新组下拉
+App.onUserFormDeptChange = function(preseveGroupId) {
+  var deptSel = document.getElementById('ufDept');
+  var groupSel = document.getElementById('ufGroup');
+  if (!deptSel || !groupSel) return;
+  var deptId = deptSel.options[deptSel.selectedIndex].getAttribute('data-id') || '0';
+  groupSel.innerHTML = '<option value="">加载中...</option>';
+
+  App.API.getGroups(parseInt(deptId) || undefined).then(function(groups) {
+    var h = '<option value="">-- 不关联组 --</option>';
+    groups.forEach(function(g) {
+      h += '<option value="' + g.id + '"' + (preseveGroupId && g.id === preseveGroupId ? ' selected' : '') + '>' + g.name + '</option>';
+    });
+    groupSel.innerHTML = h;
+  }).catch(function() {
+    // 后端不可用，用前端 GROUPS 兜底
+    var deptName = deptSel.options[deptSel.selectedIndex].text;
+    var groups = App.GROUPS.filter(function(g) { return g.dept === deptName; });
+    var h = '<option value="">-- 不关联组 --</option>';
+    groups.forEach(function(g, i) { h += '<option value="' + i + '">' + g.n + '</option>'; });
+    groupSel.innerHTML = h;
+  });
 };
 
-// 保存用户
+// 保存用户（调用后端 API）
 App.saveUser = function(id) {
   var isEdit = (typeof id === 'number');
   var username = (document.getElementById('ufUsername') || {}).value || '';
   var name = (document.getElementById('ufName') || {}).value || '';
   var pwd = (document.getElementById('ufPwd') || {}).value || '';
   var role = (document.getElementById('ufRole') || {}).value || 'manager';
-  var dept = (document.getElementById('ufDept') || {}).value || App.DEPT_LIST[0];
-  var group = (document.getElementById('ufGroup') || {}).value || '-';
+  var deptSel = document.getElementById('ufDept');
+  var deptId = deptSel ? parseInt(deptSel.options[deptSel.selectedIndex].getAttribute('data-id') || '0') : 0;
+  var groupSel = document.getElementById('ufGroup');
+  var groupId = groupSel ? parseInt(groupSel.value || '0') : 0;
 
   if (!username || !name) { alert('用户名和姓名不能为空'); return; }
   if (!isEdit && !pwd) { alert('新用户必须设置密码'); return; }
 
+  var userData = { name: name, role: role, dept_id: deptId, group_id: groupId || 0 };
+  if (!isEdit && pwd) userData.username = username;
+  if (!isEdit && pwd) userData.password = pwd;
+
   if (isEdit) {
-    var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
-    if (u) {
-      u.name = name;
-      if (pwd) { /* 生产环境应更新密码 */ }
-      u.role = role;
-      u.dept = dept;
-      u.group = group;
-      u.ld = '-';
-    }
+    App.API.updateUser(id, userData).then(function() {
+      App.showToast('✅ 用户 ' + name + ' 已更新');
+      App.closeModal();
+      App.renderAdminUsers();
+    }).catch(function(err) {
+      // 后端失败，更新 MOCK 兜底
+      var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
+      if (u) { u.name = name; u.role = role; u.dept = deptSel ? deptSel.value : ''; u.group = String(groupId || ''); }
+      App.showToast('⚠️ 后端不可用，已本地更新');
+      App.closeModal();
+      App.renderAdminUsers();
+    });
   } else {
-    if (App.MOCK_USERS.find(function(x) { return x.username === username; })) { alert('用户名已存在'); return; }
-    var newId = Math.max.apply(null, App.MOCK_USERS.map(function(x) { return x.id; })) + 1;
-    App.MOCK_USERS.push({ id: newId, username: username, name: name, role: role, dept: dept, group: group, ld: '-' });
+    App.API.createUser(userData).then(function() {
+      App.showToast('✅ 用户 ' + name + ' 已创建');
+      App.closeModal();
+      App.renderAdminUsers();
+    }).catch(function(err) {
+      // 后端失败，MOCK 兜底
+      if (App.MOCK_USERS.find(function(x) { return x.username === username; })) { alert('用户名已存在'); return; }
+      var newId = Math.max.apply(null, App.MOCK_USERS.map(function(x) { return x.id; })) + 1;
+      App.MOCK_USERS.push({ id: newId, username: username, name: name, role: role, dept: deptSel ? deptSel.value : '', group: String(groupId || ''), ld: '-' });
+      App.showToast('⚠️ 后端不可用，已本地创建');
+      App.closeModal();
+      App.renderAdminUsers();
+    });
   }
-  // 刷新当前登录信息
-  if (App.loggedInUser && isEdit && App.loggedInUser.id === id) {
-    var refreshed = App.MOCK_USERS.find(function(x) { return x.id === id; });
-    if (refreshed) {
-      App.loggedInUser = refreshed;
-      sessionStorage.setItem('pa_login', JSON.stringify({ username: refreshed.username, role: refreshed.role, name: refreshed.name }));
-      App.applyRoleUI(refreshed.role, refreshed.name, refreshed.dept, refreshed.group);
-    }
-  }
-  App.showPermModal();
   App.addLog(isEdit ? '编辑用户' : '新增用户', name, (isEdit ? '编辑' : '新增') + '用户 ' + name + '（' + username + '），角色 ' + role);
 };
 
-// 变更用户角色
+// 变更用户角色（调用后端 API）
 App.changeUserRole = function(id, newRole) {
+  App.API.updateUser(id, { role: newRole }).then(function() {
+    App.showToast('✅ 角色已更新');
+    App.renderAdminUsers();
+  }).catch(function() {
+    var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
+    if (u) { u.role = newRole; }
+    App.renderAdminUsers();
+  });
   var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
-  if (u) {
-    var oldRole = u.role;
-    u.role = newRole;
-    App.addLog('编辑用户', u.name, '角色变更: ' + oldRole + ' → ' + newRole);
-  }
-  App.renderAdminUsers();
+  if (u) App.addLog('编辑用户', u.name, '角色变更 → ' + newRole);
 };
 
-// 删除用户
+// 删除用户（调用后端 API）
 App.deleteUser = function(id) {
   var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
-  if (!u) return;
-  if (u.username === 'admin') { alert('admin 为内置管理员，不可删除'); return; }
-  if (!confirm('确定删除用户「' + u.name + '」吗？此操作不可撤销。')) return;
-  App.MOCK_USERS = App.MOCK_USERS.filter(function(x) { return x.id !== id; });
-  App.renderAdminUsers();
-  App.showPermModal();
-  App.addLog('删除用户', u.name, '删除用户 ' + u.name + '（' + u.username + '）');
+  if (u && u.username === 'admin') { alert('admin 为内置管理员，不可删除'); return; }
+  if (!confirm('确定删除该用户吗？此操作不可撤销。')) return;
+
+  App.API.deleteUser(id).then(function() {
+    App.showToast('✅ 用户已删除');
+    App.renderAdminUsers();
+  }).catch(function() {
+    App.MOCK_USERS = App.MOCK_USERS.filter(function(x) { return x.id !== id; });
+    App.showToast('⚠️ 后端不可用，已本地删除');
+    App.renderAdminUsers();
+  });
+  if (u) App.addLog('删除用户', u.name, '删除用户 ' + u.name + '（' + u.username + '）');
 };
 
 // ===== 帮助说明（独立页面） =====
@@ -7302,39 +7525,29 @@ App.changePwd = function(forced) {
   if (!/[0-9]/.test(newPwd)) { alert('新密码必须包含数字'); return; }
   if (newPwd !== confirmPwd) { alert('两次新密码不一致'); return; }
 
-  // 调后端验证
-  fetch('/api/auth/change-password', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.ok) {
-      // 同时更新本地 sessionStorage 中缓存的密码（用于本地 Mock 回退）
-      try {
-        var login = JSON.parse(sessionStorage.getItem('pa_login') || '{}');
-        login._pwd = newPwd;
-        sessionStorage.setItem('pa_login', JSON.stringify(login));
-      } catch(e) {}
-      App.addLog('修改密码', App.loggedInUser.name, '修改了登录密码');
-      alert('✅ 密码修改成功' + (forced ? '，即将进入平台' : '，下次登录请使用新密码'));
+  // 使用 API 封装层请求（自动带 Authorization header）
+  App.API.changePwd(oldPwd, newPwd).then(function(d) {
+    if (d.ok || d.message) {
+      App.addLog('修改密码', (App.loggedInUser || {}).name || '', '修改了登录密码');
       App.closeModal();
-      if (forced) { App.initAll(); }  // 强制模式：修改完密码后进入平台
+      // 密码修改成功后清除登录态，强制重新登录
+      App.loggedInUser = null;
+      App.myPerms = null;
+      sessionStorage.removeItem('pa_login');
+      sessionStorage.removeItem('pa_token');
+      App.API.logout();
+      alert('✅ 密码修改成功，请使用新密码重新登录');
+      var overlay = document.getElementById('loginOverlay');
+      if (overlay) overlay.classList.remove('hidden');
+      var loginUser = document.getElementById('loginUser');
+      if (loginUser) loginUser.value = '';
+      var loginPwd = document.getElementById('loginPwd');
+      if (loginPwd) loginPwd.value = '';
     } else {
-      alert('❌ ' + (d.message || '密码修改失败'));
+      alert('❌ ' + (d.detail || d.message || '密码修改失败'));
     }
-  })
-  .catch(function(e) {
-    // 后端不可用时尝试本地修改（仅适用于 Mock 模式）
-    if (oldPwd !== 'admin123') { alert('当前密码错误'); return; }
-    try {
-      var login = JSON.parse(sessionStorage.getItem('pa_login') || '{}');
-      login._pwd = newPwd;
-      sessionStorage.setItem('pa_login', JSON.stringify(login));
-    } catch(e) {}
-    alert('✅ 密码已在本地修改（后端不可用，重启后需重新设置）');
-    App.closeModal();
+  }).catch(function(e) {
+    alert('❌ ' + (e.message || '密码修改失败，请确认当前密码正确'));
   });
 };
 
@@ -7835,65 +8048,116 @@ App.renderUserCustLink = function(state) {
 App.renderRoles = function() {
   var thead = document.getElementById('aRolesHead');
   var tbody = document.getElementById('aRolesBody');
-  if (!tbody || !App.ROLE_PERMISSIONS) return;
+  if (!tbody) return;
 
-  var modKeys = ['overview','width','potential','users','roles','audit','backup','export','import'];
-  var modLabels = { overview:'数据总览', width:'产品宽度', potential:'潜力产品', users:'用户管理', roles:'角色权限', audit:'审计日志', backup:'数据备份', export:'数据导出', import:'数据导入' };
-  var scopeMap = { admin:'全部数据', gm:'全部数据', operation:'全部数据', director:'本部门', manager:'本小组', interface:'本部门', sales:'本人' };
-
-  if (!App._roleEditBuffer) {
-    App._roleEditBuffer = JSON.parse(JSON.stringify(App.ROLE_PERMISSIONS));
-  }
+  var modKeys = ['overview','width','potential','users_mgmt','roles_mgmt','audit_log','backup','export_data','import_data'];
+  var modLabels = { overview:'数据总览', width:'产品宽度', potential:'潜力产品', users_mgmt:'用户管理', roles_mgmt:'角色权限', audit_log:'审计日志', backup:'数据备份', export_data:'数据导出', import_data:'数据导入' };
+  var scopeMap = { all:'全部数据', dept:'本部门', group:'本小组', self:'本人' };
 
   // 表头
   if (thead) {
     var th = '<tr><th>角色</th><th>名称</th>';
-    modKeys.forEach(function(k) { th += '<th class="cu-c" title="' + modLabels[k] + '">' + (modLabels[k]||k) + '</th>'; });
+    modKeys.forEach(function(k) { th += '<th class="cu-c" title="' + (modLabels[k]||k) + '">' + (modLabels[k]||k) + '</th>'; });
     th += '<th>数据范围</th></tr>';
     thead.innerHTML = th;
   }
 
-  // 表体
-  tbody.innerHTML = App._roleEditBuffer.map(function(r, ri) {
-    var cells = modKeys.map(function(k) {
-      var checked = r.modules[k] === 1 ? ' checked' : '';
-      return '<td class="cu-c"><input type="checkbox" ' + checked + ' onchange="App._roleEditBuffer[' + ri + '].modules.' + k + '=this.checked?1:0"></td>';
-    }).join('');
-    return '<tr>' +
-      '<td><span class="role-badge">' + r.role + '</span></td>' +
-      '<td class="role-name-cell"><span class="role-name">' + r.name + '</span><span class="role-desc">' + r.desc + '</span></td>' +
-      cells +
-      '<td class="role-scope">' + (scopeMap[r.role]||'-') + '</td></tr>';
-  }).join('');
+  // 尝试从后端 API 拉取角色权限
+  App.API.getRoles().then(function(roles) {
+    _renderRoleTable(roles);
+  }).catch(function() {
+    // 后端不可用，使用前端 ROLE_PERMISSIONS 兜底
+    _renderRoleTable(null);
+  });
 };
 
+function _renderRoleTable(backendRoles) {
+  var tbody = document.getElementById('aRolesBody');
+  if (!tbody) return;
+
+  var modKeys = ['overview','width','potential','users_mgmt','roles_mgmt','audit_log','backup','export_data','import_data'];
+  var modLabels = { overview:'数据总览', width:'产品宽度', potential:'潜力产品', users_mgmt:'用户管理', roles_mgmt:'角色权限', audit_log:'审计日志', backup:'数据备份', export_data:'数据导出', import_data:'数据导入' };
+  var scopeMap = { all:'全部数据', dept:'本部门', group:'本小组', self:'本人' };
+
+  // 编辑缓冲区
+  if (!App._roleEditBuffer) {
+    if (backendRoles && backendRoles.length > 0) {
+      // 使用后端数据格式
+      App._roleEditBuffer = backendRoles.map(function(r) {
+        return {
+          role: r.role,
+          name: r.role_name || r.role,
+          modules: {
+            overview: r.overview ? 1 : 0,
+            width: r.width ? 1 : 0,
+            potential: r.potential ? 1 : 0,
+            users_mgmt: r.users_mgmt ? 1 : 0,
+            roles_mgmt: r.roles_mgmt ? 1 : 0,
+            audit_log: r.audit_log ? 1 : 0,
+            backup: r.backup ? 1 : 0,
+            export_data: r.export_data ? 1 : 0,
+            import_data: r.import_data ? 1 : 0,
+          },
+          data_scope: r.data_scope || 'self'
+        };
+      });
+    } else if (App.ROLE_PERMISSIONS) {
+      App._roleEditBuffer = JSON.parse(JSON.stringify(App.ROLE_PERMISSIONS));
+    } else {
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:#94a3b8">暂无角色配置</td></tr>';
+      return;
+    }
+  }
+
+  tbody.innerHTML = App._roleEditBuffer.map(function(r, ri) {
+    var cells = modKeys.map(function(k) {
+      var checked = (r.modules[k] === 1 || r.modules[k] === true) ? ' checked' : '';
+      return '<td class="cu-c"><input type="checkbox" ' + checked + ' onchange="App._roleEditBuffer[' + ri + '].modules.' + k + '=this.checked?1:0"></td>';
+    }).join('');
+    var scopeLabel = scopeMap[r.data_scope] || '-';
+    return '<tr>' +
+      '<td><span class="role-badge">' + r.role + '</span></td>' +
+      '<td class="role-name-cell"><span class="role-name">' + (r.name || r.role) + '</span></td>' +
+      cells +
+      '<td class="role-scope">' + scopeLabel + '</td></tr>';
+  }).join('');
+}
+
 App.saveRolePerms = function() {
-  if (!App._roleEditBuffer) return;
-  App.ROLE_PERMISSIONS = JSON.parse(JSON.stringify(App._roleEditBuffer));
-  App._roleEditBuffer = null;
+  if (!App._roleEditBuffer) { App.showToast('⚠️ 没有待保存的修改'); return; }
+  var buffer = App._roleEditBuffer;
 
-  // 持久化到 localStorage（刷新不丢失）
-  try {
-    localStorage.setItem('pa_role_perms', JSON.stringify(App.ROLE_PERMISSIONS));
-  } catch(e) {}
+  // 转换为后端格式，放入数组，一次性批量保存
+  var rolesPayload = buffer.map(function(r) {
+    return {
+      role: r.role,
+      overview: r.modules.overview === 1 || r.modules.overview === true,
+      width: r.modules.width === 1 || r.modules.width === true,
+      potential: r.modules.potential === 1 || r.modules.potential === true,
+      users_mgmt: r.modules.users_mgmt === 1 || r.modules.users_mgmt === true,
+      roles_mgmt: r.modules.roles_mgmt === 1 || r.modules.roles_mgmt === true,
+      products_mgmt: r.modules.products_mgmt === 1 || r.modules.products_mgmt === true,
+      audit_log: r.modules.audit_log === 1 || r.modules.audit_log === true,
+      backup: r.modules.backup === 1 || r.modules.backup === true,
+      import_data: r.modules.import_data === 1 || r.modules.import_data === true,
+      export_data: r.modules.export_data === 1 || r.modules.export_data === true,
+      data_scope: r.data_scope || 'self'
+    };
+  });
 
-  // 同时尝试保存到后端
-  try {
-    fetch('/api/admin/roles', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ permissions: App.ROLE_PERMISSIONS })
-    }).catch(function() {});
-  } catch(e) {}
-
-  App.renderRoles();
-  App.addLog('角色保存', '角色权限矩阵', '更新了角色权限配置');
-
-  var toast = document.createElement('div');
-  toast.textContent = '✅ 权限已保存';
-  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#059669;color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;z-index:99999;font-weight:600';
-  document.body.appendChild(toast);
-  setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 1200);
+  App.API.updateRolesBatch(rolesPayload).then(function(res) {
+    App._roleEditBuffer = null;
+    try { localStorage.setItem('pa_role_perms', JSON.stringify(buffer)); } catch(e) {}
+    App.renderRoles();
+    App.showToast('✅ 权限已保存 (' + (res.count || rolesPayload.length) + '个角色)');
+  }).catch(function(err) {
+    // 后端失败，本地保存兜底
+    App.ROLE_PERMISSIONS = JSON.parse(JSON.stringify(buffer));
+    App._roleEditBuffer = null;
+    try { localStorage.setItem('pa_role_perms', JSON.stringify(App.ROLE_PERMISSIONS)); } catch(e) {}
+    App.renderRoles();
+    App.showToast('⚠️ ' + (err.message || '后端不可用') + ' — 已本地保存');
+  });
 };
 
 App.cancelRoleEdit = function() {
@@ -10434,10 +10698,15 @@ App.initAll = function() {
       var data = JSON.parse(saved);
       // 有后端 token：优先用后端数据
       if (data.token) {
+        // 确保 token 同时存在于内存和 sessionStorage
+        sessionStorage.setItem('pa_token', data.token);
         App.API.restoreToken();
         App.loggedInUser = {
           id: data.id, username: data.username, name: data.name, role: data.role,
-          dept: data.dept || '-', group: data.group || '-'
+          dept: data.dept || '-', group: data.group || '-',
+          dept_id: data.dept_id, group_id: data.group_id,
+          tenant_id: data.tenant_id || 1,
+          data_scope: data.data_scope || 'all',
         };
         var overlay = document.getElementById('loginOverlay');
         if (overlay) overlay.classList.add('hidden');

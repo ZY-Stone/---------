@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from models.user import User
 from models.department import Department
 from models.group import Group
+from models.permission import RolePermission
 from utils.security import verify_password, hash_password, create_access_token
 
 
@@ -24,6 +25,15 @@ def authenticate(db: Session, username: str, password: str) -> dict | None:
         grp = db.query(Group).filter(Group.id == user.group_id).first()
         group_name = grp.name if grp else None
 
+    # 查询用户角色的 data_scope
+    data_scope = "all"
+    try:
+        perm_row = db.query(RolePermission).filter(RolePermission.role == user.role).first()
+        if perm_row:
+            data_scope = perm_row.data_scope
+    except Exception:
+        pass
+
     token = create_access_token({
         "sub": user.username,
         "user_id": user.id,
@@ -31,6 +41,7 @@ def authenticate(db: Session, username: str, password: str) -> dict | None:
         "role": user.role,
         "dept_id": user.dept_id,
         "group_id": user.group_id,
+        "data_scope": data_scope,
     })
 
     return {
@@ -45,6 +56,7 @@ def authenticate(db: Session, username: str, password: str) -> dict | None:
             "dept_id": user.dept_id,
             "group_id": user.group_id,
             "tenant_id": user.tenant_id,
+            "data_scope": data_scope,
             "must_change_pwd": bool(user.must_change_pwd),
         }
     }

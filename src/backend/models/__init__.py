@@ -9,3 +9,4 @@ from models.product_dict import ProductDict
 from models.sales_data import SalesWidth, SalesPotential, WidthRecord, PotentialCust, PotentialUser
 from models.import_record import ImportRecord
 from models.audit_log import AuditLog
+from models.permission import RolePermission, OperationLog

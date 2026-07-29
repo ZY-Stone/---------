@@ -17,8 +17,10 @@ App.API = (function() {
     opts = opts || {};
     var headers = opts.headers || {};
     headers['Content-Type'] = headers['Content-Type'] || 'application/json';
-    if (TOKEN) {
-      headers['Authorization'] = 'Bearer ' + TOKEN;
+    // 确保 token：优先后端内存，fallback sessionStorage
+    var authToken = TOKEN || sessionStorage.getItem('pa_token');
+    if (authToken) {
+      headers['Authorization'] = 'Bearer ' + authToken;
     }
     return fetch(BASE + path, {
       method: opts.method || 'GET',
@@ -245,5 +247,12 @@ App.API = (function() {
     deleteBackup: deleteBackup,
     getDownloadUrl: getDownloadUrl,
     uploadBackup: uploadBackup,
+
+    // Permission
+    getMyPerms: function() { return request('/api/permission/my-perms'); },
+    getRoles: function() { return request('/api/permission/roles'); },
+    updateRole: function(role, data) { data.role = role; return request('/api/permission/roles/' + role, { method: 'PUT', body: data }); },
+    updateRolesBatch: function(roles) { return request('/api/permission/roles', { method: 'PUT', body: roles }); },
+    getRoleMatrix: function() { return request('/api/permission/matrix'); },
   };
 })();
