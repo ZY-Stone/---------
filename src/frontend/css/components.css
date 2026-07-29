@@ -1782,3 +1782,52 @@
   .card-row { grid-template-columns: 1fr; }
   .stat-grid.col4, .stat-grid.col5, .stat-grid.col6 { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ===== 客户×用户×产品关联表格 (cu-table) ===== */
+.cu-table { width:100%; table-layout:auto; border-collapse:collapse; font-size:13px; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; }
+.cu-table thead { position:sticky; top:0; z-index:3; }
+.cu-table thead th { background:#f8fafc; text-align:left; padding:8px 8px; font-weight:600; color:#475569; border-bottom:2px solid #d1d5db; border-right:1px solid #e5e7eb; font-size:11px; }
+.cu-table thead th:last-child { border-right:none; }
+.cu-table thead th.cu-c { text-align:center; }
+.cu-table thead th.freeze { position:sticky; top:0; left:0; z-index:5; }
+.cu-table thead th.cu-r { text-align:right; }
+.cu-table td { padding:8px 8px; border-bottom:1px solid #e5e7eb; border-right:1px solid #f1f5f9; vertical-align:middle; }
+.cu-table td:last-child { border-right:none; }
+.cu-table tbody tr:last-child td { border-bottom:1px solid #e2e8f0; }
+.cu-table tbody td.freeze { position:sticky; left:0; background:#fff; z-index:1; border-right:2px solid #e5e7eb; }
+.cu-table tbody tr:hover td { background:#f0f4ff; }
+.cu-table tbody tr:hover td.freeze { background:#f0f4ff; }
+.cu-table .sub-row td.left-dim { background:#f8fafc; }
+
+.rn { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; font-size:11px; font-weight:600; background:#f1f5f9; color:#64748b; }
+.rn.gold { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#fff; }
+.rn.silver { background:linear-gradient(135deg,#cbd5e1,#94a3b8); color:#fff; }
+.rn.bronze { background:linear-gradient(135deg,#fb923c,#c2410c); color:#fff; }
+
+.cust-name { font-weight:600; font-size:13px; color:#0f172a; }
+.cust-name .tag { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:10px; font-size:10px; font-weight:500; vertical-align:middle; }
+.cust-sub { font-size:11px; color:#94a3b8; margin-top:2px; }
+.tag-vip { background:#eff6ff; color:#2563eb; }
+.tag-old { background:#fffbeb; color:#d97706; }
+.tag-gov { background:#f5f3ff; color:#7c3aed; }
+.tag-central { background:#ecfeff; color:#0e7490; }
+
+.chip { display:inline-flex; align-items:center; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:500; }
+.chip-blue { background:#eff6ff; color:#2563eb; border:1px solid #dbeafe; }
+.chip-green { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
+
+.bar-mini { display:inline-block; width:60px; height:4px; border-radius:2px; background:#e2e8f0; overflow:hidden; vertical-align:middle; }
+.bar-mini .fill { height:100%; background:#2563eb; border-radius:2px; }
+.bar-num { display:inline-block; margin-left:6px; font-size:11px; color:#64748b; vertical-align:middle; }
+
+.amt { font-weight:600; font-size:13px; color:#2563eb; }
+.dash { color:#94a3b8; font-style:italic; }
+
+.cu-bottom { display:flex; justify-content:space-between; align-items:center; padding:10px 22px; border-top:1px solid #e2e8f0; background:#fafbfc; font-size:11px; color:#94a3b8; }
+.cu-bottom select { border:1px solid #e2e8f0; border-radius:4px; padding:2px 6px; font-size:11px; margin:0 4px; }
+.cu-pager { display:flex; gap:6px; align-items:center; }
+.cu-pgbtn { min-width:28px; height:28px; border:1px solid #e2e8f0; background:#fff; border-radius:4px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:12px; color:#374151; }
+.cu-pgbtn:hover { border-color:#cbd5e1; }
+.cu-pgbtn.active { background:#2563eb; color:#fff; border-color:#2563eb; font-weight:600; }
+.cu-pgbtn.nav { font-size:14px; font-weight:500; }
+.cu-pgdot { padding:0 6px; color:#94a3b8; }

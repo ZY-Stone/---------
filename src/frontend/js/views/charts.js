@@ -844,30 +844,22 @@ var _ct = document.getElementById('chart-trend'); if (_ct) new Chart(_ct, {
     App.charts['ov_width-trend'] = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: ['08', '09', '10', '11', '12', '01', '02', '03', '04', '05', '06', '07'],
-        datasets: [
-          {
-            label: '平均产品宽度',
-            data: [3.2, 3.3, 3.3, 3.4, 3.5, 3.5, 3.6, 3.7, 3.8, 3.8, 3.9, 3.96],
-            borderColor: '#1a56db',
-            backgroundColor: 'rgba(26,86,219,.08)',
-            tension: .3, fill: true, pointRadius: 4, pointBackgroundColor: '#1a56db'
-          },
-          {
-            label: '规上客户产品宽度',
-            data: [5.1, 5.2, 5.2, 5.3, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 6.0],
-            borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: '#10b981'
-          },
-          {
-            label: '规上用户产品宽度',
-            data: [4.5, 4.6, 4.7, 4.8, 4.9, 5.0, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6],
-            borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4, pointBackgroundColor: '#f59e0b'
-          }
-        ]
+        labels: [],
+        datasets: []
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 10 } } },
+          tooltip: {
+            callbacks: {
+              label: function(ctx) {
+                return ctx.dataset.label + ': ' + parseFloat(ctx.raw).toFixed(2);
+              }
+            }
+          }
+        },
         scales: {
           y: { beginAtZero: false, min: 0, grid: { color: '#f3f4f6' }, title: { display: true, text: '产品宽度' } },
           x: { grid: { display: false } }

@@ -92,8 +92,7 @@
 
         <div class="filter-group"><label>个人</label><select class="filter-person" onchange="App.onPersonChange('page-overview')"><option value="all">全部成员</option></select></div>
         <button class="btn-ghost" onclick="App.resetFilters('page-overview')">🔄 重置</button>
-        <div class="right">
-        </div>
+        <div class="right"><span id="ov-baseline-tag" style="font-size:11px;color:#64748b;white-space:nowrap"></span></div>
       </div>
 
       <!-- ===== KPI 卡片行 ===== -->
@@ -176,8 +175,10 @@
 
       <!-- ===== 1. 总览分析 ===== -->
       <div data-tab-content="w-overview" style="display:none">
-        <div class="kpi-row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
           <div class="kpi-card k-green"><div class="kpi-label">📐 产品宽度</div><div class="kpi-value" id="w-kpi-avgwidth">3.96</div><div class="kpi-sub">同比 <span class="delta-up" id="w-kpi-yoy">+0.42</span></div></div>
+          <div class="kpi-card k-blue"><div class="kpi-label">🧑 用户产品宽度</div><div class="kpi-value" id="w-kpi-user-width">-</div><div class="kpi-sub">用户平均</div></div>
+          <div class="kpi-card k-blue"><div class="kpi-label">👥 客户产品宽度</div><div class="kpi-value" id="w-kpi-cust-width">-</div><div class="kpi-sub">客户平均</div></div>
           <div class="kpi-card k-purple"><div class="kpi-label">🏢 规上用户数</div><div class="kpi-value" id="w-kpi-scale-users">285</div><div class="kpi-sub">使用方</div></div>
           <div class="kpi-card k-orange"><div class="kpi-label">👥 规上客户数</div><div class="kpi-value" id="w-kpi-scale-customers">888</div><div class="kpi-sub">环比 <span class="delta-up" id="w-kpi-cust-mom">+62</span></div></div>
         </div>
@@ -220,7 +221,14 @@
         </div>
 
         <div class="card" style="margin-top:16px">
-          <div class="card-title"><span class="left">📈 人均产品宽度历史趋势</span><span class="tag">按筛选</span></div>
+          <div class="card-title">
+            <span class="left">📈 人均产品宽度历史趋势</span>
+            <span class="right" style="display:flex;gap:4px">
+              <button class="subtab active" data-wt-dim="dept" onclick="App.switchWidthTrendDim('dept')">部门</button>
+              <button class="subtab" data-wt-dim="group" onclick="App.switchWidthTrendDim('group')">组</button>
+              <button class="subtab" data-wt-dim="person" onclick="App.switchWidthTrendDim('person')">个人</button>
+            </span>
+          </div>
           <div class="chart-wrap tall"><canvas id="chart-w-width-trend"></canvas></div>
         </div>
 
@@ -1045,17 +1053,17 @@
             <span style="font-size:12px;color:#94a3b8" id="p-cust-user-count">-</span>
             <span style="font-size:12px;color:#94a3b8" id="p-custuser-total"></span>
           </div>
-          <div class="table-wrap" style="max-height:400px">
-            <table class="table" style="table-layout:auto;width:100%"><thead id="pCustUserHead"></thead><tbody id="pCustUserBody"></tbody></table>
+          <div class="table-wrap" style="max-height:480px;overflow-y:auto">
+            <table class="cu-table"><thead id="pCustUserHead"></thead><tbody id="pCustUserBody"></tbody></table>
           </div>
-          <div id="p-custuser-pager" style="padding:8px"></div>
+          <div id="p-custuser-pager" class="cu-bottom"></div>
         </div>
 
         <!-- 客户×潜力产品交叉矩阵 -->
         <div class="card" style="border-left:4px solid #7c3aed;margin-bottom:16px">
           <div class="card-title">📊 客户 × 潜力产品交叉矩阵</div>
-          <div class="table-wrap" style="max-height:400px;overflow-x:auto">
-            <table class="table"><tbody id="pCustMatrixBody"></tbody></table>
+          <div class="table-wrap" style="max-height:420px;overflow:auto">
+            <table class="cu-table"><thead id="pCustMatrixHead"></thead><tbody id="pCustMatrixBody"></tbody></table>
           </div>
         </div>
 
@@ -1063,7 +1071,7 @@
         <div class="card" style="border-left:4px solid #f59e0b">
           <div class="card-title">🏆 高贡献客户 TOP 10</div>
           <div class="table-wrap" style="max-height:400px">
-            <table class="table"><tbody id="pCustTop10Body"></tbody></table>
+            <table class="cu-table"><thead id="pCustTop10Head"></thead><tbody id="pCustTop10Body"></tbody></table>
           </div>
         </div>
       </div>
@@ -1077,26 +1085,27 @@
             <input type="text" id="pUserCustSearch" placeholder="搜索用户名称..." oninput="App.renderUserCustLink(App.getFilterState('page-potential'))" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;width:200px">
             <span style="font-size:12px;color:#94a3b8" id="p-user-cust-count">-</span>
           </div>
-          <div class="table-wrap" style="max-height:400px">
-            <table class="table"><tbody id="pUserCustBody"></tbody></table>
+          <div class="table-wrap" style="max-height:480px;overflow-y:auto">
+            <table class="cu-table"><thead id="pUserCustHead"></thead><tbody id="pUserCustBody"></tbody></table>
+          </div>
+        </div>
+
+        <!-- 用户×潜力产品交叉矩阵 -->
+        <div class="card" style="border-left:4px solid #7c3aed;margin-bottom:16px">
+          <div class="card-title">📊 用户 × 潜力产品交叉矩阵</div>
+          <div class="table-wrap" style="max-height:400px;overflow:auto">
+            <table class="cu-table"><thead id="pUserMatrixHead"></thead><tbody id="pUserMatrixBody"></tbody></table>
           </div>
         </div>
 
         <!-- 最终用户潜力产品推广 -->
         <div class="card" style="border-left:4px solid #1a56db;margin-bottom:16px">
           <div class="card-title">📈 最终用户潜力产品推广情况</div>
-          <div class="table-wrap" style="max-height:400px">
-            <table class="table"><tbody id="pUserPromoBody"></tbody></table>
+          <div class="table-wrap" style="max-height:400px;overflow-y:auto">
+            <table class="cu-table"><thead id="pUserPromoHead"></thead><tbody id="pUserPromoBody"></tbody></table>
           </div>
         </div>
 
-        <!-- 用户关联客户潜力覆盖明细 -->
-        <div class="card" style="border-left:4px solid #8b5cf6">
-          <div class="card-title">📋 用户关联客户潜力覆盖明细</div>
-          <div class="table-wrap" style="max-height:400px">
-            <table class="table"><tbody id="pUserCustDetailBody"></tbody></table>
-          </div>
-        </div>
       </div>
 
       <div data-tab-content="p-import" style="display:none">

@@ -700,25 +700,48 @@ App.updateOverview = function() {
   // \u5ba2\u6237\u4ea7\u54c1\u5bbd\u5ea6
   var totalCW = ovCust.reduce(function(s, r) { return s + (r.width || 0); }, 0);
   var custWidthVal = ovCust.length > 0 ? totalCW / ovCust.length : 0;
-  // \u7528\u6237\u6570 / \u89c4\u4e0a\u7528\u6237\u6570
-  var usersVal = ovUser.length;
+  // \u89c4\u4e0a\u7528\u6237\u6570 / \u89c4\u4e0a\u5ba2\u6237\u6570\uff08\u4ea7\u54c1\u5bbd\u5ea6\u53e3\u5f84\uff09
   var scaleUsers = ovUser.filter(isGs).length;
-  // \u5ba2\u6237\u6570 / \u89c4\u4e0a\u5ba2\u6237\u6570
-  var custVal = ovCust.length;
   var scaleCust = ovCust.filter(isGs).length;
 
-  // \u6f5c\u529b\u4ea7\u54c1\u6570\u636e\uff08\u4fdd\u7559 getPotential \u83b7\u53d6\u9500\u552e\u989d\u7b49\uff09
-  var pData = App.Data.getPotential(team);
-  var potAmtVal = (pData && pData.overview) ? (pData.overview.sales || 0) : 0;
-  var potRateVal = custVal > 0 ? (pData && pData.overview ? (pData.overview.customerCount || 0) / custVal * 100 : 0) : 0;
+  // \u6f5c\u529b\u4ea7\u54c1\u6570\u636e\uff08\u7528\u6570\u636e\u603b\u89c8\u81ea\u5df1\u7684\u7b5b\u9009\u5668\uff0c\u4e0d\u4f9d\u8d56 getFilteredPotData\uff09
+  var potFilter = function(rawArr) {
+    return rawArr.filter(function(r) {
+      if (person !== 'all') return r.sales === person;
+      if (group !== 'all') return r.dept5 === group || r.dept4 === group;
+      if (team !== 'all') return r.dept3 === team || r.dept4 === team;
+      return true;
+    });
+  };
+  var fPotCust = potFilter((App.ImportPotential.CustRAW || []).slice());
+  var fPotUser = potFilter((App.ImportPotential.UserRAW || []).slice());
+  var potAmtVal = 0;
+  var potCustSet = {}, potUserSet = {};
+  fPotCust.forEach(function(r) { potAmtVal += (r.amount || 0); if (r.custName) potCustSet[r.custName] = true; });
+  fPotUser.forEach(function(r) { if (r.userName) potUserSet[r.userName] = true; });
+  var custVal = Object.keys(potCustSet).length;
+  var usersVal = Object.keys(potUserSet).length;
 
-  var adjPotAmt = Math.round(potAmtVal * dayFactor);
+  // 基线时间标识（从导入数据动态获取最新月份）
+  var ovBaseline = document.getElementById('ov-baseline-tag');
+  if (ovBaseline) {
+    var ovPeriods = {};
+    (App.ImportPotential.CustRAW || []).concat(App.ImportPotential.UserRAW || []).forEach(function(r) {
+      var sp = r.snapshotPeriod || '';
+      if (sp) ovPeriods[sp] = true;
+    });
+    var ovSorted = Object.keys(ovPeriods).sort();
+    var ovLatest = ovSorted.length > 0 ? ovSorted[ovSorted.length - 1] : '';
+    if (ovLatest) {
+      var ovParts = ovLatest.split('-');
+      ovBaseline.textContent = '📅 基线：' + (ovParts.length === 2 ? (ovParts[0] + '年' + parseInt(ovParts[1]) + '月') : ovLatest);
+    }
+  }
 
   App.setText('ov-kpi-width',             widthVal.toFixed(2));
   App.setText('ov-kpi-user-width',        userWidthVal.toFixed(2));
   App.setText('ov-kpi-cust-width',        custWidthVal.toFixed(2));
-  App.setText('ov-kpi-potential-amt-v',   '\u00a5 ' + adjPotAmt.toLocaleString() + '\u4e07');
-  App.setText('ov-kpi-potential-rate',    potRateVal.toFixed(1) + '%');
+  App.setText('ov-kpi-potential-amt-v',   '\u00a5 ' + potAmtVal.toLocaleString() + '\u4e07');
   App.setText('ov-kpi-users',             usersVal);
   App.setText('ov-kpi-customers',         custVal.toLocaleString());
   App.setText('ov-kpi-cust-mom',          '-');
@@ -731,34 +754,40 @@ App.updateOverview = function() {
   // 更新产品宽度趋势图（跟随筛选联动）
   App._updateOvWidthTrend();
 
-  // 更新潜力产品历史趋势图 — 按筛选维度动态构建数据
+  // 更新潜力产品历史趋势图 — 从真实导入数据聚合
   var ptChart = App.charts['ov_potential-trend'];
   if (ptChart) {
     try {
-      var pScale = 1;
-      if (person !== 'all') pScale = 0.02;
-      else if (group !== 'all') pScale = 0.10;
-      else if (team !== 'all') pScale = 0.28;
-      var prodNames = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
-      var prodCurr  = [1100,420,980,600,650,180,450,400,380,480,320];
-      var prodPrev  = [880,380,0,520,0,170,360,300,260,320,280];
+      // 使用 getFilteredPotData 严格遵循筛选边界
+      // 用数据总览自己的筛选器
+      var fPotAll = (App.ImportPotential.CustRAW || []).slice();
+      if (person !== 'all') fPotAll = fPotAll.filter(function(r) { return r.sales === person; });
+      else if (group !== 'all') fPotAll = fPotAll.filter(function(r) { return r.dept5 === group || r.dept4 === group; });
+      else if (team !== 'all') fPotAll = fPotAll.filter(function(r) { return r.dept3 === team || r.dept4 === team; });
+      var prodAggOv = {};
+      fPotAll.forEach(function(r) {
+        if (!r.product) return;
+        if (!prodAggOv[r.product]) prodAggOv[r.product] = { name: r.product, curr: 0, prev: 0 };
+        prodAggOv[r.product].curr += (r.amount || 0);
+        prodAggOv[r.product].prev += (r.amountPrev || 0);
+      });
+      var prodNames = Object.keys(prodAggOv).sort(function(a, b) { return prodAggOv[b].curr - prodAggOv[a].curr; });
+      // 无导入数据时回退默认产品列表
+      if (prodNames.length === 0) prodNames = App.ALL_POT_PRODUCTS.slice(0, 11);
+      var prodCurr = prodNames.map(function(p) { return Math.round((prodAggOv[p] || {}).curr || 0); });
+      var prodPrev = prodNames.map(function(p) { return Math.round((prodAggOv[p] || {}).prev || 0); });
 
-      // 确保 datasets 数量足够
       while (ptChart.data.datasets.length < 2) {
         ptChart.data.datasets.push({ label: '', data: [] });
       }
-
       ptChart.data.labels = prodNames;
       ptChart.data.datasets[0].label = '本期销售额';
-      ptChart.data.datasets[0].data = prodCurr.map(function(v){ return Math.max(1, Math.round(v * pScale)); });
+      ptChart.data.datasets[0].data = prodCurr;
       ptChart.data.datasets[0].backgroundColor = '#3b82f6';
       ptChart.data.datasets[1].label = '同期销售额';
-      ptChart.data.datasets[1].data = prodPrev.map(function(v){ return Math.max(0, Math.round(v * pScale)); });
+      ptChart.data.datasets[1].data = prodPrev;
       ptChart.data.datasets[1].backgroundColor = '#cbd5e1';
-      // 移除多余的数据集
-      while (ptChart.data.datasets.length > 2) {
-        ptChart.data.datasets.pop();
-      }
+      while (ptChart.data.datasets.length > 2) { ptChart.data.datasets.pop(); }
       ptChart.update('none');
     } catch(e) {
       console.warn('更新潜力产品趋势图失败:', e);
@@ -1112,37 +1141,110 @@ App.goPotSalesPage = function(pg) {
 };
 
 // ===== 总览页产品宽度历史趋势 — 跟随筛选联动（总体数据变化） =====
-App._updateOvWidthTrend = function() {
-  var chart = App.charts['ov_width-trend'];
-  if (!chart) return;
-  var state = App.getFilterState('page-overview');
-  var team = state.team, group = state.group, person = state.person;
+// 人均产品宽度历史趋势 — 维度切换
+App._widthTrendDim = 'dept';
+App.switchWidthTrendDim = function(dim) {
+  App._widthTrendDim = dim;
+  document.querySelectorAll('#page-width [data-wt-dim]').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-wt-dim') === dim);
+  });
+  App._updateOvWidthTrend();
+};
 
-  // 从 snapshot_period 真实计算月度趋势
-  var all = (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []);
+App._updateOvWidthTrend = function() {
+  // 同时支持产品宽度页和数据总览页两个图表
+  var chart = App.charts.wWidthTrend || App.charts['ov_width-trend'];
+  if (!chart) return;
+  var pageId = App.charts.wWidthTrend ? 'page-width' : 'page-overview';
+  var state = App.getFilterState(pageId);
+  var team = state.team, group = state.group, person = state.person;
+  var dim = App._widthTrendDim || 'dept';
+
+  // 横坐标：始终取全量数据的月份（不受筛选限制），确保 X 轴完整
+  var allRaw = (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []);
+  var allMonths = {}; allRaw.forEach(function(r) { if (r.snapshotPeriod) allMonths[r.snapshotPeriod] = true; });
+  var labels = Object.keys(allMonths).sort();
+  if (labels.length === 0) { labels = ['暂无数据']; }
+
+  // 筛选后的数据
+  var all = allRaw.slice();
   if (person !== 'all') all = all.filter(function(r) { return r.sales === person; });
   else if (group !== 'all') all = all.filter(function(r) { return r.group === group; });
   else if (team !== 'all') all = all.filter(function(r) { return r.dept === team; });
   all = all.filter(function(r) { return r.snapshotPeriod; });
-  var months = {}; all.forEach(function(r) { months[r.snapshotPeriod] = true; });
-  var labels = Object.keys(months).sort();
-  if (labels.length === 0) { labels = ['暂无数据']; }
 
-  var avg=[], cust=[], user=[];
-  var isGs = function(r) { var g = (r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
-  labels.forEach(function(m) {
-    var mData = all.filter(function(r) { return r.snapshotPeriod === m; });
-    var mCust = mData.filter(function(r) { return r.name; });
-    var mUser = mData.filter(function(r) { return r.user; });
-    avg.push(mData.length > 0 ? parseFloat((mData.reduce(function(s,r){return s+r.width;},0) / mData.length).toFixed(2)) : null);
-    cust.push(mCust.length > 0 ? parseFloat((mCust.filter(isGs).length / mCust.length * 100).toFixed(1)) : null);
-    user.push(mUser.length > 0 ? parseFloat((mUser.filter(isGs).length / mUser.length * 100).toFixed(1)) : null);
-  });
+  var COLORS = ['#1a56db','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1'];
+
+  if (dim === 'dept') {
+    // 部门维度：原样保留（三条汇总线）
+    var avg=[], cust=[], user=[];
+    var isGs = function(r) { var g = (r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
+    labels.forEach(function(m) {
+      var mData = all.filter(function(r) { return r.snapshotPeriod === m; });
+      var mCust = mData.filter(function(r) { return r.name; });
+      var mUser = mData.filter(function(r) { return r.user; });
+      avg.push(mData.length > 0 ? parseFloat((mData.reduce(function(s,r){return s+r.width;},0) / mData.length).toFixed(2)) : null);
+      cust.push(mCust.length > 0 ? parseFloat((mCust.filter(isGs).length / mCust.length * 100).toFixed(1)) : null);
+      user.push(mUser.length > 0 ? parseFloat((mUser.filter(isGs).length / mUser.length * 100).toFixed(1)) : null);
+    });
+    chart.data.datasets = [
+      { label: '平均产品宽度', data: avg, borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.08)', tension: .3, fill: true, pointRadius: 4 },
+      { label: '规上客户产品宽度', data: cust, borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4 },
+      { label: '规上用户产品宽度', data: user, borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4 }
+    ];
+  } else {
+    // 组/个人维度：每个实体一条线（人均宽度）
+    var entityKey = dim === 'group' ? 'group' : 'sales';
+    var entities = {};
+    // 预填组织架构中所有实体（无数据也展示）
+    if (dim === 'group') {
+      App.GROUPS.forEach(function(g) {
+        if (team !== 'all' && g.dept !== team) return;
+        if (group !== 'all' && g.n !== group) return;
+        if (!entities[g.n]) entities[g.n] = [];
+      });
+      // 也包含无小组的部门
+      App.BUSINESS_DEPTS.forEach(function(d) {
+        if (team !== 'all' && d.n !== team) return;
+        if (!App.GROUPS.some(function(g) { return g.dept === d.n; }) && !entities[d.n]) entities[d.n] = [];
+      });
+    } else {
+      App.PERSONS.forEach(function(p) {
+        if (team !== 'all' && p.dept !== team) return;
+        if (group !== 'all' && p.grp !== group) return;
+        if (person !== 'all' && p.n !== person) return;
+        if (!entities[p.n]) entities[p.n] = [];
+      });
+    }
+    // 填入实际数据
+    all.forEach(function(r) {
+      var k = r[entityKey] || r.dept || '其他';
+      if (!entities[k]) entities[k] = [];
+      entities[k].push(r);
+    });
+    var entityNames = Object.keys(entities).sort();
+    chart.data.datasets = entityNames.map(function(en, ei) {
+      var ed = {};
+      entities[en].forEach(function(r) {
+        var sp = r.snapshotPeriod;
+        if (!ed[sp]) ed[sp] = { total: 0, count: 0 };
+        ed[sp].total += (r.width || 0);
+        ed[sp].count++;
+      });
+      var data = labels.map(function(m) {
+        var e = ed[m];
+        return e && e.count > 0 ? parseFloat((e.total / e.count).toFixed(2)) : null;
+      });
+      return {
+        label: en,
+        data: data,
+        borderColor: COLORS[ei % COLORS.length],
+        tension: .3, fill: false, pointRadius: 3
+      };
+    });
+  }
 
   chart.data.labels = labels;
-  chart.data.datasets[0].data = avg;
-  chart.data.datasets[1].data = cust;
-  chart.data.datasets[2].data = user;
   chart.update();
 };
 
@@ -1243,7 +1345,14 @@ App.updateWidth = function() {
   var actualGuishangCusts = fCust.filter(isGuishang).length;
   var actualCoverage = fCust.length > 0 ? (actualGuishangCusts / fCust.length * 100) : 0;
 
+  // 用户产品宽度（仅用户数据）
+  var userWidthVal = fUser.length > 0 ? fUser.reduce(function(s, r) { return s + (r.width || 0); }, 0) / fUser.length : 0;
+  // 客户产品宽度（仅客户数据）
+  var custWidthVal = fCust.length > 0 ? fCust.reduce(function(s, r) { return s + (r.width || 0); }, 0) / fCust.length : 0;
+
   App.setText('w-kpi-avgwidth',        actualAvgWidth.toFixed(2));
+  App.setText('w-kpi-user-width',      userWidthVal.toFixed(2));
+  App.setText('w-kpi-cust-width',      custWidthVal.toFixed(2));
   App.setText('w-kpi-scale-users',     actualGuishangUsers);
   App.setText('w-user-scale-count',    actualGuishangUsers);
   App.setText('w-kpi-scale-customers', actualGuishangCusts);
@@ -1482,6 +1591,9 @@ App.updateWidth = function() {
   } catch(e) {}
 };
 
+  // 刷新宽度趋势图（跟随筛选联动）
+  try { App._updateOvWidthTrend(); } catch(e) {}
+
 // ===== 潜力产品 - 筛选联动 =====
 App.updatePotential = function() {
   // 更新基线时间标识
@@ -1578,6 +1690,9 @@ App.updatePotential = function() {
   else if (person !== 'all') { cdim = 'person'; App._custDim = 'person'; }
   // 同步渲染
   try { App.renderCustTopBottom(); } catch(e) {}
+  // 客户维度 + 用户维度（跟随筛选联动）
+  try { App.renderPotentialCustTab(); } catch(e) {}
+  try { App.renderPotentialUserTab(); } catch(e) {}
 
   // 更新 TOP 10 表
   try { App.renderPotentialTop10('p-table-top10', data.top10); } catch(e) { console.warn('renderPotentialTop10 失败:', e); }
@@ -6999,13 +7114,10 @@ App.renderCustUserLink = function(state) {
   var tbody = document.getElementById('pCustUserBody');
   if (!tbody) return;
   state = state || { team: 'all', group: 'all', person: 'all' };
-  var team = state.team, group = state.group, person = state.person;
   var search = ((document.getElementById('pCustUserSearch') || {}).value || '').trim().toLowerCase();
 
-  // ── 客户维度仅使用客户sheet数据（严格遵循顶部筛选边界）──
+  // ── 客户维度仅使用客户sheet数据 ──
   var raw = App.getFilteredPotData('cust');
-
-  // 按客户聚合
   var custMap = {};
   raw.forEach(function(r) {
     var cust = r.custName || '未知';
@@ -7024,76 +7136,101 @@ App.renderCustUserLink = function(state) {
     var totalAmt = userArr.reduce(function(s, u) { return s + u.amt; }, 0);
     var allProds = new Set();
     userArr.forEach(function(u) { u.prods.forEach(function(p) { allProds.add(p); }); });
-    return { cust: cn, dept: c.dept, grp: c.grp, users: userArr, userCount: userArr.length, prodCount: allProds.size, totalAmt: totalAmt };
+    return { cust: cn, dept: c.dept, grp: c.grp, users: userArr, userCount: userArr.length, prodCount: allProds.size, totalAmt: totalAmt, tag: '' };
   }).filter(function(c) {
-    // getFilteredPotData 已做级联筛选，此处仅做搜索过滤
     if (search && c.cust.toLowerCase().indexOf(search) < 0) return false;
     return true;
   }).sort(function(a, b) { return b.totalAmt - a.totalAmt; });
 
-  // 缓存数据供下钻
+  // 缓存
   custList.forEach(function(c) { App._custUserCache[c.cust] = c; });
 
   // 分页
-  var cuPageSize = parseInt((document.getElementById('p-custuser-page-size')||{}).value) || 10;
+  var cuPageSize = App._cuPageSize || parseInt((document.getElementById('p-custuser-page-size')||{}).value) || 10;
   var cuTotal = custList.length;
   var cuPages = Math.ceil(cuTotal / cuPageSize);
   if (!App._custUserPage || App._custUserPage > cuPages) App._custUserPage = cuPages || 1;
   var cuStart = (App._custUserPage - 1) * cuPageSize;
   var cuRows = custList.slice(cuStart, cuStart + cuPageSize);
-  App.setText('p-custuser-total', '共 ' + cuTotal + ' 条');
 
+  var totalProds = App.ALL_POT_PRODUCTS.length || 27;
   var countEl = document.getElementById('p-cust-user-count');
   if (countEl) countEl.textContent = custList.length + ' 个客户 · ' + custList.reduce(function(s, c) { return s + c.userCount; }, 0) + ' 个用户';
 
-  // 表头
+  // 表头（9列）
   var headEl = document.getElementById('pCustUserHead');
   if (headEl) {
     headEl.innerHTML = '<tr>' +
-      '<th style="width:1%">#</th><th>客户名称</th><th style="text-align:center">关联用户数</th>' +
-      '<th style="text-align:center">覆盖产品数</th><th style="text-align:right">销售额(万)</th>' +
-      '<th>用户名称</th><th style="text-align:right">用户贡献(万)</th><th style="text-align:center">产品数</th></tr>';
+      '<th class="cu-c">#</th>' +
+      '<th>客户名称</th>' +
+      '<th class="cu-c">关联用户</th>' +
+      '<th class="cu-c">覆盖产品</th>' +
+      '<th class="cu-c">销售额(万)</th>' +
+      '<th>用户</th>' +
+      '<th class="cu-c">用户贡献</th>' +
+      '<th class="cu-c">产品数</th></tr>';
   }
 
+  var globalIdx = cuStart;
   var html = '';
-  cuRows.forEach(function(c, i) {
-    c.users.forEach(function(u, ui) {
-      var rn = ui === 0 ? (i < 3 ? 'rn' + (i + 1) : 'rn0') : '';
-      if (ui === 0) {
-        html += '<tr><td rowspan="' + c.users.length + '" style="vertical-align:middle;width:1%"><span class="' + rn + '">' + (i + 1) + '</span></td>' +
-          '<td rowspan="' + c.users.length + '" style="vertical-align:middle;font-weight:600;font-size:12px;white-space:nowrap">' + App.escapeHtml(c.cust) + '</td>' +
-          '<td rowspan="' + c.users.length + '" style="text-align:center;vertical-align:middle;font-weight:700;cursor:pointer;color:#1a56db" onclick="App.showUserDetailModal(\'' + c.cust.replace(/'/g, '\\\'') + '\',\'users\')" title="点击查看交易用户明细">' + c.userCount + '</td>' +
-          '<td rowspan="' + c.users.length + '" style="text-align:center;vertical-align:middle;font-weight:700;cursor:pointer;color:#1a56db" onclick="App.showUserDetailModal(\'' + c.cust.replace(/'/g, '\\\'') + '\',\'prods\')" title="点击查看潜力产品明细">' + c.prodCount + '</td>' +
-          '<td rowspan="' + c.users.length + '" style="text-align:right;vertical-align:middle;font-weight:700;color:#2563eb;font-size:12px;white-space:nowrap">¥' + c.totalAmt.toFixed(2) + '万</td>';
-      } else {
-        html += '<tr>';
-      }
-      html += '<td style="font-size:11px;white-space:nowrap">' + App.escapeHtml(u.name) + '</td>' +
-        '<td style="text-align:right;font-size:11px;white-space:nowrap">¥' + u.amt.toFixed(2) + '万</td>' +
-        '<td style="text-align:center;font-weight:600;cursor:pointer;color:#1a56db" onclick="App.showUserProdDetail(\'' + c.cust.replace(/'/g, '\\\'') + '\',\'' + u.name.replace(/'/g, '\\\'') + '\')" title="点击查看' + u.name + '的潜力产品明细">' + u.prods.length + '</td></tr>';
+  if (cuRows.length === 0) {
+    html = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#9ca3af">无匹配数据</td></tr>';
+  } else {
+    cuRows.forEach(function(c) {
+      var i = globalIdx++;
+      var rankCls = i < 3 ? ['gold','silver','bronze'][i] : '';
+      var sub = (c.dept || '深圳') + (c.grp ? ' · ' + c.grp : '');
+      var custEsc = c.cust.replace(/'/g, "\\'");
+      c.users.forEach(function(u, ui) {
+        if (ui === 0) {
+          // 主行
+          html += '<tr>' +
+            '<td rowspan="' + c.users.length + '"><span class="rn ' + rankCls + '">' + (i + 1) + '</span></td>' +
+            '<td rowspan="' + c.users.length + '">' +
+              '<div class="cust-name">' + App.escapeHtml(c.cust) + '</div>' +
+              '<div class="cust-sub">' + App.escapeHtml(sub) + '</div></td>' +
+            '<td rowspan="' + c.users.length + '" class="cu-c" style="cursor:pointer" onclick="App.showUserDetailModal(\'' + custEsc + '\',\'users\')" title="点击查看交易用户明细"><span class="chip chip-blue">' + c.userCount + ' 人</span></td>' +
+            '<td rowspan="' + c.users.length + '" class="cu-c" style="cursor:pointer" onclick="App.showUserDetailModal(\'' + custEsc + '\',\'prods\')" title="点击查看潜力产品明细"><span class="chip chip-green">' + c.prodCount + ' / ' + totalProds + '</span></td>' +
+            '<td rowspan="' + c.users.length + '" class="cu-c"><span class="amt">¥' + c.totalAmt.toFixed(2) + '万</span></td>' +
+            '<td><span style="font-size:12px;font-weight:600">' + (u.name === '-' ? '<span class="dash">-</span>' : App.escapeHtml(u.name)) + '</span></td>' +
+            '<td class="cu-c"><span class="amt">¥' + u.amt.toFixed(2) + '万</span></td>' +
+            '<td class="cu-c"><span style="font-weight:600;color:#2563eb">' + u.prods.length + '</span></td></tr>';
+        } else {
+          // 子行
+          html += '<tr>' +
+            '<td class="left-dim"></td><td class="left-dim"></td><td class="left-dim cu-c"></td><td class="left-dim cu-c"></td><td class="left-dim cu-c"></td>' +
+            '<td><span style="font-size:12px">' + (u.name === '-' ? '<span class="dash">-</span>' : App.escapeHtml(u.name)) + '</span></td>' +
+            '<td class="cu-c">' + (u.amt > 0 ? '<span class="amt">¥' + u.amt.toFixed(2) + '万</span>' : '<span class="dash">-</span>') + '</td>' +
+            '<td class="cu-c">' + (u.prods.length > 0 ? '<span style="font-weight:600;color:#2563eb">' + u.prods.length + '</span>' : '<span class="dash">-</span>') + '</td></tr>';
+        }
+      });
     });
-  });
-
-  if (custList.length === 0) html = '<tr><td colspan="8" style="text-align:center;padding:24px;color:#94a3b8">无匹配数据</td></tr>';
+  }
   tbody.innerHTML = html;
 
-  // 分页器
+  // 分页
   var cuPager = document.getElementById('p-custuser-pager');
-  if (cuPager && cuPages > 1) {
-    var maxBtns = 6;
-    var curPage = App._custUserPage;
-    var startPg = Math.max(1, curPage - Math.floor(maxBtns / 2));
-    var endPg = Math.min(cuPages, startPg + maxBtns - 1);
-    if (endPg - startPg < maxBtns - 1) startPg = Math.max(1, endPg - maxBtns + 1);
-    var ph = '<span style="font-size:11px;color:#64748b;margin-right:6px">' + cuTotal + '条</span>';
-    if (startPg > 1) ph += '<button onclick="App._custUserPage=1;App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))" style="margin:0 2px;padding:2px 8px;border:1px solid #d1d5db;border-radius:3px;font-size:11px;cursor:pointer">1…</button>';
-    for (var pg = startPg; pg <= endPg; pg++) {
-      var ac = pg === curPage ? 'style="background:#1a56db;color:#fff;font-weight:700"' : 'style="cursor:pointer"';
-      ph += '<button ' + ac + ' onclick="App._custUserPage=' + pg + ';App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))" style="margin:0 2px;padding:2px 8px;border:1px solid #d1d5db;border-radius:3px;font-size:11px">' + pg + '</button>';
+  if (cuPager) {
+    var startDisp = cuTotal > 0 ? cuStart + 1 : 0;
+    var endDisp = Math.min(cuStart + cuPageSize, cuTotal);
+    var leftHtml = '每页 <select onchange="App._cuPageSize=parseInt(this.value);App._custUserPage=1;App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))"><option value="10" ' + (cuPageSize === 10 ? 'selected' : '') + '>10</option><option value="20" ' + (cuPageSize === 20 ? 'selected' : '') + '>20</option><option value="50" ' + (cuPageSize === 50 ? 'selected' : '') + '>50</option></select> 条 · 显示 ' + startDisp + '-' + endDisp + ' / ' + cuTotal;
+
+    var rightHtml = '';
+    if (cuPages > 1) {
+      rightHtml += '<button class="cu-pgbtn nav" onclick="App._custUserPage=' + Math.max(1, App._custUserPage - 1) + ';App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))" ' + (App._custUserPage <= 1 ? 'disabled' : '') + '>‹</button>';
+      var maxBtns = 5, curPage = App._custUserPage;
+      var startPg = Math.max(1, curPage - Math.floor(maxBtns / 2));
+      var endPg = Math.min(cuPages, startPg + maxBtns - 1);
+      if (endPg - startPg < maxBtns - 1) startPg = Math.max(1, endPg - maxBtns + 1);
+      if (startPg > 1) { rightHtml += '<button class="cu-pgbtn" onclick="App._custUserPage=1;App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))">1</button>'; if (startPg > 2) rightHtml += '<span class="cu-pgdot">…</span>'; }
+      for (var pg = startPg; pg <= endPg; pg++) {
+        rightHtml += '<button class="cu-pgbtn' + (pg === curPage ? ' active' : '') + '" onclick="App._custUserPage=' + pg + ';App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))">' + pg + '</button>';
+      }
+      if (endPg < cuPages) { if (endPg < cuPages - 1) rightHtml += '<span class="cu-pgdot">…</span>'; rightHtml += '<button class="cu-pgbtn" onclick="App._custUserPage=' + cuPages + ';App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))">' + cuPages + '</button>'; }
+      rightHtml += '<button class="cu-pgbtn nav" onclick="App._custUserPage=' + Math.min(cuPages, App._custUserPage + 1) + ';App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))" ' + (App._custUserPage >= cuPages ? 'disabled' : '') + '>›</button>';
     }
-    if (endPg < cuPages) ph += '<button onclick="App._custUserPage=' + cuPages + ';App.renderCustUserLink(App.getFilterState(&apos;page-potential&apos;))" style="margin:0 2px;padding:2px 8px;border:1px solid #d1d5db;border-radius:3px;font-size:11px;cursor:pointer">…' + cuPages + '</button>';
-    cuPager.innerHTML = ph;
-  } else if (cuPager) { cuPager.innerHTML = cuTotal > 0 ? '<span style="font-size:11px;color:#94a3b8">共 ' + cuTotal + ' 条</span>' : ''; }
+    cuPager.innerHTML = '<span>' + leftHtml + '</span><div class="cu-pager">' + rightHtml + '</div>';
+  }
 };
 
 // 客户交易用户分析下钻
@@ -7272,7 +7409,6 @@ App.renderUserDimension = function() {
       return { cust: c, amt: u.custs[c] };
     });
   });
-  };
   var ulinkBody = document.getElementById('pUserLinkBody');
   if (ulinkBody) {
     if (data.length === 0) {
@@ -7301,6 +7437,32 @@ App.renderUserDimension = function() {
     }
   }
 
+};
+
+// 用户×客户产品明细下钻
+App.showUserProdDetailModal = function(userName, custName) {
+  var modalBox = document.getElementById('appModalBox');
+  if (modalBox) { modalBox.style.maxWidth = '95vw'; modalBox.style.width = '96%'; }
+  var fUser = App.getFilteredPotData('user');
+  var records = fUser.filter(function(r) { return r.userName === userName && r.custName === custName; });
+  var prodAgg = {};
+  records.forEach(function(r) {
+    if (!r.product) return;
+    prodAgg[r.product] = (prodAgg[r.product] || 0) + (r.outAmt || 0);
+  });
+  var prods = Object.keys(prodAgg).sort(function(a, b) { return prodAgg[b] - prodAgg[a]; });
+  var total = prods.reduce(function(s, p) { return s + prodAgg[p]; }, 0);
+  var h = '<h3 style="margin:0 0 8px">' + App.escapeHtml(userName) + ' × ' + App.escapeHtml(custName) + ' <span style="font-size:13px;color:#6b7280">¥' + total.toFixed(2) + '万 · ' + prods.length + '个产品</span></h3>';
+  if (prods.length === 0) {
+    h += '<p style="text-align:center;padding:24px;color:#9ca3af">暂无产品数据</p>';
+  } else {
+    h += '<table class="cu-table"><thead><tr><th>产品</th><th class="cu-c">贡献额(万)</th></tr></thead><tbody>';
+    prods.forEach(function(p) {
+      h += '<tr><td style="font-weight:600">' + p + '</td><td class="cu-c"><span class="amt">¥' + prodAgg[p].toFixed(2) + '万</span></td></tr>';
+    });
+    h += '</tbody></table>';
+  }
+  App.showModal(userName + ' × ' + custName + ' 产品明细', h);
 };
 
 App.showUserCustDrill = function(userName) {
@@ -7339,12 +7501,15 @@ App.renderUserCustLink = function(state) {
   var userMap = {};
   raw.forEach(function(r) {
     var user = r.userName || '-';
-    var cust = r.custName || '-';
     if (!userMap[user]) userMap[user] = { custs: {}, dept: r.dept4 || r.dept3 || '' };
-    if (!userMap[user].custs[cust]) userMap[user].custs[cust] = { prods: {}, totalAmt: 0 };
-    var amt = r.outAmt || 0;
-    userMap[user].custs[cust].prods[r.product] = (userMap[user].custs[cust].prods[r.product] || 0) + amt;
-    userMap[user].custs[cust].totalAmt += amt;
+    // 仅当有关联客户时才计入
+    if (r.custName) {
+      var cust = r.custName;
+      if (!userMap[user].custs[cust]) userMap[user].custs[cust] = { prods: {}, totalAmt: 0 };
+      var amt = r.outAmt || 0;
+      userMap[user].custs[cust].prods[r.product] = (userMap[user].custs[cust].prods[r.product] || 0) + amt;
+      userMap[user].custs[cust].totalAmt += amt;
+    }
   });
 
   var userList = Object.keys(userMap).map(function(u) {
@@ -7360,21 +7525,81 @@ App.renderUserCustLink = function(state) {
 
   if (search) userList = userList.filter(function(u) { return u.user.toLowerCase().indexOf(search) >= 0; });
 
+  // 分页
+  var cuPageSize = App._userCuPageSize || 10;
+  var cuTotal = userList.length;
+  var cuPages = Math.ceil(cuTotal / cuPageSize);
+  if (!App._userCuPage || App._userCuPage > cuPages) App._userCuPage = cuPages || 1;
+  var cuStart = (App._userCuPage - 1) * cuPageSize;
+  var cuRows = userList.slice(cuStart, cuStart + cuPageSize);
+
   var countEl = document.getElementById('p-user-cust-count');
   if (countEl) countEl.textContent = userList.length + ' 个用户 · ' + userList.reduce(function(s, u) { return s + u.custCount; }, 0) + ' 个客户';
 
-  var html = '';
-  userList.forEach(function(u, i) {
-    var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
-    var custTags = u.custs.map(function(c) {
-      var prodTags = c.prods.map(function(p) { return '<span style="display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;background:#dcfce7;color:#166534;margin:1px">' + p + '</span>'; }).join('');
-      return '<div style="padding:3px 6px;margin:2px 0;background:#f8fafc;border-radius:4px;font-size:11px"><strong>' + c.name + '</strong> · ¥' + c.amt.toFixed(0) + '万 <span style="margin-left:4px">' + prodTags + '</span></div>';
-    }).join('');
-    html += '<tr><td><span class="' + rn + '">' + (i + 1) + '</span></td><td><strong>' + u.user + '</strong><div style="font-size:10px;color:#94a3b8">' + u.dept + '</div></td><td style="text-align:center;font-weight:700">' + u.custCount + '</td><td style="text-align:center;font-weight:700;color:var(--primary)">' + u.prodCount + '</td><td style="text-align:center;font-weight:700;color:#2563eb">' + u.totalAmt.toFixed(0) + '</td><td style="max-width:500px">' + custTags + '</td></tr>';
-  });
+  // 表头（6列）
+  var headEl = document.getElementById('pUserCustHead');
+  if (headEl) {
+    headEl.innerHTML = '<tr><th class="cu-c">#</th><th>用户名称</th><th class="cu-c">关联客户</th><th class="cu-c">覆盖产品</th><th class="cu-c">销售额(万)</th><th>关联客户明细</th></tr>';
+  }
 
-  if (userList.length === 0) html = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8">无匹配数据</td></tr>';
+  var html = '';
+  if (cuRows.length === 0) {
+    html = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#9ca3af">无匹配数据</td></tr>';
+  } else {
+    cuRows.forEach(function(u, i) {
+      var globalIdx = cuStart + i;
+      var rankCls = globalIdx < 3 ? ['gold','silver','bronze'][globalIdx] : '';
+      var userEsc = u.user.replace(/'/g, "\\'");
+      var custTags = u.custs.map(function(c) {
+        var custEsc = c.name.replace(/'/g, "\\'");
+        var prodChips = c.prods.map(function(p) { return '<span class="chip chip-green" style="font-size:9px;padding:1px 5px;margin:1px">' + App.escapeHtml(p) + '</span>'; }).join('');
+        return '<div style="padding:3px 6px;margin:2px 0;background:#f8fafc;border-radius:4px;font-size:11px;cursor:pointer" onclick="App.showUserProdDetailModal(\'' + userEsc + '\',\'' + custEsc + '\')" title="点击查看客户产品明细">' +
+          '<strong>' + App.escapeHtml(c.name) + '</strong> · <span class="amt" style="font-size:11px">¥' + c.amt.toFixed(2) + '万</span> ' + prodChips + '</div>';
+      }).join('');
+      html += '<tr>' +
+        '<td class="cu-c"><span class="rn ' + rankCls + '">' + (globalIdx + 1) + '</span></td>' +
+        '<td><div class="cust-name">' + App.escapeHtml(u.user) + '</div><div class="cust-sub">' + App.escapeHtml(u.dept || '-') + '</div></td>' +
+        '<td class="cu-c">' + (u.custCount > 0 ? '<span class="chip chip-blue" style="cursor:pointer" onclick="App.showUserCustDrill(\'' + userEsc + '\')" title="点击查看关联客户明细">' + u.custCount + ' 个</span>' : '<span class="dash">-</span>') + '</td>' +
+        '<td class="cu-c"><span class="chip chip-green">' + u.prodCount + ' / ' + App.ALL_POT_PRODUCTS.length + '</span></td>' +
+        '<td class="cu-c"><span class="amt">¥' + u.totalAmt.toFixed(2) + '万</span></td>' +
+        '<td style="max-width:480px">' + (custTags || '<span class="dash">-</span>') + '</td></tr>';
+    });
+  }
   tbody.innerHTML = html;
+
+  // 分页控件
+  var cuPager = document.getElementById('p-usercust-pager');
+  if (!cuPager) {
+    // 动态创建分页容器
+    var wrap = tbody.closest('.table-wrap');
+    if (wrap && !wrap.nextElementSibling || (wrap && wrap.nextElementSibling && wrap.nextElementSibling.id !== 'p-usercust-pager')) {
+      cuPager = document.createElement('div');
+      cuPager.id = 'p-usercust-pager';
+      cuPager.className = 'cu-bottom';
+      wrap.parentNode.insertBefore(cuPager, wrap.nextSibling);
+    }
+  }
+  if (cuPager) {
+    var startDisp = cuTotal > 0 ? cuStart + 1 : 0;
+    var endDisp = Math.min(cuStart + cuPageSize, cuTotal);
+    var leftHtml = '每页 <select onchange="App._userCuPageSize=parseInt(this.value);App._userCuPage=1;App.renderUserCustLink(App.getFilterState(&apos;page-potential&apos;))"><option value="10" ' + (cuPageSize === 10 ? 'selected' : '') + '>10</option><option value="20" ' + (cuPageSize === 20 ? 'selected' : '') + '>20</option><option value="50" ' + (cuPageSize === 50 ? 'selected' : '') + '>50</option></select> 条 · 显示 ' + startDisp + '-' + endDisp + ' / ' + cuTotal;
+
+    var rightHtml = '';
+    if (cuPages > 1) {
+      rightHtml += '<button class="cu-pgbtn nav" onclick="App._userCuPage=' + Math.max(1, App._userCuPage - 1) + ';App.renderUserCustLink(App.getFilterState(&apos;page-potential&apos;))" ' + (App._userCuPage <= 1 ? 'disabled' : '') + '>‹</button>';
+      var maxBtns = 5, curPage = App._userCuPage;
+      var startPg = Math.max(1, curPage - Math.floor(maxBtns / 2));
+      var endPg = Math.min(cuPages, startPg + maxBtns - 1);
+      if (endPg - startPg < maxBtns - 1) startPg = Math.max(1, endPg - maxBtns + 1);
+      if (startPg > 1) { rightHtml += '<button class="cu-pgbtn" onclick="App._userCuPage=1;App.renderUserCustLink(App.getFilterState(&apos;page-potential&apos;))">1</button>'; if (startPg > 2) rightHtml += '<span class="cu-pgdot">…</span>'; }
+      for (var pg = startPg; pg <= endPg; pg++) {
+        rightHtml += '<button class="cu-pgbtn' + (pg === curPage ? ' active' : '') + '" onclick="App._userCuPage=' + pg + ';App.renderUserCustLink(App.getFilterState(&apos;page-potential&apos;))">' + pg + '</button>';
+      }
+      if (endPg < cuPages) { if (endPg < cuPages - 1) rightHtml += '<span class="cu-pgdot">…</span>'; rightHtml += '<button class="cu-pgbtn" onclick="App._userCuPage=' + cuPages + ';App.renderUserCustLink(App.getFilterState(&apos;page-potential&apos;))">' + cuPages + '</button>'; }
+      rightHtml += '<button class="cu-pgbtn nav" onclick="App._userCuPage=' + Math.min(cuPages, App._userCuPage + 1) + ';App.renderUserCustLink(App.getFilterState(&apos;page-potential&apos;))" ' + (App._userCuPage >= cuPages ? 'disabled' : '') + '>›</button>';
+    }
+    cuPager.innerHTML = '<span>' + leftHtml + '</span><div class="cu-pager">' + rightHtml + '</div>';
+  }
 };
 
 // ===== 角色权限渲染 =====
@@ -7995,25 +8220,19 @@ App._refreshOvBarCharts = function() {
 
   var bp = App.charts['ov_dept-potential'] || App.charts.ovDeptPotential;
   if (bp) {
-    // 根据筛选从 WidthTeamMatrix 聚合数据
-    var matrixData = App.WidthTeamMatrix.RAW || [];
+    // 用数据总览自己的筛选器（不依赖 page-potential 的 getFilteredPotData）
+    var ovPotCust = (App.ImportPotential.CustRAW || []).slice();
+    if (person !== 'all') ovPotCust = ovPotCust.filter(function(r) { return r.sales === person; });
+    else if (group !== 'all') ovPotCust = ovPotCust.filter(function(r) { return r.dept5 === group || r.dept4 === group; });
+    else if (team !== 'all') ovPotCust = ovPotCust.filter(function(r) { return r.dept3 === team || r.dept4 === team; });
     var pAgg = {};
-    matrixData.forEach(function(r) {
-      if (team !== 'all') {
-        var gd = (App.GROUPS.find(function(g){return g.n===r.team;})||{}).dept;
-        if (gd !== team) return;
-      }
-      if (group !== 'all' && r.team !== group) return;
+    ovPotCust.forEach(function(r) {
+      if (!r.product) return;
       pAgg[r.product] = (pAgg[r.product] || 0) + (r.amount || 0);
     });
-
-    var prodLabels = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
-    var prodSales = prodLabels.map(function(p) { var v = pAgg[p] || 0; return Math.round(v); });
-    // 如果无Matrix数据，用demo并缩放
-    if (Object.keys(pAgg).length === 0) {
-      var scale = person !== 'all' ? 0.02 : group !== 'all' ? 0.10 : team !== 'all' ? 0.28 : 1;
-      prodSales = [1100,420,980,600,650,180,450,400,380,480,320].map(function(v) { return Math.round(v * scale); });
-    }
+    var prodLabels = Object.keys(pAgg).sort(function(a, b) { return pAgg[b] - pAgg[a]; });
+    if (prodLabels.length === 0) prodLabels = App.ALL_POT_PRODUCTS.slice(0, 11);
+    var prodSales = prodLabels.map(function(p) { return Math.round(pAgg[p] || 0); });
     bp.data.labels = prodLabels;
     bp.data.datasets[0].data = prodSales;
     bp.data.datasets[0].backgroundColor = '#3b82f6';
@@ -9250,43 +9469,70 @@ App.renderPotentialCustTab = function() {
   var custList = Object.values(custAgg).sort(function(a, b) { return b.totalAmt - a.totalAmt; });
 
   // 📊 客户 × 潜力产品交叉矩阵
+  var theadM = document.getElementById('pCustMatrixHead');
   var tbody1 = document.getElementById('pCustMatrixBody');
+
+  // 表头：固定首列 "客户" + 动态产品列
+  if (theadM) {
+    var thM = '<tr><th class="freeze">客户</th>';
+    prods.forEach(function(p) {
+      thM += '<th class="cu-c" title="' + p + '" style="font-size:10px;white-space:nowrap">' + (p.length > 6 ? p.substring(0,5) + '…' : p) + '</th>';
+    });
+    thM += '</tr>';
+    theadM.innerHTML = thM;
+  }
+
   if (tbody1) {
-    var topCusts = custList.slice(0, 15);  // TOP 15 客户
+    var topCusts = custList.slice(0, 15);
     if (topCusts.length === 0) {
       tbody1.innerHTML = '<tr><td colspan="' + (prods.length + 1) + '" style="text-align:center;padding:24px;color:#9ca3af">暂无数据</td></tr>';
     } else {
       var mHtml = '';
-      topCusts.forEach(function(c) {
-        mHtml += '<tr><td style="font-weight:600;white-space:nowrap">' + App.escapeHtml(c.name) + '</td>';
+      topCusts.forEach(function(c, ci) {
+        mHtml += '<tr>';
+        // 首列：客户名（sticky 左固定）
+        mHtml += '<td class="freeze" style="font-weight:600;font-size:12px;white-space:nowrap">' + App.escapeHtml(c.name) + '</td>';
         prods.forEach(function(p) {
           var v = c.prods[p] || 0;
-          if (v > 0) mHtml += '<td style="text-align:center"><span class="badge b-up">¥' + v.toLocaleString() + '万</span></td>';
-          else mHtml += '<td style="text-align:center;color:#d1d5db">-</td>';
+          if (v > 0) {
+            mHtml += '<td class="cu-c" style="font-size:11px;font-weight:600;color:#2563eb">¥' + v.toFixed(2) + '</td>';
+          } else {
+            mHtml += '<td class="cu-c" style="font-size:11px;color:#d1d5db">-</td>';
+          }
         });
         mHtml += '</tr>';
+        // hover 时首列背景色
+        if (ci === 0) {
+          // 首个客户行加 hover 效果（后续行的首列需要 CSS）
+        }
       });
       tbody1.innerHTML = mHtml;
     }
   }
 
   // 🏆 高贡献客户 TOP 10
+  var theadT10 = document.getElementById('pCustTop10Head');
   var tbody2 = document.getElementById('pCustTop10Body');
+
+  if (theadT10) {
+    theadT10.innerHTML = '<tr><th class="cu-c">#</th><th>客户名称</th><th>覆盖产品</th><th class="cu-r">销售额(万)</th><th class="cu-c">品类数</th></tr>';
+  }
+
   if (tbody2) {
     var top10 = custList.slice(0, 10);
     if (top10.length === 0) {
       tbody2.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">暂无数据</td></tr>';
     } else {
       tbody2.innerHTML = top10.map(function(c, i) {
-        var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
+        var rankCls = i < 3 ? ['gold','silver','bronze'][i] : '';
         var prodNames = Object.keys(c.prods).sort(function(a, b) { return (c.prods[b]||0) - (c.prods[a]||0); }).slice(0, 5).join('、');
         if (Object.keys(c.prods).length > 5) prodNames += ' 等' + Object.keys(c.prods).length + '个';
         return '<tr>' +
-          '<td><span class="rn ' + rn + '">' + (i + 1) + '</span></td>' +
-          '<td style="font-weight:600">' + App.escapeHtml(c.name) + '</td>' +
-          '<td style="font-size:11px">' + (prodNames || '-') + '</td>' +
-          '<td style="text-align:right;font-weight:700;color:#1a56db">¥' + c.totalAmt.toLocaleString() + '万</td>' +
-          '<td style="text-align:center"><span class="badge b-up">' + Object.keys(c.prods).length + '品类</span></td>' +
+          '<td class="cu-c"><span class="rn ' + rankCls + '">' + (i + 1) + '</span></td>' +
+          '<td style="font-weight:600;white-space:nowrap">' + App.escapeHtml(c.name) + '</td>' +
+          '<td style="font-size:11px">' + (prodNames || '<span class="dash">-</span>') + '</td>' +
+          '<td class="cu-r"><span class="amt">¥' + c.totalAmt.toFixed(2) + '万</span></td>' +
+          '<td class="cu-c" style="font-weight:600;color:#2563eb">' + Object.keys(c.prods).length + '</td>' +
           '</tr>';
       }).join('');
     }
@@ -9301,6 +9547,7 @@ App.renderPotentialUserTab = function() {
 
   // ── 从筛选后数据聚合用户维度 ──
   var fUser = App.getFilteredPotData('user');
+  var allProds = App.ALL_POT_PRODUCTS;
 
   // 按用户聚合
   var userAgg = {};
@@ -9309,66 +9556,112 @@ App.renderPotentialUserTab = function() {
     if (!userAgg[r.userName]) userAgg[r.userName] = { name: r.userName, totalAmt: 0, custSet: {}, prods: {} };
     userAgg[r.userName].totalAmt += r.outAmt || 0;
     if (r.custName) userAgg[r.userName].custSet[r.custName] = true;
-    if (r.product) userAgg[r.userName].prods[r.product] = true;
+    if (r.product) userAgg[r.userName].prods[r.product] = (userAgg[r.userName].prods[r.product] || 0) + (r.outAmt || 0);
   });
   var userList = Object.values(userAgg).sort(function(a, b) { return b.totalAmt - a.totalAmt; });
 
-  // 最终用户潜力产品推广情况
-  var tbody1 = document.getElementById('pUserPromoBody');
-  if (tbody1) {
-    if (userList.length === 0) {
-      tbody1.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#9ca3af">暂无数据</td></tr>';
+  // 📊 用户 × 潜力产品交叉矩阵
+  var theadUM = document.getElementById('pUserMatrixHead');
+  var tbodyUM = document.getElementById('pUserMatrixBody');
+
+  if (theadUM) {
+    var thUM = '<tr><th class="freeze">用户</th>';
+    allProds.forEach(function(p) {
+      thUM += '<th class="cu-c" title="' + p + '" style="font-size:10px;white-space:nowrap">' + (p.length > 6 ? p.substring(0,5) + '…' : p) + '</th>';
+    });
+    thUM += '</tr>';
+    theadUM.innerHTML = thUM;
+  }
+
+  if (tbodyUM) {
+    var topUsers = userList.slice(0, 15);
+    if (topUsers.length === 0) {
+      tbodyUM.innerHTML = '<tr><td colspan="' + (allProds.length + 1) + '" style="text-align:center;padding:24px;color:#9ca3af">暂无数据</td></tr>';
     } else {
-      tbody1.innerHTML = userList.slice(0, 30).map(function(u) {
-        var prodNames = Object.keys(u.prods).sort().slice(0, 4).join('、');
-        if (Object.keys(u.prods).length > 4) prodNames += ' 等';
+      var umHtml = '';
+      topUsers.forEach(function(u) {
+        umHtml += '<tr>';
+        umHtml += '<td class="freeze" style="font-weight:600;font-size:12px;white-space:nowrap">' + App.escapeHtml(u.name) + '</td>';
+        allProds.forEach(function(p) {
+          var v = u.prods[p] || 0;
+          if (v > 0) {
+            umHtml += '<td class="cu-c" style="font-size:11px;font-weight:600;color:#2563eb">¥' + v.toFixed(2) + '</td>';
+          } else {
+            umHtml += '<td class="cu-c" style="font-size:11px;color:#d1d5db">-</td>';
+          }
+        });
+        umHtml += '</tr>';
+      });
+      tbodyUM.innerHTML = umHtml;
+    }
+  }
+
+  // 📈 最终用户潜力产品推广情况
+  var theadP = document.getElementById('pUserPromoHead');
+  var tbody1 = document.getElementById('pUserPromoBody');
+  var allProds = App.ALL_POT_PRODUCTS;
+
+  if (theadP) {
+    theadP.innerHTML = '<tr><th>用户名称</th><th class="cu-c">关联客户</th><th class="cu-c">覆盖产品</th><th class="cu-c">销售额(万)</th><th>品类覆盖明细</th></tr>';
+  }
+
+  // 分页
+  var promoPageSize = App._promoPageSize || 10;
+  var promoTotal = userList.length;
+  var promoPages = Math.ceil(promoTotal / promoPageSize);
+  if (!App._promoPage || App._promoPage > promoPages) App._promoPage = promoPages || 1;
+  var promoStart = (App._promoPage - 1) * promoPageSize;
+  var promoRows = userList.slice(promoStart, promoStart + promoPageSize);
+
+  if (tbody1) {
+    if (promoRows.length === 0) {
+      tbody1.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">暂无数据</td></tr>';
+    } else {
+      tbody1.innerHTML = promoRows.map(function(u) {
         var custCnt = Object.keys(u.custSet).length;
         var covCnt = Object.keys(u.prods).length;
+        // 覆盖/未覆盖产品 chip
+        var prodChips = allProds.map(function(p) {
+          if (u.prods[p]) return '<span class="chip chip-green" style="font-size:10px;padding:1px 6px;margin:1px">' + p + '</span>';
+          else return '<span class="chip" style="font-size:10px;padding:1px 6px;margin:1px;background:#f1f5f9;color:#94a3b8;border:1px solid #e5e7eb">' + p + '</span>';
+        }).join('');
         return '<tr>' +
-          '<td style="font-weight:600">' + App.escapeHtml(u.name) + '</td>' +
-          '<td style="text-align:center">' + custCnt + '</td>' +
-          '<td style="text-align:center;font-weight:700;color:#1a56db">' + covCnt + '</td>' +
-          '<td style="text-align:right;font-weight:700">¥' + u.totalAmt.toLocaleString() + '万</td>' +
-          '<td style="text-align:center"><span class="badge b-up">' + covCnt + '品类</span></td>' +
-          '<td style="font-size:11px">' + (prodNames || '-') + '</td></tr>';
+          '<td><div class="cust-name">' + App.escapeHtml(u.name) + '</div></td>' +
+          '<td class="cu-c">' + (custCnt > 0 ? '<span class="chip chip-blue">' + custCnt + ' 个</span>' : '<span class="dash">-</span>') + '</td>' +
+          '<td class="cu-c"><span class="chip chip-green">' + covCnt + ' / ' + allProds.length + '</span></td>' +
+          '<td class="cu-c"><span class="amt">¥' + u.totalAmt.toFixed(2) + '万</span></td>' +
+          '<td style="line-height:1.8">' + prodChips + '</td></tr>';
       }).join('');
     }
   }
 
-  // 用户关联客户潜力覆盖明细
-  var tbody2 = document.getElementById('pUserCustDetailBody');
-  if (tbody2) {
-    if (userList.length === 0) {
-      tbody2.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:24px;color:#9ca3af">暂无数据</td></tr>';
-    } else {
-      var html = '';
-      userList.slice(0, 15).forEach(function(u) {
-        // 该用户的客户明细
-        var custDetails = [];
-        fUser.forEach(function(r) {
-          if (r.userName === u.name && r.custName) {
-            var ex = custDetails.find(function(cd) { return cd.cust === r.custName; });
-            if (ex) { ex.amt += (r.outAmt || 0); }
-            else custDetails.push({ cust: r.custName, amt: r.outAmt || 0, person: r.sales || '-', prods: r.product ? [r.product] : [] });
-          }
-        });
-        custDetails.sort(function(a, b) { return b.amt - a.amt; });
-        if (custDetails.length === 0) {
-          html += '<tr><td style="font-weight:600">' + App.escapeHtml(u.name) + '</td><td colspan="4" style="color:#9ca3af">无关联客户</td></tr>';
-        } else {
-          custDetails.forEach(function(cd, ci) {
-            html += '<tr>' +
-              (ci === 0 ? '<td rowspan="' + custDetails.length + '" style="font-weight:600;vertical-align:middle">' + App.escapeHtml(u.name) + '</td>' : '') +
-              '<td>' + App.escapeHtml(cd.cust) + '</td>' +
-              '<td style="text-align:right">¥' + cd.amt.toLocaleString() + '万</td>' +
-              '<td>' + App.escapeHtml(cd.person) + '</td>' +
-              '<td style="font-size:11px">' + cd.prods.join('、') + '</td></tr>';
-          });
-        }
-      });
+  // 推广情况分页控件
+  var promoPager = document.getElementById('p-promo-pager');
+  if (!promoPager) {
+    var wrap1 = tbody1 && tbody1.closest('.table-wrap');
+    if (wrap1) {
+      promoPager = document.createElement('div');
+      promoPager.id = 'p-promo-pager';
+      promoPager.className = 'cu-bottom';
+      wrap1.parentNode.insertBefore(promoPager, wrap1.nextSibling);
     }
-    tbody2.innerHTML = html;
   }
+  if (promoPager) {
+    var ps = promoStart, pe = Math.min(promoStart + promoPageSize, promoTotal);
+    var leftH = '每页 <select onchange="App._promoPageSize=parseInt(this.value);App._promoPage=1;App.renderPotentialUserTab()"><option value="10" ' + (promoPageSize === 10 ? 'selected' : '') + '>10</option><option value="20" ' + (promoPageSize === 20 ? 'selected' : '') + '>20</option><option value="50" ' + (promoPageSize === 50 ? 'selected' : '') + '>50</option></select> 条 · 显示 ' + (promoTotal > 0 ? ps + 1 : 0) + '-' + pe + ' / ' + promoTotal;
+    var rightH = '';
+    if (promoPages > 1) {
+      rightH += '<button class="cu-pgbtn nav" onclick="App._promoPage=' + Math.max(1, App._promoPage - 1) + ';App.renderPotentialUserTab()" ' + (App._promoPage <= 1 ? 'disabled' : '') + '>‹</button>';
+      var mB = 5, cp = App._promoPage, sp = Math.max(1, cp - Math.floor(mB / 2)), ep = Math.min(promoPages, sp + mB - 1);
+      if (ep - sp < mB - 1) sp = Math.max(1, ep - mB + 1);
+      if (sp > 1) { rightH += '<button class="cu-pgbtn" onclick="App._promoPage=1;App.renderPotentialUserTab()">1</button>'; if (sp > 2) rightH += '<span class="cu-pgdot">…</span>'; }
+      for (var pg2 = sp; pg2 <= ep; pg2++) rightH += '<button class="cu-pgbtn' + (pg2 === cp ? ' active' : '') + '" onclick="App._promoPage=' + pg2 + ';App.renderPotentialUserTab()">' + pg2 + '</button>';
+      if (ep < promoPages) { if (ep < promoPages - 1) rightH += '<span class="cu-pgdot">…</span>'; rightH += '<button class="cu-pgbtn" onclick="App._promoPage=' + promoPages + ';App.renderPotentialUserTab()">' + promoPages + '</button>'; }
+      rightH += '<button class="cu-pgbtn nav" onclick="App._promoPage=' + Math.min(promoPages, App._promoPage + 1) + ';App.renderPotentialUserTab()" ' + (App._promoPage >= promoPages ? 'disabled' : '') + '>›</button>';
+    }
+    promoPager.innerHTML = '<span>' + leftH + '</span><div class="cu-pager">' + rightH + '</div>';
+  }
+
 };
 
 // ===== 潜力产品 · 产品维度 — 覆盖率排名 =====
