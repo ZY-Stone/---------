@@ -676,7 +676,7 @@
 /* ===== 凯玲版团队统计弹窗 ===== */
 .modal-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;display:none;justify-content:center;align-items:center }
 .modal-overlay.active { display:flex }
-.modal-box { background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-width:600px;width:90%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden }
+.modal-box { background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-width:900px;width:92%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden }
 .modal-header { display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-bottom:1px solid #e5e7eb;background:linear-gradient(135deg,#1a3c8f,#2563eb);color:#fff }
 .modal-header h3 { font-size:15px;font-weight:700 }
 .modal-close { background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:20px;width:28px;height:28px;border-radius:6px;cursor:pointer;line-height:1 }

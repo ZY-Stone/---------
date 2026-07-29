@@ -95,13 +95,18 @@ def list_backups() -> list:
                 if f.startswith(f"backup_{prefix}_"):
                     btype = key
                     break
+            # 从文件名提取时间: backup_full_20260729_183942.json → 20260729_183942
+            parts = f.replace(".json", "").split("_")
+            created_at = parts[-2] + "_" + parts[-1] if len(parts) >= 2 else ""
             files.append({
                 "filename": f,
                 "size_bytes": os.path.getsize(fp),
-                "created_at": f.rsplit("_", 1)[-1].replace(".json", "") if "_" in f else "",
+                "created_at": created_at,
                 "type": btype,
                 "type_label": TYPE_LABELS.get(btype, "全量备份"),
             })
+    # 按 created_at 倒序（最新在最上面）
+    files.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return files
 
 

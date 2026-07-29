@@ -1,0 +1,191 @@
+{
+  "meta": {
+    "backup_type": "accounts",
+    "type_label": "账号备份",
+    "created_at": "20260729_183959",
+    "tenant_id": 1,
+    "user_id": 210
+  },
+  "tenants": [
+    {
+      "id": 1,
+      "name": "深圳业务中心",
+      "code": "shenzhen",
+      "status": "active",
+      "created_at": "2026-07-27T02:48:48"
+    }
+  ],
+  "departments": [],
+  "groups": [],
+  "users": [
+    {
+      "id": 210,
+      "tenant_id": 1,
+      "username": "admin",
+      "password_hash": "$2b$12$jbLcmVbsbB77O5eWtImkyuyQnXtxEM44pS2NcxkMyNFCJAPRrNEsC",
+      "name": "管理员",
+      "role": "admin",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 211,
+      "tenant_id": 1,
+      "username": "guchengcheng",
+      "password_hash": "$2b$12$sYzzDRN/Es.1wbXdaxrRrueMM9QSgb7jA20F/D5GGh78BG/PQxLfm",
+      "name": "顾城成",
+      "role": "gm",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 212,
+      "tenant_id": 1,
+      "username": "jiangying",
+      "password_hash": "$2b$12$MJVD/Aavx1Psa1zwitxnUOcP5WdTDk7JV9kiqePztkVieald44SDq",
+      "name": "江英",
+      "role": "operation",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 213,
+      "tenant_id": 1,
+      "username": "gaowei",
+      "password_hash": "$2b$12$/QI90WvjuEq2zFbfzaemLOBjwU5eV1bDhKiY6syhEFr4Ucdcn1VzS",
+      "name": "高巍",
+      "role": "director",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 214,
+      "tenant_id": 1,
+      "username": "wuzhenghao",
+      "password_hash": "$2b$12$W9kEHz.pg62A/m.FOabiHO4XMy/E8fWXyZ/g1gNJjuOLlesMt0pBa",
+      "name": "吴正豪",
+      "role": "director",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 215,
+      "tenant_id": 1,
+      "username": "hanjie",
+      "password_hash": "$2b$12$L99BUKyjK2JNUP9l3PLYY.DbkIMfp.lzqu5wxynWPDm8LL8/8cH/i",
+      "name": "韩杰",
+      "role": "director",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 216,
+      "tenant_id": 1,
+      "username": "mingliangbin",
+      "password_hash": "$2b$12$C9e.VQEFBp2mEz/YEMkGF.C9xW4yuHtUzjXQeRp9xWjtSwk3rGcx2",
+      "name": "明良斌",
+      "role": "director",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 217,
+      "tenant_id": 1,
+      "username": "weiyuchang",
+      "password_hash": "$2b$12$hrPmHBh9PVQ0f9KoBrmLoeR7R6RlohpVIKxop55V0.9MOTvqRLYeC",
+      "name": "卫玉昌",
+      "role": "director",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 218,
+      "tenant_id": 1,
+      "username": "fangweijian",
+      "password_hash": "$2b$12$7zBQR7D.e1XymOJoQb.neuvVkPkwcuSCF06vzByhTVSspbBo.plUq",
+      "name": "房伟建",
+      "role": "director",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 219,
+      "tenant_id": 1,
+      "username": "zhangdongzhu",
+      "password_hash": "$2b$12$eWVSQpLfNScLPONRM7o9fe2GZxJA0nwSc8faEIaRxrCQppkQ5lGcG",
+      "name": "张栋柱",
+      "role": "manager",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 220,
+      "tenant_id": 1,
+      "username": "luoxinghua",
+      "password_hash": "$2b$12$1q18gvaqPja88iJwe6RTjeXUPKFv9VNVzKeuyKsFEsm4jJQwTWG7y",
+      "name": "罗兴华",
+      "role": "manager",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 221,
+      "tenant_id": 1,
+      "username": "zhudi7",
+      "password_hash": "$2b$12$696CzboF347HKUfVAn1orO7FwHtKUQh788QDn9LrnKHGpwJEr2TTq",
+      "name": "朱迪",
+      "role": "sales",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    },
+    {
+      "id": 222,
+      "tenant_id": 1,
+      "username": "liyongzheng",
+      "password_hash": "$2b$12$sf2g9odMYoxtrwycc.cZM.67wATbeGd382WWXCNcjG2z8KwwLq.Ue",
+      "name": "李永正",
+      "role": "sales",
+      "dept_id": null,
+      "group_id": null,
+      "status": "active",
+      "last_login": null,
+      "created_at": "2026-07-29T10:31:52"
+    }
+  ]
+}

@@ -18,7 +18,9 @@ def _user(request: Request) -> dict:
 
 def _check_admin(request: Request):
     u = _user(request)
-    if not u or u.get("role") not in ("admin", "gm", "operation"):
+    if not u or not u.get("user_id"):
+        raise HTTPException(status_code=401, detail="请先登录（运行 start.bat 后重新登录）")
+    if u.get("role") not in ("admin", "gm", "operation"):
         raise HTTPException(status_code=403, detail="仅管理员/运营可操作")
 
 

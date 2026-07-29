@@ -34,36 +34,12 @@ App.doLogin = function() {
     App.applyRoleUI(u.role, u.name, u.dept_name, u.group_name);
     App.initAll();
   }).catch(function(err) {
-    console.log('API login failed, fallback to mock:', err.message);
-    // 回退到本地 Mock 登录
-    _localLogin(username, password, errEl);
+    if (errEl) {
+      errEl.textContent = '❌ 登录失败：' + (err.message || '无法连接后端，请运行 start.bat 启动服务');
+      errEl.style.display = 'block';
+    }
   });
 };
-
-// 本地 Mock 登录（后端不可用时的回退）
-function _localLogin(username, password, errEl) {
-  var user = App.MOCK_USERS.find(function(u) { return u.username === username; });
-  if (!user) { if (errEl) { errEl.textContent = '账号或密码错误'; errEl.style.display = 'block'; } return; }
-
-  if (password !== 'admin123') {
-    if (errEl) { errEl.textContent = '账号或密码错误'; errEl.style.display = 'block'; }
-    return;
-  }
-
-  if (user.role === 'person') {
-    if (errEl) { errEl.textContent = '个人角色不可登录系统，请联系主管'; errEl.style.display = 'block'; }
-    return;
-  }
-
-  if (errEl) errEl.style.display = 'none';
-  App.loggedInUser = user;
-  sessionStorage.setItem('pa_login', JSON.stringify({ username: user.username, role: user.role, name: user.name }));
-
-  var overlay = document.getElementById('loginOverlay');
-  if (overlay) overlay.classList.add('hidden');
-  App.applyRoleUI(user.role, user.name, user.dept, user.group);
-  App.initAll();
-}
 
 App.doLogout = function() {
   if (confirm('确定要退出登录吗？')) {
@@ -8382,14 +8358,26 @@ App.loadBackupModalList = function() {
       var s = map[t] || { bg:'#f1f5f9',c:'#64748b',l: label || t || '未知' };
       return '<span style="display:inline-block;padding:2px 8px;background:'+s.bg+';color:'+s.c+';border-radius:4px;font-size:10px;font-weight:600">'+s.l+'</span>';
     };
-    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="border-bottom:2px solid #e5e7eb">';
-    html += '<th style="padding:8px;text-align:left">类型</th><th style="padding:8px;text-align:left">文件名</th><th style="padding:8px;text-align:left;width:80px">大小</th><th style="padding:8px;text-align:right;width:180px">操作</th></tr></thead><tbody>';
+    // 格式化时间戳 (20260729_183941 → 2026-07-29 18:39:41)
+    function fmtTime(ts) {
+      if (!ts || ts.length < 15) return ts || '-';
+      var y = ts.slice(0,4), m = ts.slice(4,6), d = ts.slice(6,8);
+      var hh = ts.slice(9,11), mm = ts.slice(11,13), ss = ts.slice(13,15);
+      return y + '-' + m + '-' + d + ' ' + hh + ':' + mm + ':' + ss;
+    }
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:auto"><thead><tr style="border-bottom:2px solid #e5e7eb">';
+    html += '<th style="padding:8px;text-align:left;white-space:nowrap">类型</th>';
+    html += '<th style="padding:8px;text-align:left;white-space:nowrap">备份时间</th>';
+    html += '<th style="padding:8px;text-align:left">文件名</th>';
+    html += '<th style="padding:8px;text-align:right;white-space:nowrap">大小</th>';
+    html += '<th style="padding:8px;text-align:right;white-space:nowrap">操作</th></tr></thead><tbody>';
     list.forEach(function(b) {
       html += '<tr style="border-bottom:1px solid #f1f5f9">';
-      html += '<td style="padding:8px">' + typeBadge(b.type || 'full', b.type_label) + '</td>';
-      html += '<td style="padding:8px;font-size:11px">' + b.filename + '</td>';
-      html += '<td style="padding:8px">' + (b.size_bytes / 1024).toFixed(1) + ' KB</td>';
-      html += '<td style="padding:8px;text-align:right">';
+      html += '<td style="padding:8px;white-space:nowrap">' + typeBadge(b.type || 'full', b.type_label) + '</td>';
+      html += '<td style="padding:8px;font-size:11px;white-space:nowrap">' + fmtTime(b.created_at) + '</td>';
+      html += '<td style="padding:8px;font-size:11px;word-break:break-all">' + b.filename + '</td>';
+      html += '<td style="padding:8px;text-align:right;white-space:nowrap">' + (b.size_bytes / 1024).toFixed(1) + ' KB</td>';
+      html += '<td style="padding:8px;text-align:right;white-space:nowrap">';
       html += '<a style="color:#2563eb;cursor:pointer;margin-right:8px;font-size:11px" onclick="App.downloadBackup(\'' + b.filename + '\')">📥 下载</a>';
       html += '<a style="color:#16a34a;cursor:pointer;margin-right:8px;font-size:11px" onclick="App.restoreBackupModal(\'' + b.filename + '\')">🔄 恢复</a>';
       html += '<a style="color:#dc2626;cursor:pointer;font-size:11px" onclick="App.removeBackupModal(\'' + b.filename + '\')">🗑 删除</a>';
@@ -10436,16 +10424,7 @@ App.initAll = function() {
         App.initAll();
         return;
       }
-      // 无 token：用本地 Mock
-      var user = App.MOCK_USERS.find(function(u) { return u.username === data.username; });
-      if (user) {
-        App.loggedInUser = user;
-        var overlay2 = document.getElementById('loginOverlay');
-        if (overlay2) overlay2.classList.add('hidden');
-        App.applyRoleUI(user.role, user.name, user.dept, user.group);
-        App.initAll();
-        return;
-      }
+      // 无 token：无法自动登录，请重新登录
     } catch(e) {}
   }
   // 未登录: 显示登录页
