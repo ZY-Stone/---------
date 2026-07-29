@@ -432,17 +432,77 @@ App.onDeptChange = function(pageId) {
   if (personSel) personSel.value = 'all';
   App.populateGrpDropdown(pageId);
   App.populatePersonDropdown(pageId);
+  // 潜力产品页：筛选变更后自动联动颗粒度按钮
+  if (pageId === 'page-potential') App.updatePotDimButtons();
+  // 产品宽度页：筛选变更后自动联动颗粒度按钮
+  if (pageId === 'page-width') App.updateWidthDimButtons();
   App.refreshPageData(pageId);
 };
 App.onGrpChange = function(pageId) {
-  // 强制重置下层筛选
+  // ── 反向选择：选中小组 → 自动回填所属部门 ──
+  var grpSel = document.querySelector('#' + pageId + ' .filter-group-sel');
+  var grpVal = grpSel ? grpSel.value : 'all';
+  if (grpVal !== 'all') {
+    var grpInfo = App.GROUPS.find(function(g) { return g.n === grpVal; });
+    if (grpInfo && grpInfo.dept) {
+      var deptSel = document.querySelector('#' + pageId + ' .filter-dept');
+      if (deptSel) deptSel.value = grpInfo.dept;
+    }
+  }
+
+  // 强制重置下层筛选（人员）
   var personSel = document.querySelector('#' + pageId + ' .filter-person');
   if (personSel) personSel.value = 'all';
+
+  // 级联刷新下拉（部门下拉此时可能已变化，需要重新填充小组和人员）
+  App.populateGrpDropdown(pageId);
   App.populatePersonDropdown(pageId);
+
+  // 确保小组值在重新填充后仍保持（populateGrpDropdown 内部会保留有效值）
+  if (grpSel) grpSel.value = grpVal;
+
+  // 颗粒度按钮联动
+  if (pageId === 'page-potential') App.updatePotDimButtons();
+  if (pageId === 'page-width') App.updateWidthDimButtons();
   App.refreshPageData(pageId);
 };
 App.onPersonChange = function(pageId) {
-  // 换人员：上层部门、小组保持不变，不回退
+  // ── 反向选择：选中个人 → 自动回填所属小组 + 所属部门 ──
+  var personSel = document.querySelector('#' + pageId + ' .filter-person');
+  var personVal = personSel ? personSel.value : 'all';
+  if (personVal !== 'all') {
+    var pInfo = App.PERSONS.find(function(p) { return p.n === personVal; });
+    if (pInfo) {
+      // 回填小组
+      if (pInfo.grp && pInfo.grp !== '-') {
+        var grpSel = document.querySelector('#' + pageId + ' .filter-group-sel');
+        if (grpSel) grpSel.value = pInfo.grp;
+      }
+      // 回填部门
+      if (pInfo.dept) {
+        var deptSel = document.querySelector('#' + pageId + ' .filter-dept');
+        if (deptSel) deptSel.value = pInfo.dept;
+      }
+    }
+  }
+
+  // 级联刷新下拉（部门/小组可能已变化，需要重新填充）
+  App.populateGrpDropdown(pageId);
+  App.populatePersonDropdown(pageId);
+
+  // 确保人员和小组值在重新填充后仍保持
+  if (personSel) personSel.value = personVal;
+  if (personVal !== 'all') {
+    var pInfo2 = App.PERSONS.find(function(p) { return p.n === personVal; });
+    if (pInfo2 && pInfo2.grp && pInfo2.grp !== '-') {
+      var grpSel2 = document.querySelector('#' + pageId + ' .filter-group-sel');
+      if (grpSel2) grpSel2.value = pInfo2.grp;
+    }
+  }
+
+  // 颗粒度按钮联动
+  if (pageId === 'page-potential') App.updatePotDimButtons();
+  if (pageId === 'page-width') App.updateWidthDimButtons();
   App.refreshPageData(pageId);
 };
 
@@ -571,6 +631,18 @@ App.resetFilters = function(pageId) {
 
   App.populateGrpDropdown(pageId);
   App.populatePersonDropdown(pageId);
+  // 潜力产品页：重置颗粒度为默认「部门」
+  if (pageId === 'page-potential') {
+    App._potDim = 'dept';
+    App._potSalesPage = 1;
+    App.updatePotDimButtons();
+  }
+  // 产品宽度页：重置颗粒度为默认「部门」
+  if (pageId === 'page-width') {
+    App.WidthDetail.dim = 'dept';
+    App.WidthDetail.page = 1;
+    App.updateWidthDimButtons();
+  }
   App.refreshPageData(pageId);
 };
 
@@ -767,9 +839,58 @@ App.switchOvWidthDim = function(type) {
 };
 
 // ===== 潜力产品销售额排名（跟随页级筛选 + 维度切换） =====
+// 核心规则：颗粒度切换不能突破顶部筛选划定的数据边界
 App._potDim = 'dept';
+App._potSalesPage = 1;
+App._potSalesPageSize = 10;
+
+// 获取当前筛选条件下可用的颗粒度选项
+// - 筛选「部门」：部门/组/个人 三级都可用
+// - 筛选「小组」：仅 组/个人 可用（部门粒度已锁定到小组）
+// - 筛选「个人」：仅 个人 可用
+App.getAvailablePotDims = function() {
+  var state = App.getFilterState('page-potential');
+  if (state.person !== 'all') return ['person'];
+  if (state.group !== 'all') return ['group', 'person'];
+  return ['dept', 'group', 'person'];
+};
+
+// 更新颗粒度按钮的可见性和激活状态
+// 筛选变更后自动调用，确保按钮不超出筛选范围
+App.updatePotDimButtons = function() {
+  var available = App.getAvailablePotDims();
+  var current = App._potDim || 'dept';
+  // 筛选变更后重置到第一页
+  App._potSalesPage = 1;
+
+  // 如果当前粒度在筛选缩窄后不可用，自动降级到最细可用粒度
+  if (available.indexOf(current) === -1) {
+    App._potDim = available[available.length - 1];
+    App._potSalesPage = 1;  // 粒度变化时重置页码
+  }
+
+  // 更新按钮显示/隐藏 + 激活状态
+  var allDims = ['dept', 'group', 'person'];
+  allDims.forEach(function(dim) {
+    var btn = document.querySelector('#page-potential [data-p-dim="' + dim + '"]');
+    if (!btn) return;
+    if (available.indexOf(dim) === -1) {
+      btn.style.display = 'none';
+      btn.classList.remove('active');
+    } else {
+      btn.style.display = '';
+      btn.classList.toggle('active', dim === App._potDim);
+    }
+  });
+};
+
 App.switchPotDim = function(type) {
+  var available = App.getAvailablePotDims();
+  // 请求的粒度不在可用范围内，静默忽略
+  if (available.indexOf(type) === -1) return;
+
   App._potDim = type;
+  App._potSalesPage = 1;  // 切换粒度时重置页码
   document.querySelectorAll('#page-potential [data-p-dim]').forEach(function(b) {
     b.classList.toggle('active', b.getAttribute('data-p-dim') === type);
   });
@@ -782,24 +903,25 @@ App.renderPotSalesRank = function() {
   var dim = App._potDim || 'dept';
   var state = App.getFilterState('page-potential');
 
+  // ── 核心规则：所有展示数据必须是顶部筛选范围的子集 ──
   // 优先使用 WidthTeamMatrix.RAW，无数据时回退到 getPotential
   var raw = (App.WidthTeamMatrix.RAW && App.WidthTeamMatrix.RAW.length > 0) ? App.WidthTeamMatrix.RAW : null;
   var aggMap = {};
 
   if (raw) {
-    // 严格三级数据隔离：人员 > 组 > 部门
-    if (state.person !== 'all') {
-      var pInfo = App.PERSONS.find(function(p){return p.n===state.person;});
-      raw = raw.filter(function(r){ return pInfo && r.team === pInfo.grp; });
-    } else if (state.group !== 'all') {
-      raw = raw.filter(function(r){ return r.team === state.group; });
-    } else if (state.team !== 'all') {
-      raw = raw.filter(function(r){
-        var gDept = (App.GROUPS.find(function(g){return g.n===r.team;})||{}).dept;
-        return gDept === state.team || r.team === state.team;
-      });
-    }
     raw.forEach(function(r) {
+      // 部门筛选：只保留选定部门的数据
+      if (state.team !== 'all') {
+        var gDept = (App.GROUPS.find(function(g){return g.n===r.team;})||{}).dept;
+        if (gDept !== state.team) return;
+      }
+      // 小组筛选：只保留选定小组的数据
+      if (state.group !== 'all' && r.team !== state.group) return;
+      // 个人筛选：只保留该人员所属小组的数据（基础过滤）
+      if (state.person !== 'all') {
+        var pInfo = App.PERSONS.find(function(p){return p.n===state.person;});
+        if (pInfo && r.team !== pInfo.grp) return;
+      }
 
       // 按维度聚合
       var key;
@@ -833,28 +955,75 @@ App.renderPotSalesRank = function() {
     });
   }
 
-  // 构建排序列表
+  // ── 构建排序列表（严格遵循边界约束）──
   var rows = [];
   if (dim === 'dept') {
-    App.BUSINESS_DEPTS.forEach(function(d) { if (aggMap[d.n]) rows.push(aggMap[d.n]); });
-    var EXCLUDE_DEPTS = ['深圳','深圳业务中心','产品营销部'];
-    Object.keys(aggMap).forEach(function(k) { if (!rows.find(function(r){return r.name===k;}) && EXCLUDE_DEPTS.indexOf(k) < 0) rows.push(aggMap[k]); });
+    // 部门粒度：如果顶部筛选了某个部门，仅展示该部门汇总（1条）
+    if (state.team !== 'all') {
+      if (aggMap[state.team]) rows.push(aggMap[state.team]);
+      // 确保不展示其他部门数据
+    } else {
+      // 全部部门：按业务部门顺序展示
+      App.BUSINESS_DEPTS.forEach(function(d) { if (aggMap[d.n]) rows.push(aggMap[d.n]); });
+      var EXCLUDE_DEPTS = ['深圳','深圳业务中心','产品营销部'];
+      Object.keys(aggMap).forEach(function(k) {
+        if (!rows.find(function(r){return r.name===k;}) && EXCLUDE_DEPTS.indexOf(k) < 0) rows.push(aggMap[k]);
+      });
+    }
   } else if (dim === 'group') {
-    var EXCLUDE_NAMES = ['深圳','深圳业务中心','产品营销部'];
-    App.GROUPS.forEach(function(g) { rows.push(aggMap[g.n] || { name: g.n, sales: 0, prev: 0 }); });
-    Object.keys(aggMap).forEach(function(k) { if (!rows.find(function(r){return r.name===k;}) && EXCLUDE_NAMES.indexOf(k) < 0) rows.push(aggMap[k]); });
+    // 小组粒度：
+    // - 筛选「部门」：仅展示该部门下属小组数据
+    // - 筛选「小组」：仅展示该小组汇总（1条）
+    // - 筛选「全部」：展示全部小组
+    if (state.group !== 'all') {
+      // 已锁定到具体小组，仅展示该小组
+      if (aggMap[state.group]) rows.push(aggMap[state.group]);
+    } else if (state.team !== 'all') {
+      // 筛选了某个部门：仅展示该部门下属小组
+      var deptGroups = App.GROUPS.filter(function(g) { return g.dept === state.team; });
+      deptGroups.forEach(function(g) {
+        rows.push(aggMap[g.n] || { name: g.n, sales: 0, prev: 0 });
+      });
+      // 也包含 aggMap 中属于该部门但不在 GROUPS 列表的
+      Object.keys(aggMap).forEach(function(k) {
+        if (!rows.find(function(r){return r.name===k;})) {
+          var gd = (App.GROUPS.find(function(g){return g.n===k;})||{}).dept;
+          if (gd === state.team) rows.push(aggMap[k]);
+        }
+      });
+    } else {
+      // 全部：按 GROUPS 顺序展示
+      App.GROUPS.forEach(function(g) { rows.push(aggMap[g.n] || { name: g.n, sales: 0, prev: 0 }); });
+      var EXCLUDE_NAMES = ['深圳','深圳业务中心','产品营销部'];
+      Object.keys(aggMap).forEach(function(k) {
+        if (!rows.find(function(r){return r.name===k;}) && EXCLUDE_NAMES.indexOf(k) < 0) rows.push(aggMap[k]);
+      });
+    }
   } else {
-    // 个人维度：从潜力产品客户 RAW 按销售人员聚合（含月份+部门筛选）
+    // 个人维度：从潜力产品客户 RAW 按销售人员聚合
+    // - 筛选「个人」：仅展示该个人（1条）
+    // - 筛选「小组」：仅展示该小组内成员
+    // - 筛选「部门」：仅展示该部门下属个人
     var custRaw = (App.ImportPotential.CustRAW || []).slice();
     var periodSelP = document.getElementById('pImportPeriodFilter');
     var periodFilterP = periodSelP ? (periodSelP.value && periodSelP.value !== 'all' ? periodSelP.value : '') : '';
     if (periodFilterP) custRaw = custRaw.filter(function(r) { return (r.snapshotPeriod || '') === periodFilterP; });
-    if (state.team !== 'all') custRaw = custRaw.filter(function(r) { return r.dept3 === state.team || r.dept4 === state.team; });
-    if (state.group !== 'all') custRaw = custRaw.filter(function(r) { return r.dept5 === state.group; });
+
+    // 严格按筛选范围过滤
+    if (state.person !== 'all') {
+      // 已锁定到具体个人：仅展示该个人
+      custRaw = custRaw.filter(function(r) { return (r.sales || '') === state.person; });
+    } else if (state.group !== 'all') {
+      // 筛选了小组：仅展示该小组内成员
+      custRaw = custRaw.filter(function(r) { return r.dept5 === state.group || r.dept4 === state.group; });
+    } else if (state.team !== 'all') {
+      // 筛选了部门：仅展示该部门下属个人
+      custRaw = custRaw.filter(function(r) { return r.dept3 === state.team || r.dept4 === state.team; });
+    }
+
     var personAgg = {};
     custRaw.forEach(function(r) {
       var acc = r.sales || '(未填写)';
-      if (state.person !== 'all' && acc !== state.person) return;
       if (!personAgg[acc]) personAgg[acc] = { name: acc, sales: 0, count: 0 };
       personAgg[acc].sales += r.amount || 0;
       personAgg[acc].count++;
@@ -865,24 +1034,77 @@ App.renderPotSalesRank = function() {
   }
 
   if (rows.length === 0) {
-    rankEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:16px">暂无数据，请先导入潜力产品数据</td></tr>';
+    rankEl.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:16px">暂无数据</td></tr>';
+    // 清空分页
+    var pagerEl = document.getElementById('pOvDeptPager');
+    if (pagerEl) pagerEl.innerHTML = '';
     return;
   }
 
   // 按销售额降序
   rows.sort(function(a, b) { return b.sales - a.sales; });
+
+  // ── 分页逻辑 ──
+  var pageSize = App._potSalesPageSize || 10;
+  var totalPages = Math.ceil(rows.length / pageSize);
+  if (App._potSalesPage < 1) App._potSalesPage = 1;
+  if (App._potSalesPage > totalPages) App._potSalesPage = totalPages;
+  var start = (App._potSalesPage - 1) * pageSize;
+  var pageRows = rows.slice(start, start + pageSize);
+
   var maxS = Math.max.apply(null, rows.map(function(r){return r.sales;}).concat([1]));
   var html = '';
-  rows.forEach(function(r, i) {
-    var rn = i < 3 ? 'rn' + (i + 1) : 'rn0';
+  pageRows.forEach(function(r, i) {
+    var globalIdx = start + i;
+    var rn = globalIdx < 3 ? 'rn' + (globalIdx + 1) : 'rn0';
     var yoy = r.prev > 0 ? ((r.sales - r.prev) / r.prev * 100) : 0;
     var yoyC = yoy >= 0 ? 'color:#16a34a' : 'color:#dc2626';
-    html += '<tr><td><span class="' + rn + '">' + (i + 1) + '</span></td>' +
+    html += '<tr>' +
+      '<td style="text-align:center"><span class="' + rn + '">' + (globalIdx + 1) + '</span></td>' +
       '<td><strong>' + App.escapeHtml(r.name) + '</strong></td>' +
       '<td style="text-align:right;font-weight:700;font-size:13px">¥' + r.sales.toLocaleString() + '<span style="font-size:10px;color:#94a3b8;font-weight:400">万</span></td>' +
-      '<td style="text-align:center;' + yoyC + ';font-weight:600">' + (yoy >= 0 ? '+' : '') + yoy.toFixed(1) + '%</td></tr>';
+      '<td style="text-align:center;' + yoyC + ';font-weight:600">' + (yoy >= 0 ? '+' : '') + yoy.toFixed(1) + '%</td>' +
+      '</tr>';
   });
   rankEl.innerHTML = html;
+
+  // ── 渲染分页控件 ──
+  var pagerEl = document.getElementById('pOvDeptPager');
+  if (pagerEl) {
+    if (totalPages <= 1) {
+      pagerEl.innerHTML = '<span style="font-size:11px;color:#94a3b8">共 ' + rows.length + ' 条</span>';
+    } else {
+      var ph = '<span style="font-size:11px;color:#64748b;margin-right:8px">共 ' + rows.length + ' 条，' + totalPages + ' 页</span>';
+      ph += '<button onclick="App.goPotSalesPage(' + Math.max(1, App._potSalesPage - 1) + ')" ' +
+        'style="padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;margin:0 2px"' +
+        (App._potSalesPage <= 1 ? ' disabled' : '') + '>◀</button>';
+
+      // 页码按钮（最多显示7个）
+      var maxBtns = 7;
+      var startPg = Math.max(1, App._potSalesPage - Math.floor(maxBtns / 2));
+      var endPg = Math.min(totalPages, startPg + maxBtns - 1);
+      if (endPg - startPg < maxBtns - 1) startPg = Math.max(1, endPg - maxBtns + 1);
+
+      for (var pg = startPg; pg <= endPg; pg++) {
+        var isActive = pg === App._potSalesPage;
+        ph += '<button onclick="App.goPotSalesPage(' + pg + ')" ' +
+          'style="padding:3px 8px;border:1px solid ' + (isActive ? '#1a56db' : '#d1d5db') + ';border-radius:4px;' +
+          'background:' + (isActive ? '#1a56db' : '#fff') + ';color:' + (isActive ? '#fff' : '#374151') + ';' +
+          'cursor:pointer;font-size:11px;margin:0 1px;font-weight:' + (isActive ? '600' : '400') + '">' + pg + '</button>';
+      }
+
+      ph += '<button onclick="App.goPotSalesPage(' + Math.min(totalPages, App._potSalesPage + 1) + ')" ' +
+        'style="padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;margin:0 2px"' +
+        (App._potSalesPage >= totalPages ? ' disabled' : '') + '>▶</button>';
+      pagerEl.innerHTML = ph;
+    }
+  }
+};
+
+// 潜力产品销售额分页跳转
+App.goPotSalesPage = function(pg) {
+  App._potSalesPage = pg;
+  App.renderPotSalesRank();
 };
 
 // ===== 总览页产品宽度历史趋势 — 跟随筛选联动（总体数据变化） =====
@@ -1317,6 +1539,8 @@ App.updatePotential = function() {
   // ===== 经营概述 (商机预测版) — 传入筛选状态 =====
   try { App.renderPotentialOverview(state); } catch(e) { console.warn('renderPotentialOverview 失败:', e); }
 
+  // ===== 颗粒度按钮联动（筛选变更后自动调整可用粒度） =====
+  try { App.updatePotDimButtons(); } catch(e) { console.warn('updatePotDimButtons 失败:', e); }
   // ===== KPI 卡片由 renderPotentialOverview 统一更新，此处保留销售额排名刷新 =====
   try { App.renderPotSalesRank(); } catch(e) { console.warn('renderPotSalesRank 失败:', e); }
 
@@ -1689,27 +1913,23 @@ App.toggleProductSelect = function() {
   }
 };
 
-// ===== 销售量构成 (chart-p-composition) 从筛选数据动态计算 =====
+// ===== 销售量构成 (chart-p-composition) 独立更新函数（跟随筛选联动） =====
 App._updateCompositionChart = function() {
   var state = App.getFilterState('page-potential');
   var team = state.team, group = state.group, person = state.person;
 
+  // 1. 无论图表是否存在，先更新右上角标签
   var tagEl = document.getElementById('p-comp-tag');
   if (tagEl) {
     var scope = person !== 'all' ? '个人: ' + person : group !== 'all' ? '组: ' + group : team !== 'all' ? '部门: ' + team : '全部部门';
     tagEl.textContent = '销售额 · ' + scope;
   }
 
+  // 2. 更新图表数据（优先 Chart.getChart，兜底从 App.charts 取）
   var compChart = Chart.getChart('chart-p-composition') || (App.charts && App.charts.potComposition);
   if (!compChart) return;
-
-  // 从筛选后数据按产品聚合销售额
-  var fCust = App.getFilteredPotData('cust');
-  var prodSales = {};
-  fCust.forEach(function(r) { var p = r.product; if (p) prodSales[p] = (prodSales[p] || 0) + (r.amount || 0); });
-
   var cLabels = compChart.data.labels;
-  var cData = cLabels.map(function(p) { return Math.round(prodSales[p] || 0); });
+  var cData = cLabels.map(function(p) { return App.getScopedCompositionValue(p); });
   compChart.data.datasets[0].data = cData;
   compChart.update();
   try { compChart.resize(); } catch(e) {}
@@ -4113,6 +4333,40 @@ document.addEventListener('click', function(e) {
 });
 
 // ===== 产品宽度 — 团队维度：数据明细（部门/组/个人 钻取表） =====
+// ===== 产品宽度-团队维度 数据明细 颗粒度约束 =====
+// 核心规则：颗粒度切换不能突破顶部筛选划定的数据边界
+App.getAvailableWidthDims = function() {
+  var state = App.getFilterState('page-width');
+  if (state.person !== 'all') return ['person'];
+  if (state.group !== 'all') return ['group', 'person'];
+  return ['dept', 'group', 'person'];
+};
+
+App.updateWidthDimButtons = function() {
+  var available = App.getAvailableWidthDims();
+  var current = App.WidthDetail.dim || 'dept';
+
+  // 如果当前粒度在筛选缩窄后不可用，自动降级到最细可用粒度
+  if (available.indexOf(current) === -1) {
+    App.WidthDetail.dim = available[available.length - 1];
+    App.WidthDetail.page = 1;
+  }
+
+  // 更新按钮显示/隐藏 + 激活状态
+  var allDims = ['dept', 'group', 'person'];
+  allDims.forEach(function(dim) {
+    var btn = document.querySelector('#page-width [data-d="' + dim + '"]');
+    if (!btn) return;
+    if (available.indexOf(dim) === -1) {
+      btn.style.display = 'none';
+      btn.classList.remove('active');
+    } else {
+      btn.style.display = '';
+      btn.classList.toggle('active', dim === App.WidthDetail.dim);
+    }
+  });
+};
+
 App.WidthDetail = {
   dim: 'dept',
   page: 1,
@@ -4120,6 +4374,10 @@ App.WidthDetail = {
 
   // 切换维度 tab
   switchDim: function(d) {
+    var available = App.getAvailableWidthDims();
+    // 请求的粒度不在可用范围内，静默忽略
+    if (available.indexOf(d) === -1) return;
+
     App.WidthDetail.dim = d;
     App.WidthDetail.page = 1;
     // 更新 tab active 样式
@@ -4458,6 +4716,9 @@ App.WidthDetail = {
 
   // 主渲染函数
   render: function() {
+    // 筛选变更后自动联动颗粒度按钮 + 清除聚合缓存
+    App.updateWidthDimButtons();
+    App.WidthDetail.clearCache();
     var data = App.WidthDetail.getData();
     var dim = App.WidthDetail.dim;
     var page = App.WidthDetail.page;
@@ -4643,7 +4904,12 @@ App.WidthDetail = {
       raw = raw.filter(function(r) { return r.team === pageState.group; });
     } else if (pageState.team !== 'all') {
       var deptGroups = App.GROUPS.filter(function(g) { return g.dept === pageState.team; }).map(function(g) { return g.n; });
-      raw = raw.filter(function(r) { return deptGroups.indexOf(r.team) >= 0; });
+      raw = raw.filter(function(r) {
+        if (deptGroups.indexOf(r.team) >= 0) return true;          // 组名匹配
+        if (r.team === pageState.team) return true;                 // team=部门名(无组部门)
+        var gi = App.GROUPS.find(function(g){return g.n===r.team;}); // GROUPS查归属
+        return gi && gi.dept === pageState.team;
+      });
     }
     return raw;
   },
@@ -4814,6 +5080,7 @@ App.WidthDetail = {
       accMap[a].rows.push(r);
     });
     var result = [];
+    var seenDisplayNames = {};  // 记录已有数据的中文名
     Object.keys(accMap).forEach(function(acc) {
       var am = accMap[acc];
       var rows = am.rows;
@@ -4825,14 +5092,40 @@ App.WidthDetail = {
       var prodCnt = products.map(function(p) {
         return rows.filter(function(r) { return r.prods && r.prods[p] === 1; }).length;
       });
+      var dn = App.WidthCustomer.getDisplayName ? App.WidthCustomer.getDisplayName(acc) : acc;
+      seenDisplayNames[dn] = true;
       result.push({
-        n: acc, displayName: (App.WidthCustomer.getDisplayName ? App.WidthCustomer.getDisplayName(acc) : acc), team: am.team, type: 'person',
+        n: acc, displayName: dn, team: am.team, type: 'person',
         cw: rows.length, aw: avgW, mw: maxW, gs: gs, ngs: ngs,
         cov: products.length > 0 ? (prodCnt.filter(function(c) { return c > 0; }).length / products.length * 100) : 0,
         prodCnt: prodCnt,
         yoy: '0%'
       });
     });
+
+    // 补充无数据人员：筛选缩窄后，确保范围内所有人员都展示（数据为空）
+    var pageState = App.getFilterState ? App.getFilterState('page-width') : { team: 'all', group: 'all', person: 'all' };
+    var isNarrowed = pageState.team !== 'all' || pageState.group !== 'all' || pageState.person !== 'all';
+    if (isNarrowed) {
+      var zeroProds = products.map(function() { return 0; });
+      App.PERSONS.forEach(function(p) {
+        // 检查是否在当前筛选范围内
+        if (pageState.person !== 'all' && p.n !== pageState.person) return;
+        if (pageState.group !== 'all' && p.grp !== pageState.group) return;
+        if (pageState.team !== 'all' && p.dept !== pageState.team) return;
+        // 已有数据的跳过
+        if (seenDisplayNames[p.n]) return;
+        seenDisplayNames[p.n] = true;
+        // 添加空数据条目
+        result.push({
+          n: p.n, displayName: p.n, team: p.grp !== '-' ? p.grp : p.dept, type: 'person',
+          cw: 0, aw: 0, mw: 0, gs: 0, ngs: 0,
+          cov: 0, prodCnt: zeroProds.slice(),
+          yoy: '-'
+        });
+      });
+    }
+
     return result;
   },
 
@@ -5388,39 +5681,62 @@ App.WidthUser.render = function() {
 App.renderPotentialOverview = function(state) {
   state = state || { team: 'all', group: 'all', person: 'all' };
 
-  // ── 严格数据隔离：从筛选后的数据实时计算所有 KPI ──
-  var fCustKPI = App.getFilteredPotData('cust');
-  var fUserKPI = App.getFilteredPotData('user');
+  // ── 核心规则：KPI 数据必须遵循筛选边界（部门→小组→个人） ──
+  // 统一使用 getFilteredPotData 获取筛选后的数据，不再使用 getPotential(team) 的宽松过滤
+  var fCust = App.getFilteredPotData('cust');
+  var fUser = App.getFilteredPotData('user');
 
-  // 总销售额 / 同期
-  var totalAmt = fCustKPI.reduce(function(s, r) { return s + (r.amount || 0); }, 0);
-  var totalPrev = fCustKPI.reduce(function(s, r) { return s + (r.amountPrev || 0); }, 0);
+  // 总销售额 & 同期销售额（从客户数据按金额汇总）
+  var totalAmt = 0, totalPrev = 0;
+  fCust.forEach(function(r) { totalAmt += (r.amount || 0); totalPrev += (r.amountPrev || 0); });
 
   // 潜力产品数（去重）
-  var prodSet = {}; fCustKPI.forEach(function(r) { if (r.product) prodSet[r.product] = true; });
+  var prodSet = {};
+  fCust.forEach(function(r) { if (r.product) prodSet[r.product] = true; });
+  fUser.forEach(function(r) { if (r.product) prodSet[r.product] = true; });
   var prodCount = Object.keys(prodSet).length;
 
-  // 客户数/用户数（去重）
-  var custSet = {}; fCustKPI.forEach(function(r) { if (r.custName) custSet[r.custName] = true; });
-  var userSet = {}; fUserKPI.forEach(function(r) { if (r.userName) userSet[r.userName] = true; });
+  // 客户数（去重）
+  var custSet = {};
+  fCust.forEach(function(r) { if (r.custName) custSet[r.custName] = true; });
   var custCount = Object.keys(custSet).length;
-  var userCount = Object.keys(userSet).length;
 
   // 客单价
-  var avgPrice = custCount > 0 ? parseFloat((totalAmt / custCount).toFixed(2)) : 0;
+  var avgPrice = custCount > 0 ? totalAmt / custCount : 0;
 
-  // 更新KPI卡片
+  // 用户数（去重）
+  var userSet = {};
+  fUser.forEach(function(r) { if (r.userName) userSet[r.userName] = true; });
+  var userCount = Object.keys(userSet).length;
+
+  // 同比变化率
+  var yoyPct = totalPrev > 0 ? ((totalAmt - totalPrev) / totalPrev * 100) : 0;
+
+  // ── 更新 5 个 KPI 卡片 ──
   App.setText('p-kpi-sales',        '¥ ' + totalAmt.toFixed(2) + '万');
   App.setText('p-kpi-sales-prev',   totalPrev.toFixed(2) + '万');
   App.setText('p-kpi-prodcount',    prodCount);
   App.setText('p-kpi-custcount',    custCount);
-  App.setText('p-kpi-usercount',    userCount);
   App.setText('p-kpi-avgprice',     avgPrice.toFixed(2));
+  App.setText('p-kpi-usercount',    userCount);
   App.setText('p-kpi-usercount-prev', '-');
 
-  // 部门排名由 renderPotSalesRank 统一处理（支持部门/组/个人三维切换）
-  // 此处只负责 KPI 卡片更新
-
+  // 同步更新 KPI 副标题中的同比信息
+  var yoyEl = document.getElementById('p-kpi-sales-yoy');
+  if (!yoyEl) {
+    var salesSub = document.querySelector('#p-kpi-sales') && document.querySelector('#p-kpi-sales').parentNode.querySelector('.kpi-sub');
+    if (salesSub) {
+      var span = document.createElement('span');
+      span.id = 'p-kpi-sales-yoy';
+      span.style.cssText = 'margin-left:4px;font-weight:600';
+      salesSub.appendChild(span);
+    }
+  }
+  var yoyEl2 = document.getElementById('p-kpi-sales-yoy');
+  if (yoyEl2) {
+    yoyEl2.textContent = (yoyPct >= 0 ? '↑' : '↓') + Math.abs(yoyPct).toFixed(1) + '%';
+    yoyEl2.style.color = yoyPct >= 0 ? '#16a34a' : '#dc2626';
+  }
 };
 
 // 产品风险分布 & 团队概况（p-team，从导入数据动态计算）
