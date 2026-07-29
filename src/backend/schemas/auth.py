@@ -22,6 +22,7 @@ class UserInfo(BaseModel):
     dept_id: int | None = None
     group_id: int | None = None
     tenant_id: int
+    must_change_pwd: bool = False
 
 class LoginResponse(BaseModel):
     token: str

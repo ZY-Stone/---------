@@ -45,6 +45,7 @@ def authenticate(db: Session, username: str, password: str) -> dict | None:
             "dept_id": user.dept_id,
             "group_id": user.group_id,
             "tenant_id": user.tenant_id,
+            "must_change_pwd": bool(user.must_change_pwd),
         }
     }
 
@@ -56,5 +57,6 @@ def change_password(db: Session, user_id: int, old_pwd: str, new_pwd: str) -> bo
     if not verify_password(old_pwd, user.password_hash):
         return False
     user.password_hash = hash_password(new_pwd)
+    user.must_change_pwd = False  # 密码已修改，取消强制标记
     db.commit()
     return True

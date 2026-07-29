@@ -23,7 +23,7 @@
     <div class="login-field"><label>密码</label><input type="password" id="loginPwd" placeholder="请输入密码" onkeydown="if(event.key==='Enter')App.doLogin()"></div>
     <div class="login-error" id="loginError" style="display:none"></div>
     <button class="login-btn" onclick="App.doLogin()">登 录</button>
-    <div class="login-hint">Demo 演示 · 管理员初始账号 admin / admin123</div>
+    <div class="login-hint">初始密码 123456 · 首次登录需修改密码</div>
   </div>
 </div>
 
@@ -43,7 +43,6 @@
     <!-- 用户下拉菜单 -->
     <div class="user-menu-dropdown" id="userDropdown" style="display:none">
       <div class="um-item" onclick="App.showPwdModal()">🔑 修改密码</div>
-      <div class="um-item" onclick="App.showHelp()">❓ 帮助说明</div>
       <div class="um-divider"></div>
       <div class="um-item" id="um-backup" onclick="App.showBackupModal()" style="display:none">💾 数据备份</div>
       <div class="um-item" onclick="App.doLogout()">⏻ 退出登录</div>
@@ -1352,110 +1351,8 @@
     </div>
   </div>
 
-  <!-- ===== 帮助说明页 ===== -->
-  <div class="page" id="page-help">
-  <div class="main full">
-    <div class="page-header"><div class="page-title">❓ 帮助说明</div><div class="page-subtitle">产品分析一体化平台 · 使用指南</div></div>
+  <!-- 帮助说明页已删除 -->
 
-    <div class="card"><div class="card-title"><span class="left">🎯 平台背景</span></div>
-      <p style="line-height:2;font-size:14px">产品分析一体化平台是面向销售管理团队的经营数据分析工具，覆盖 <b>数据总览、产品宽度、潜力产品</b> 三大核心分析模块。支持从部门→小组→个人的三级数据下钻，帮助管理者快速定位销售短板、挖掘增长机会、评估产品覆盖率。</p>
-    </div>
-
-    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">📊 模块说明</span></div>
-      <table class="table" style="width:100%">
-        <thead><tr><th style="width:120px">模块</th><th>应用场景</th><th>核心指标</th></tr></thead>
-        <tbody>
-          <tr><td><b>数据总览</b></td><td>快速掌握全局经营态势，查看销售额排名、产品构成、同比变化</td><td>总销售额、同比%、量价四象限分类</td></tr>
-          <tr><td><b>产品宽度分析</b></td><td>分析客户/用户覆盖了多少产品品类，识别覆盖率短板</td><td>客户宽度（品类数）、覆盖率%、人均宽度</td></tr>
-          <tr><td><b>潜力产品分析</b></td><td>聚焦27个核心潜力品类的深度分析，多维度对比</td><td>销售额、覆盖率、四象限、增长类型</td></tr>
-          <tr><td><b>账号管理</b></td><td>管理用户权限、角色</td><td>角色权限矩阵、数据范围</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🚀 快速跳转</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
-        <button onclick="App.showPage('overview')" style="padding:10px;background:#eff6ff;color:#2563eb;border:1px solid #dbeafe;border-radius:6px;cursor:pointer;font-size:13px">📊 数据总览</button>
-        <button onclick="App.showPage('width')" style="padding:10px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:6px;cursor:pointer;font-size:13px">📏 产品宽度</button>
-        <button onclick="App.showPage('potential')" style="padding:10px;background:#f5f3ff;color:#722ed1;border:1px solid #e9d5ff;border-radius:6px;cursor:pointer;font-size:13px">🚀 潜力产品</button>
-        <button onclick="App.showPage('admin')" style="padding:10px;background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:6px;cursor:pointer;font-size:13px">👤 账号管理</button>
-        <button onclick="App.showPwdModal()" style="padding:10px;background:#f0f9ff;color:#0369a1;border:1px solid #bae6fd;border-radius:6px;cursor:pointer;font-size:13px">🔑 修改密码</button>
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🔍 使用方法</span></div>
-      <table class="table" style="width:100%">
-        <thead><tr><th style="width:180px">操作</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td><b>筛选下钻</b></td><td>顶部导航栏：部门→小组→个人，逐级筛选，下级自动清空；选择后全页面图表/表格同步刷新</td></tr>
-          <tr><td><b>维度切换</b></td><td>团队维度 Tab 中，右上角「部门」「组」「个人」按钮可切换聚合粒度</td></tr>
-          <tr><td><b>数据下钻</b></td><td>表格中蓝色文字/数字可点击，弹出明细弹窗（如客户清单、产品清单、用户明细）</td></tr>
-          <tr><td><b>数据导入</b></td><td>下载标准模板 → 填写数据 → 上传Excel → 自动解析并更新全平台数据源</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">📖 字段名词说明</span></div>
-      <table class="table" style="width:100%">
-        <thead><tr><th style="width:130px">名词</th><th>定义</th></tr></thead>
-        <tbody>
-          <tr><td><b>产品宽度</b></td><td>客户/用户购买的产品品类数量（覆盖了多少种产品）</td></tr>
-          <tr><td><b>覆盖率</b></td><td>已覆盖产品数 ÷ 总可覆盖产品数 × 100%</td></tr>
-          <tr><td><b>客单价</b></td><td>客户总销售额 ÷ 客户数</td></tr>
-          <tr><td><b>同比(YoY)</b></td><td>（本期 - 同期）÷ 同期 × 100%</td></tr>
-          <tr><td><b>量价四象限</b></td><td>X轴=数量同比，Y轴=金额同比；右上=量价齐升/左上=量跌价增/左下=量价齐跌</td></tr>
-          <tr><td><b>潜力产品</b></td><td>平台定义的 <b>27 个核心品类</b>（IPC、NVR、球机、门禁、出入口停车、综合布线、网络产品等），作为重点分析对象</td></tr>
-          <tr><td><b>售达方(客户)</b></td><td>合同签订方/付款方，一个客户可对应多个最终用户</td></tr>
-          <tr><td><b>最终用户</b></td><td>产品实际使用方</td></tr>
-          <tr><td><b>规上客户</b></td><td>年销售额 ≥ <b>50 万元</b> 的重点客户（可在系统设置中调整阈值）</td></tr>
-          <tr><td><b>集中度</b></td><td><b>TOP 10</b> 客户销售额 ÷ 总销售额，衡量业绩依赖程度。&gt;60% 高度集中，30-60% 中等，&lt;30% 健康</td></tr>
-          <tr><td><b>归因分析</b></td><td>量增价增=需求驱动；量跌价增=结构升级；量增价跌=以价换量；量价双跌=市场萎缩</td></tr>
-          <tr><td><b>二级部门</b></td><td>公司组织架构第一级（如客户销售部、行业部、管理部）</td></tr>
-          <tr><td><b>三级部门</b></td><td>二级部门下的子部门（如客户销售一部、客户销售二部）</td></tr>
-          <tr><td><b>四级部门</b></td><td>三级部门下的团队小组（如客户销售一组、客户销售二组）</td></tr>
-          <tr><td><b>五级部门</b></td><td>小组下的具体销售员（如张栋柱、陈刚）</td></tr>
-          <tr><td><b>对接人</b></td><td>负责客户日常维护的销售/技术接口人</td></tr>
-          <tr><td><b>客户等级</b></td><td>VIP / A / B / C / 普通（系统根据销售额自动评定）</td></tr>
-          <tr><td><b>同期</b></td><td>去年同期数据（用于同比计算）</td></tr>
-          <tr><td><b>环比</b></td><td>本周期与上一周期对比</td></tr>
-          <tr><td><b>数量 / 商机数</b></td><td>产品的销售件数 / 商机转化条数</td></tr>
-          <tr><td><b>用户数</b></td><td>同一客户下关联的最终用户数量（多部门共用客户）</td></tr>
-          <tr><td><b>销售雇员</b></td><td>负责该客户的销售员工（如张栋柱、陈刚）</td></tr>
-          <tr><td><b>售达方 / 最终用户</b></td><td>售达方=合同签订方（付款方）；最终用户=产品使用方；可一对多</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">🔗 数据流向</span></div>
-      <div style="display:flex;gap:8px;align-items:center;padding:16px;background:#f8fafc;border-radius:6px;margin:12px 0;flex-wrap:wrap">
-        <div style="padding:8px 14px;background:#dbeafe;color:#1e40af;border-radius:4px;font-size:12px;font-weight:600">售达方（客户）</div>
-        <span style="color:#94a3b8;font-size:18px">→</span>
-        <div style="padding:8px 14px;background:#dcfce7;color:#166534;border-radius:4px;font-size:12px;font-weight:600">合同（销售）</div>
-        <span style="color:#94a3b8;font-size:18px">→</span>
-        <div style="padding:8px 14px;background:#fef3c7;color:#92400e;border-radius:4px;font-size:12px;font-weight:600">最终用户</div>
-        <span style="color:#94a3b8;font-size:18px">→</span>
-        <div style="padding:8px 14px;background:#f3e8ff;color:#722ed1;border-radius:4px;font-size:12px;font-weight:600">产品使用</div>
-      </div>
-      <p style="font-size:12px;color:#6b7280;margin:8px 0 0">关系：1 个客户 → 1..n 个用户 → n 个产品品类。客户 = 付款方，用户 = 使用方</p>
-    </div>
-
-    <div class="card" style="margin-top:16px"><div class="card-title"><span class="left">👥 角色与权限</span></div>
-      <table class="table" style="width:100%">
-        <thead><tr><th style="width:80px">角色</th><th style="width:80px">数据范围</th><th>说明</th></tr></thead>
-        <tbody>
-          <tr><td>管理员</td><td>全部数据</td><td>所有功能+用户管理+系统配置</td></tr>
-          <tr><td>总经理</td><td>全部数据</td><td>全局查看+导出备份，不可修改权限</td></tr>
-          <tr><td>运营</td><td>全部数据</td><td>全局查看+导出</td></tr>
-          <tr><td>总监</td><td>本部门</td><td>仅查看所属部门数据</td></tr>
-          <tr><td>主管</td><td>本小组</td><td>仅查看所属小组数据</td></tr>
-          <tr><td>接口人</td><td>本部门</td><td>部门数据对接查看</td></tr>
-          <tr><td>销售</td><td>本人</td><td>仅查看个人名下数据</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</div>
-</div>
 
 <script src="js/core/config.js"></script>
 <script src="js/data/models.js"></script>

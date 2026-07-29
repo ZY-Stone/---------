@@ -206,11 +206,12 @@ def seed():
     ]
     user_map = {}
     for uid, uname, name, role, dept_name, group_name in USER_DATA:
-        pw = hash_password("admin123")
+        pw = hash_password("123456")
         d_id = dept_map[dept_name].id if dept_name in dept_map else None
         g_id = group_map[group_name].id if group_name and group_name in group_map else None
         u = User(id=uid, tenant_id=t1.id, username=uname, password_hash=pw,
-                 name=name, role=role, dept_id=d_id, group_id=g_id, status="active")
+                 name=name, role=role, dept_id=d_id, group_id=g_id, status="active",
+                 must_change_pwd=True)
         db.add(u)
         db.flush()
         user_map[uid] = u

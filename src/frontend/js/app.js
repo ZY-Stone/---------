@@ -32,7 +32,12 @@ App.doLogin = function() {
     if (errEl) errEl.style.display = 'none';
     document.getElementById('loginOverlay').classList.add('hidden');
     App.applyRoleUI(u.role, u.name, u.dept_name, u.group_name);
-    App.initAll();
+    // 首次登录强制修改密码
+    if (u.must_change_pwd) {
+      App.showPwdModal(true);
+    } else {
+      App.initAll();
+    }
   }).catch(function(err) {
     if (errEl) {
       errEl.textContent = '❌ 登录失败：' + (err.message || '无法连接后端，请运行 start.bat 启动服务');
@@ -265,14 +270,18 @@ document.addEventListener('click', function(e) {
 });
 
 // ===== 通用模态框 =====
-App.showModal = function(title, bodyHtml, footerHtml) {
+App.showModal = function(title, bodyHtml, footerHtml, noClose) {
   var overlay = document.getElementById('appModal');
   if (!overlay) return;
   var titleEl = document.getElementById('appModalTitle');
   var bodyEl = document.getElementById('appModalBody');
   if (titleEl) titleEl.textContent = title || '详情';
   if (bodyEl) bodyEl.innerHTML = bodyHtml || '';
-  // footer：显式传 null/'' 时不显示，否则保留默认关闭按钮
+  // 关闭按钮 (x)
+  var closeBtn = document.querySelector('#appModalBox .modal-close');
+  if (closeBtn) closeBtn.style.display = noClose ? 'none' : '';
+  overlay.setAttribute('data-noclose', noClose ? '1' : '');
+  // footer
   var footerEl = document.querySelector('#appModalBox .modal-footer');
   if (footerEl) {
     if (footerHtml === null || footerHtml === '') {
@@ -286,7 +295,9 @@ App.showModal = function(title, bodyHtml, footerHtml) {
 };
 App.closeModal = function() {
   var overlay = document.getElementById('appModal');
-  if (overlay) overlay.style.display = 'none';
+  if (!overlay) return;
+  if (overlay.getAttribute('data-noclose') === '1') return;
+  overlay.style.display = 'none';
 };
 // HTML 转义
 App.escapeHtml = function(s) {
@@ -7256,30 +7267,39 @@ App.showHelp = function() {
 };
 
 // ===== 修改密码模态框 =====
-App.showPwdModal = function() {
+App.showPwdModal = function(forced) {
   if (!App.loggedInUser) return;
-  var h = '<h3 style="margin:0 0 16px;font-size:16px">🔑 修改密码</h3>';
+  var h = '';
+  if (forced) {
+    h += '<div style="background:#fef3c7;color:#92400e;padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:12px;line-height:1.6">⚠️ 首次登录必须修改初始密码。<br>新密码需包含 <b>大写字母 + 小写字母 + 数字</b>，至少 8 位。</div>';
+  }
+  h += '<h3 style="margin:0 0 16px;font-size:16px">🔑 修改密码</h3>';
   h += '<div style="display:flex;flex-direction:column;gap:12px">';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">当前密码</label>';
-  h += '<input id="cpOldPwd" type="password" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b"></div>';
+  h += '<input id="cpOldPwd" type="password" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" value="' + (forced ? '123456' : '') + '"></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">新密码</label>';
-  h += '<input id="cpNewPwd" type="password" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="至少6位"></div>';
+  h += '<input id="cpNewPwd" type="password" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b" placeholder="大小写字母+数字，至少8位"></div>';
   h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">确认新密码</label>';
   h += '<input id="cpConfirmPwd" type="password" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none;color:#1e293b"></div>';
   h += '</div>';
   h += '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">';
-  h += '<button onclick="App.closeModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button>';
-  h += '<button onclick="App.changePwd()" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">确认修改</button>';
+  if (!forced) {
+    h += '<button onclick="App.closeModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button>';
+  }
+  h += '<button onclick="App.changePwd(' + (forced ? 'true' : 'false') + ')" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">确认修改</button>';
   h += '</div>';
-  App.showModal('🔑 修改密码', h, '');  // 传空字符串去掉默认关闭按钮，表单自带取消/确认
+  App.showModal('🔑 修改密码', h, forced ? '' : undefined, forced);
 };
 
-App.changePwd = function() {
+App.changePwd = function(forced) {
   var oldPwd = (document.getElementById('cpOldPwd') || {}).value || '';
   var newPwd = (document.getElementById('cpNewPwd') || {}).value || '';
   var confirmPwd = (document.getElementById('cpConfirmPwd') || {}).value || '';
   if (!oldPwd) { alert('请输入当前密码'); return; }
-  if (newPwd.length < 6) { alert('新密码至少 6 位'); return; }
+  if (newPwd.length < 8) { alert('新密码至少 8 位'); return; }
+  if (!/[a-z]/.test(newPwd)) { alert('新密码必须包含小写字母'); return; }
+  if (!/[A-Z]/.test(newPwd)) { alert('新密码必须包含大写字母'); return; }
+  if (!/[0-9]/.test(newPwd)) { alert('新密码必须包含数字'); return; }
   if (newPwd !== confirmPwd) { alert('两次新密码不一致'); return; }
 
   // 调后端验证
@@ -7298,8 +7318,9 @@ App.changePwd = function() {
         sessionStorage.setItem('pa_login', JSON.stringify(login));
       } catch(e) {}
       App.addLog('修改密码', App.loggedInUser.name, '修改了登录密码');
-      alert('✅ 密码修改成功，下次登录请使用新密码');
+      alert('✅ 密码修改成功' + (forced ? '，即将进入平台' : '，下次登录请使用新密码'));
       App.closeModal();
+      if (forced) { App.initAll(); }  // 强制模式：修改完密码后进入平台
     } else {
       alert('❌ ' + (d.message || '密码修改失败'));
     }

@@ -1,6 +1,6 @@
 """SQLAlchemy 2.0 — User model"""
 from datetime import datetime
-from sqlalchemy import Integer, String, DateTime, ForeignKey, func
+from sqlalchemy import Integer, String, DateTime, ForeignKey, func, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
@@ -16,5 +16,6 @@ class User(Base):
     dept_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("departments.id"), nullable=True)
     group_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("groups.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="active")
+    must_change_pwd: Mapped[bool] = mapped_column(Boolean, default=True, comment="首次登录必须修改密码")
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
