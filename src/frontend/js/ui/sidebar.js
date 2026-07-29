@@ -8,7 +8,7 @@ App.SIDEBAR_MENUS = {
   overview: [],
   width: [{ id:'w-overview',icon:'📊',text:'总览分析' },{ id:'w-product',icon:'📦',text:'产品维度' },{ id:'w-team',icon:'👥',text:'团队维度' },{ id:'w-customer',icon:'🔑',text:'客户维度' },{ id:'w-user',icon:'🏢',text:'用户维度' },{ id:'w-compare',icon:'⚖️',text:'分组对比' },{ id:'w-import',icon:'📥',text:'数据导入与管理' },{ id:'w-ai',icon:'🤖',text:'AI建议与分析' }],
   potential: [{ id:'p-overview',icon:'📊',text:'总览分析' },{ id:'p-product',icon:'📦',text:'产品维度' },{ id:'p-team',icon:'👥',text:'团队维度' },{ id:'p-customer',icon:'🔑',text:'客户维度' },{ id:'p-user',icon:'🏢',text:'用户维度' },{ id:'p-gap',icon:'📊',text:'差距分析' },{ id:'p-import',icon:'📥',text:'数据导入与管理' },{ id:'p-ai',icon:'🤖',text:'AI建议与分析' }],
-  admin: [{ id:'a-users',icon:'👥',text:'用户管理' },{ id:'a-roles',icon:'🔐',text:'角色权限' },{ id:'a-products',icon:'📦',text:'产品字典' },{ id:'a-params',icon:'⚙',text:'业务参数' },{ id:'a-audit',icon:'📋',text:'审计日志' }]
+  admin: [{ id:'a-users',icon:'👥',text:'用户管理' },{ id:'a-roles',icon:'🔐',text:'角色权限' },{ id:'a-audit',icon:'📋',text:'审计日志' }]
 };
 App.renderSidebar = function(pageId) {
   var links = App.SIDEBAR_MENUS[pageId] || [];

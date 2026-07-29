@@ -17,13 +17,13 @@ var SCALE = {
 
 // ===== 用户角色定义 =====
 App.USER_ROLES = {
-  admin:     { name: '管理员',  avatar: '管', badge: '管理员', color: '#2563eb', perms: '全部权限' },
-  gm:        { name: '总经理',  avatar: '总', badge: '总经理', color: '#1e40af', perms: '全局查看' },
-  operation: { name: '运营',    avatar: '运', badge: '运营',   color: '#7c3aed', perms: '全局查看' },
-  director:  { name: '总监',    avatar: '总', badge: '总监',   color: '#0891b2', perms: '部门管理' },
-  manager:   { name: '主管',    avatar: '主', badge: '主管',   color: '#ea580c', perms: '组级管理' },
-  interface: { name: '接口人',  avatar: '接', badge: '接口人', color: '#64748b', perms: '数据对接' },
-  sales:     { name: '一线销售', avatar: '销', badge: '销售',  color: '#2563eb', perms: '本人数据' }
+  admin:     { name: '管理员',  avatar: '管', badge: '管理员', color: '#2563eb', perms: '全部权限', scope: 'all' },
+  gm:        { name: '总经理',  avatar: '总', badge: '总经理', color: '#1e40af', perms: '全局查看', scope: 'all' },
+  operation: { name: '运营',    avatar: '运', badge: '运营',   color: '#7c3aed', perms: '全局查看', scope: 'all' },
+  director:  { name: '总监',    avatar: '总', badge: '总监',   color: '#0891b2', perms: '部门管理', scope: 'dept' },
+  manager:   { name: '主管',    avatar: '主', badge: '主管',   color: '#ea580c', perms: '组级管理', scope: 'group' },
+  interface: { name: '接口人',  avatar: '接', badge: '接口人', color: '#64748b', perms: '数据对接', scope: 'dept' },
+  sales:     { name: '一线销售', avatar: '销', badge: '销售',  color: '#2563eb', perms: '本人数据', scope: 'person' }
 };
 
 // ===== 组织架构: 部门列表 =====
@@ -818,50 +818,13 @@ App.ImportPotential.UserRAW = [];
 
 // ===== 角色权限数据 =====
 App.ROLE_PERMISSIONS = [
-  { role: 'admin',     name: '管理员',     modules: { overview:1, width:1, potential:1, users:1, roles:1, products:1, params:1, audit:1, backup:1, export:1, import:1 }, desc: '全部功能 + 用户管理' },
-  { role: 'gm',        name: '总经理',     modules: { overview:1, width:1, potential:1, users:1, roles:0, products:0, params:0, audit:1, backup:1, export:1, import:1 }, desc: '全局查看 + 导出备份' },
-  { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:1, backup:0, export:1, import:1 }, desc: '全局查看 + 导出' },
-  { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:1, import:1 }, desc: '本部门数据查看' },
-  { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:0, import:0 }, desc: '本组数据查看' },
-  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:0, import:0 }, desc: '数据对接查看' },
-  { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, products:0, params:0, audit:0, backup:0, export:0, import:0 }, desc: '本人数据查看' }
-];
-
-// ===== 产品字典数据（涵盖产品宽度 + 潜力产品所有品类） =====
-App.PRODUCT_DICT = [
-  // === 潜力产品（11个） ===
-  { id:1,  name:'观澜编码产品（非大模型）', alias:'观澜编码',        category:'软件',  is_potential:1, sort:1  },
-  { id:2,  name:'出入口停车',             alias:'停车管理',        category:'前端',  is_potential:1, sort:2  },
-  { id:3,  name:'前端大模型',             alias:'前端AI模型',      category:'软件',  is_potential:1, sort:3  },
-  { id:4,  name:'网络产品',               alias:'交换机/路由器',   category:'网络',  is_potential:1, sort:4  },
-  { id:5,  name:'后端大模型(文搜大模型）',alias:'后端AI模型',      category:'软件',  is_potential:1, sort:5  },
-  { id:6,  name:'人员通道',               alias:'通道闸机',        category:'前端',  is_potential:1, sort:6  },
-  { id:7,  name:'会议平板与视频会议',     alias:'会议平板',        category:'显示',  is_potential:1, sort:7  },
-  { id:8,  name:'国密产品',               alias:'国密安全',        category:'网络',  is_potential:1, sort:8  },
-  { id:9,  name:'执法记录仪',             alias:'执法仪',          category:'前端',  is_potential:1, sort:9  },
-  { id:10, name:'物联安全',               alias:'物联网安全',      category:'网络',  is_potential:1, sort:10 },
-  { id:11, name:'音频产品',               alias:'音频设备',        category:'前端',  is_potential:1, sort:11 },
-  // === 产品宽度常规产品 ===
-  { id:12, name:'IPC',              alias:'网络摄像机',      category:'前端',  is_potential:0, sort:12 },
-  { id:13, name:'球机',             alias:'球型摄像机',      category:'前端',  is_potential:0, sort:13 },
-  { id:14, name:'专用摄像机',       alias:'专网摄像机',      category:'前端',  is_potential:0, sort:14 },
-  { id:15, name:'服务器',           alias:'服务器设备',      category:'后端',  is_potential:0, sort:15 },
-  { id:16, name:'存储',             alias:'存储设备',        category:'后端',  is_potential:0, sort:16 },
-  { id:17, name:'LCD与解码',        alias:'大屏显示',        category:'显示',  is_potential:0, sort:17 },
-  { id:18, name:'LED与拼控',        alias:'LED显示屏',       category:'显示',  is_potential:0, sort:18 },
-  { id:19, name:'移动终端产品',     alias:'移动终端',        category:'前端',  is_potential:0, sort:19 },
-  { id:20, name:'对讲',             alias:'对讲设备',        category:'前端',  is_potential:0, sort:20 },
-  { id:21, name:'报警',             alias:'报警设备',        category:'前端',  is_potential:0, sort:21 },
-  { id:22, name:'PCP产品',          alias:'PC产品',          category:'后端',  is_potential:0, sort:22 },
-  { id:23, name:'综合布线与机柜',   alias:'综合布线',        category:'网络',  is_potential:0, sort:23 },
-  { id:24, name:'基础软件',         alias:'基础平台软件',    category:'软件',  is_potential:0, sort:24 },
-  { id:25, name:'通用软件',         alias:'通用平台软件',    category:'软件',  is_potential:0, sort:25 },
-  { id:26, name:'行业软件',         alias:'行业应用软件',    category:'软件',  is_potential:0, sort:26 },
-  { id:27, name:'网络安全',         alias:'安全设备',        category:'网络',  is_potential:0, sort:27 },
-  { id:28, name:'传感产品',         alias:'传感器',          category:'前端',  is_potential:0, sort:28 },
-  { id:29, name:'智能交通',         alias:'交通管理',        category:'前端',  is_potential:0, sort:29 },
-  { id:30, name:'平台软件',         alias:'平台管理软件',    category:'软件',  is_potential:0, sort:30 },
-  { id:31, name:'新业务',           alias:'热成像/消防等',   category:'创新',  is_potential:0, sort:31 },
+  { role: 'admin',     name: '管理员',     modules: { overview:1, width:1, potential:1, users:1, roles:1, audit:1, backup:1, export:1, import:1 }, desc: '全部功能 + 用户管理' },
+  { role: 'gm',        name: '总经理',     modules: { overview:1, width:1, potential:1, users:1, roles:0, audit:1, backup:1, export:1, import:1 }, desc: '全局查看 + 导出备份' },
+  { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:1, backup:0, export:1, import:1 }, desc: '全局查看 + 导出' },
+  { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:1, import:1 }, desc: '本部门数据查看' },
+  { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:0, import:0 }, desc: '本组数据查看' },
+  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:0, import:0 }, desc: '数据对接查看' },
+  { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, admin:0, users:0, roles:0, audit:0, backup:0, export:0, import:0 }, desc: '本人数据查看' }
 ];
 
 // ===== 业务参数数据 =====
@@ -997,4 +960,102 @@ App.Data.rebuildDerived = function() {
   try { App.updateWidth(); } catch(e) {}
   try { App.updatePotential(); } catch(e) {}
   try { App.updateOverview(); } catch(e) {}
+};
+
+// ===== 权限控制 =====
+// 权限矩阵（每个角色可执行的操作）
+App.PERM_MATRIX = {
+  admin:     ['user_manage','role_manage','audit_log','data_backup','data_export','data_import','overview','product_width','potential_product'],
+  gm:        ['audit_log','data_export','data_import','overview','product_width','potential_product'],
+  operation: ['audit_log','data_export','data_import','overview','product_width','potential_product'],
+  director:  ['data_export','overview','product_width','potential_product'],
+  manager:   ['data_export','overview','product_width','potential_product'],
+  interface: ['overview','product_width','potential_product'],
+  sales:     ['overview','product_width']
+};
+
+// 检查当前用户是否有某项权限
+App.hasPerm = function(perm) {
+  var role = (App.loggedInUser || {}).role || 'admin';
+  return (App.PERM_MATRIX[role] || []).indexOf(perm) >= 0;
+};
+
+// 路由守卫：检查是否有权访问某页面
+App.guardRoute = function(pageId) {
+  var required = {
+    'a-users': 'user_manage',
+    'a-roles': 'role_manage',
+    'a-audit': 'audit_log',
+    'a-backup': 'data_backup'
+  };
+  var perm = required[pageId];
+  if (perm && !App.hasPerm(perm)) {
+    return false;
+  }
+  return true;
+};
+
+// 登录后初始化权限：隐藏无权限菜单 + 锁定筛选下拉
+App.bootstrapPermissions = function() {
+  var role = (App.loggedInUser || {}).role || 'admin';
+  var user = App.loggedInUser || {};
+
+  // ── 隐藏 Admin 子标签 ──
+  var adminTabs = {
+    'a-users': 'user_manage',
+    'a-roles': 'role_manage',
+    'a-audit': 'audit_log',
+    'a-backup': 'data_backup'
+  };
+  Object.keys(adminTabs).forEach(function(tabId) {
+    if (!App.hasPerm(adminTabs[tabId])) {
+      var tab = document.querySelector('#page-admin .subtab[data-tab="' + tabId + '"]');
+      if (tab) tab.style.display = 'none';
+    }
+  });
+
+  // ── 隐藏导入/导出按钮 ──
+  if (!App.hasPerm('data_import')) {
+    var impBtns = document.querySelectorAll('#btn-import, [id$="-import-btn"]');
+    impBtns.forEach(function(b) { b.style.display = 'none'; });
+  }
+  if (!App.hasPerm('data_export')) {
+    var expBtns = document.querySelectorAll('#btn-export, [id$="-export-btn"]');
+    expBtns.forEach(function(b) { b.style.display = 'none'; });
+  }
+
+  // ── 角色级锁定顶部筛选下拉 ──
+  ['page-overview','page-width','page-potential'].forEach(function(pageId) {
+    var teamSel  = document.querySelector('#' + pageId + ' .filter-dept');
+    var groupSel = document.querySelector('#' + pageId + ' .filter-group-sel');
+    var personSel = document.querySelector('#' + pageId + ' .filter-person');
+
+    if (role === 'director' || role === 'interface') {
+      if (teamSel && user.dept) { teamSel.value = user.dept; teamSel.disabled = true; }
+    }
+    if (role === 'manager') {
+      if (teamSel && user.dept) { teamSel.value = user.dept; teamSel.disabled = true; }
+      if (groupSel && user.group) { groupSel.value = user.group; groupSel.disabled = true; }
+    }
+    if (role === 'sales') {
+      if (teamSel) teamSel.disabled = true;
+      if (groupSel) groupSel.disabled = true;
+      if (personSel && user.username) personSel.value = user.username;
+    }
+  });
+
+  // ── 刷新下拉选项 ──
+  ['page-overview','page-width','page-potential'].forEach(function(pageId) {
+    App.populateDeptDropdown(pageId);
+    App.populateGrpDropdown(pageId);
+    App.populatePersonDropdown(pageId);
+  });
+};
+
+// 登出清理
+App._origLogout = App.doLogout;
+App.doLogout = function() {
+  App.loggedInUser = null;
+  sessionStorage.removeItem('pa_login');
+  if (App._origLogout) App._origLogout();
 };

@@ -249,34 +249,52 @@ App.ImportData.resetAll = function() {
     try { App.ImportPotential.render(); } catch(e) {}
     try { App.ImportPotential.renderHistory(); } catch(e) {}
   }
+  try { App.addLog('删除数据', '全部数据', '清空所有导入数据（含后端数据库）'); } catch(e) {}
   alert('✅ 已清空所有导入数据（含后端数据库），平台已恢复空状态');
 };
 
 // 下载当前数据为 Excel
 App.ImportData.exportCurrent = function() {
   if (typeof XLSX === 'undefined') { alert('XLSX库未加载'); return; }
+
+  // 读取当前选择的月份
+  var periodEl = document.getElementById('wSnapshotPeriod');
+  var selectedPeriod = periodEl ? periodEl.value : '';
+  var periodLabel = selectedPeriod || '全部月份';
+
+  // 按月份过滤数据
+  var users = (App.ImportData.UserGS || []).slice();
+  var custs = (App.ImportData.CustGS || []).slice();
+  if (selectedPeriod) {
+    users = users.filter(function(u) { return (u.snapshotPeriod || '') === selectedPeriod; });
+    custs = custs.filter(function(c) { return (c.snapshotPeriod || '') === selectedPeriod; });
+  }
+
   var wb = XLSX.utils.book_new();
   var products = App.ImportData.PRODS;
   // 用户sheet
-  var userRows = [['最终用户-行业','siebel编码','最终用户','销售','销售部门','是否规上','产品线合计'].concat(products).concat(['接口人','用户等级'])];
-  (App.ImportData.UserGS || []).forEach(function(u) {
-    var row = [u.industry||'', u.siebel||'', u.user, u.sales||'', u.dept||'', u.guishang||'是', u.width];
+  var userRows = [['最终用户-行业','siebel编码','最终用户','销售','销售部门','是否规上','产品线合计','月份'].concat(products).concat(['接口人','用户等级'])];
+  users.forEach(function(u) {
+    var row = [u.industry||'', u.siebel||'', u.user, u.sales||'', u.dept||'', u.guishang||'是', u.width, u.snapshotPeriod||''];
     products.forEach(function(p) { row.push(u.prods[p] || 0); });
     row.push(u.contact||'', u.level||'');
     userRows.push(row);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(userRows), '规上用户-产品线宽度');
   // 客户sheet
-  var custRows = [['siebel编码','售达方描述(客户)','销售','销售部门','是否规上','产品线合计'].concat(products).concat(['接口人','客户等级'])];
-  (App.ImportData.CustGS || []).forEach(function(c) {
-    var row = [c.siebel||'', c.name, c.sales||'', c.dept||'', c.guishang||'是', c.width];
+  var custRows = [['siebel编码','售达方描述(客户)','销售','销售部门','是否规上','产品线合计','月份'].concat(products).concat(['接口人','客户等级'])];
+  custs.forEach(function(c) {
+    var row = [c.siebel||'', c.name, c.sales||'', c.dept||'', c.guishang||'是', c.width, c.snapshotPeriod||''];
     products.forEach(function(p) { row.push(c.prods[p] || 0); });
     row.push(c.contact||'', c.level||'');
     custRows.push(row);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(custRows), '客户产品线覆盖');
+
+  App.addLog('数据导出', '产品宽度', '下载产品宽度数据(' + periodLabel + '): 用户' + users.length + '条 / 客户' + custs.length + '条');
+
   var now = new Date();
-  var fn = '产品宽度总表_' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '.xlsx';
+  var fn = '产品宽度总表_' + periodLabel.replace(/[^0-9a-zA-Z一-鿿]/g, '-') + '_' + now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2) + '.xlsx';
   XLSX.writeFile(wb, fn);
 };
 
@@ -538,15 +556,18 @@ App.ImportData.handleUpload = function(input) {
       if (apiCalls.length > 0) {
         Promise.all(apiCalls).then(function() {
           console.log('[宽度导入] 后端保存成功');
+          try { App.addLog('数据导入', file.name, '产品宽度导入: 用户' + App.ImportData.UserGS.length + '条 / 客户' + App.ImportData.CustGS.length + '条'); } catch(e) {}
           alert(msg + '\n\n✅ 已同步后端数据库');
         }).catch(function(err) {
           console.error('[宽度导入] 后端保存失败:', err);
+          try { App.addLog('数据导入', file.name, '产品宽度导入(后端保存失败): 用户' + App.ImportData.UserGS.length + '条 / 客户' + App.ImportData.CustGS.length + '条'); } catch(e) {}
           alert(msg + '\n\n⚠️ 后端保存失败：' + err.message + '\n数据仅在前端内存中，刷新后消失。');
         });
       } else {
+        try { App.addLog('数据导入', file.name, '产品宽度导入: 用户' + App.ImportData.UserGS.length + '条 / 客户' + App.ImportData.CustGS.length + '条（未同步后端）'); } catch(e) {}
         alert(msg);
       }
-    } catch(err) { console.error('[宽度导入] 解析失败:', err); alert('解析失败: ' + err.message); }
+    } catch(err) { console.error('[宽度导入] 解析失败:', err); try { App.addLog('数据导入', '导入失败', err.message); } catch(e) {} alert('解析失败: ' + err.message); }
   };
   reader.readAsArrayBuffer(file);
 };
@@ -839,6 +860,7 @@ App.ImportData.batchDelete = function() {
   App.ImportData.persist();  // 同步 localStorage
   App.ImportData.syncToRaw(); App.ImportData.updateTags(); App.ImportData.render();
   App.WidthDetail.clearCache(); App.updateWidth();
+  try { App.addLog('删除数据', '产品宽度', '批量删除 ' + keys.length + ' 条' + (isU ? '用户' : '客户') + '记录'); } catch(e) {}
 };
 
 

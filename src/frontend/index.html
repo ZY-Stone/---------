@@ -118,7 +118,7 @@
           <div class="chart-wrap"><canvas id="chart-ov-dept-width"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title"><span class="left">📐 产品宽度历史趋势 (近12月)</span></div>
+          <div class="card-title"><span class="left">📐 产品宽度历史趋势</span></div>
           <div class="chart-wrap tall"><canvas id="chart-ov-width-trend"></canvas></div>
         </div>
       </div>
@@ -1263,7 +1263,6 @@
       <div class="subtabs-inline">
         <button class="subtab active" data-tab="a-users">👥 用户管理</button>
         <button class="subtab" data-tab="a-roles">🔐 角色权限</button>
-        <button class="subtab" data-tab="a-products">📦 产品字典</button>
         <button class="subtab" data-tab="a-audit">📋 审计日志</button>
         <button class="subtab" data-tab="a-backup">💾 数据备份与导出</button>
       </div>
@@ -1293,59 +1292,35 @@
 
       <!-- ===== Tab: 角色权限 ===== -->
       <div data-tab-content="a-roles" style="display:none">
-        <div class="card">
-          <div class="card-title"><span class="left">🔐 角色权限管理</span><span class="tag">共 6 个角色</span></div>
-          <div class="table-wrap" style="max-height:520px">
-            <table class="table">
-              <thead><tr><th>角色</th><th>名称</th><th style="text-align:center">数据总览</th><th style="text-align:center">产品宽度</th><th style="text-align:center">潜力产品</th><th style="text-align:center">用户管理</th><th style="text-align:center">角色权限</th><th style="text-align:center">产品字典</th><th style="text-align:center">审计日志</th><th style="text-align:center">数据备份</th><th style="text-align:center">数据导出</th><th style="text-align:center">数据导入</th><th>数据范围</th></tr></thead>
-              <tbody id="aRolesTableBody"></tbody>
-            </table>
-          </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:13px;color:#64748b">勾选模块授予权限，修改后点击保存</div>
+          <button onclick="App.saveRolePerms()" style="padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">💾 保存</button>
         </div>
-      </div>
-
-      <!-- ===== Tab: 产品字典 ===== -->
-      <div data-tab-content="a-products" style="display:none">
-        <div class="grid2">
-          <div class="card">
-            <div class="card-title"><span class="left">🚀 潜力产品</span><div class="right" style="display:flex;gap:6px"><span class="tag" id="aProdPotCount">11 个</span><button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="App.showProductForm(null,1)">＋ 新增</button></div></div>
-            <div class="table-wrap" style="max-height:400px">
-              <table class="table">
-                <thead><tr><th style="width:30px">#</th><th>产品名称</th><th>别名</th><th style="width:80px">操作</th></tr></thead>
-                <tbody id="aProdPotBody"></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title"><span class="left">📊 产品宽度产品</span><div class="right" style="display:flex;gap:6px"><span class="tag" id="aProdWidthCount">20 个</span><button class="btn-ghost" style="font-size:11px;padding:3px 8px" onclick="App.showProductForm(null,0)">＋ 新增</button></div></div>
-            <div class="table-wrap" style="max-height:400px">
-              <table class="table">
-                <thead><tr><th style="width:30px">#</th><th>产品名称</th><th>别名</th><th style="width:80px">操作</th></tr></thead>
-                <tbody id="aProdWidthBody"></tbody>
-              </table>
-            </div>
-          </div>
+        <div class="table-wrap" style="max-height:520px">
+          <table class="cu-table" id="aRolesTable">
+            <thead id="aRolesHead"></thead>
+            <tbody id="aRolesBody"></tbody>
+          </table>
         </div>
       </div>
 
       <!-- ===== Tab: 审计日志 ===== -->
       <div data-tab-content="a-audit" style="display:none">
         <div class="filter-bar">
-          <div class="filter-group"><label>操作用户</label><input type="text" id="aAuditUser" placeholder="用户名" oninput="App.renderAuditLog()"></div>
-          <div class="filter-group"><label>操作类型</label><select id="aAuditAction" onchange="App.renderAuditLog()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="查看页面">查看页面</option><option value="数据导出">数据导出</option><option value="数据导入">数据导入</option><option value="新增用户">新增用户</option><option value="修改用户">修改用户</option><option value="修改密码">修改密码</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="系统配置">系统配置</option></select></div>
-          <div class="filter-group"><label>开始日期</label><input type="date" id="aAuditDateStart" value="2026-07-01" onchange="App.renderAuditLog()"></div>
-  
-          <div class="filter-group"><label>结束日期</label><input type="date" id="aAuditDateEnd" value="2026-07-21" onchange="App.renderAuditLog()"></div>
-          <button class="btn-ghost" onclick="App.exportAuditLog()">📥 导出日志</button>
-          <span class="right" style="font-size:12px;color:var(--text-muted)" id="aAuditCount">20 条记录</span>
+          <div class="filter-group"><label>搜索</label><input type="text" id="aAuditSearch" placeholder="用户名 / 操作对象 / 详情" oninput="App._auditPage=1;App.fetchAuditLogs()"></div>
+          <div class="filter-group"><label>操作类型</label><select id="aAuditActionSel" onchange="App._auditPage=1;App.fetchAuditLogs()"><option value="">全部</option><option value="用户登录">用户登录</option><option value="用户登出">用户登出</option><option value="页面切换">页面切换</option><option value="数据导入">数据导入</option><option value="数据导出">数据导出</option><option value="新增用户">新增用户</option><option value="编辑用户">编辑用户</option><option value="删除用户">删除用户</option><option value="修改密码">修改密码</option><option value="角色保存">角色保存</option><option value="创建备份">创建备份</option><option value="恢复备份">恢复备份</option><option value="删除备份">删除备份</option><option value="筛选查询">筛选查询</option></select></div>
+          <button class="btn-ghost" onclick="App.exportAuditLog()">📥 导出</button>
+          <button class="btn-ghost" style="font-size:11px" onclick="App._auditPage=1;App.fetchAuditLogs()">🔄 刷新</button>
+          <span class="right" style="font-size:12px;color:var(--text-muted)" id="aAuditCount">0 条记录</span>
         </div>
         <div class="card">
           <div class="table-wrap" style="max-height:520px">
-            <table class="table">
-              <thead><tr><th style="width:140px">时间</th><th>操作用户</th><th>操作类型</th><th>操作对象</th><th>详情</th><th style="width:110px">IP地址</th></tr></thead>
+            <table class="cu-table" id="aAuditTable">
+              <thead><tr><th style="width:130px">时间</th><th style="width:110px">操作用户</th><th style="width:100px">操作类型</th><th style="width:100px">操作对象</th><th>详情</th><th style="width:90px">IP地址</th></tr></thead>
               <tbody id="aAuditTableBody"></tbody>
             </table>
           </div>
+          <div class="cu-bottom" id="aAuditPager" style="justify-content:flex-end"></div>
         </div>
       </div>
 
@@ -1408,7 +1383,7 @@
           <tr><td><b>数据总览</b></td><td>快速掌握全局经营态势，查看销售额排名、产品构成、同比变化</td><td>总销售额、同比%、量价四象限分类</td></tr>
           <tr><td><b>产品宽度分析</b></td><td>分析客户/用户覆盖了多少产品品类，识别覆盖率短板</td><td>客户宽度（品类数）、覆盖率%、人均宽度</td></tr>
           <tr><td><b>潜力产品分析</b></td><td>聚焦11个核心潜力品类的深度分析，多维度对比</td><td>销售额、覆盖率、四象限、增长类型</td></tr>
-          <tr><td><b>账号管理</b></td><td>管理用户权限、角色、产品字典</td><td>角色权限矩阵、数据范围</td></tr>
+          <tr><td><b>账号管理</b></td><td>管理用户权限、角色</td><td>角色权限矩阵、数据范围</td></tr>
         </tbody>
       </table>
     </div>
@@ -1421,7 +1396,6 @@
           <tr><td><b>维度切换</b></td><td>团队维度 Tab 中，右上角「部门」「组」「个人」按钮可切换聚合粒度</td></tr>
           <tr><td><b>数据下钻</b></td><td>表格中蓝色文字/数字可点击，弹出明细弹窗（如客户清单、产品清单、用户明细）</td></tr>
           <tr><td><b>数据导入</b></td><td>下载标准模板 → 填写数据 → 上传Excel → 自动解析并更新全平台数据源</td></tr>
-          <tr><td><b>产品字典</b></td><td>账号管理→产品字典，管理潜力产品和产品宽度产品品类清单</td></tr>
         </tbody>
       </table>
     </div>

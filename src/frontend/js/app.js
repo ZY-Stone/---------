@@ -101,11 +101,22 @@ App.applyRoleUI = function(role, displayName, dept, group) {
   if (scope && scope !== '全部数据') scopeParts.push('🔒 ' + scope);
   App.setText('topbar-scope', scopeParts.join(' · '));
 
-  // 管理员显示权限设置入口
-  var permItem = document.getElementById('topbar-perm-item');
-  if (permItem) {
-    permItem.style.display = (role === 'admin' || role === 'gm') ? '' : 'none';
+  // 权限 UI 显隐：隐藏无权限的顶级导航按钮和 Admin 子标签
+  if (!App.hasPerm('user_manage') && !App.hasPerm('role_manage') && !App.hasPerm('audit_log') && !App.hasPerm('data_backup')) {
+    var adminNav = document.querySelector('.topbar-nav-btn[data-page="admin"]');
+    if (adminNav) adminNav.style.display = 'none';
   }
+  // 隐藏无权限的 Admin 子标签
+  var adminTabs = {
+    'a-users': 'user_manage', 'a-roles': 'role_manage', 'a-audit': 'audit_log',
+    'a-backup': 'data_backup'
+  };
+  Object.keys(adminTabs).forEach(function(tabId) {
+    if (!App.hasPerm(adminTabs[tabId])) {
+      var tab = document.querySelector('#page-admin .subtab[data-tab="' + tabId + '"]');
+      if (tab) tab.style.display = 'none';
+    }
+  });
 };
 
 // ===== SPA 页面路由 =====
@@ -230,7 +241,7 @@ document.addEventListener('click', function(e) {
       App.renderPotentialUserTab();
     }
     // 记录子tab操作日志
-    App.addLog('切换分析维度', '当前 Tab: ' + tabName);
+    App.addLog('页面切换', '产品宽度', '切换分析维度 → ' + tabName);
     if (tabName === 'p-import') {
       App.ImportPotential.render();
     }
@@ -648,6 +659,7 @@ App.resetFilters = function(pageId) {
     App.updateWidthDimButtons();
   }
   App.refreshPageData(pageId);
+  App.addLog('筛选查询', '重置筛选', '重置了筛选条件');
 };
 
 // ===== 数据总览 - 筛选联动（支持部门→组→个人级联 + 时间过滤） =====
@@ -677,6 +689,17 @@ App.updateOverview = function() {
     ovUser = ovUser.filter(function(r) { return (r.snapshotPeriod || '') === ovPeriod; });
     ovCust = ovCust.filter(function(r) { return (r.snapshotPeriod || '') === ovPeriod; });
   }
+  // \u2500\u2500 Layer 1: \u89d2\u8272\u6570\u636e\u8303\u56f4\uff08\u5f3a\u5236\u8fc7\u6ee4\uff09\u2500\u2500
+  var ovRoleFilter = function(arr) {
+    var uu = App.loggedInUser || {}, rr = uu.role || 'admin';
+    if (rr === 'director' || rr === 'interface') return arr.filter(function(x) { return x.dept === uu.dept; });
+    if (rr === 'manager') return arr.filter(function(x) { return x.group === uu.group && x.dept === uu.dept; });
+    if (rr === 'sales') return arr.filter(function(x) { return x.sales === uu.username; });
+    return arr;
+  };
+  ovUser = ovRoleFilter(ovUser);
+  ovCust = ovRoleFilter(ovCust);
+
   // \u7ea7\u8054\u7b5b\u9009
   if (person !== 'all') {
     ovUser = ovUser.filter(function(r) { return r.sales === person; });
@@ -704,17 +727,42 @@ App.updateOverview = function() {
   var scaleUsers = ovUser.filter(isGs).length;
   var scaleCust = ovCust.filter(isGs).length;
 
-  // \u6f5c\u529b\u4ea7\u54c1\u6570\u636e\uff08\u7528\u6570\u636e\u603b\u89c8\u81ea\u5df1\u7684\u7b5b\u9009\u5668\uff0c\u4e0d\u4f9d\u8d56 getFilteredPotData\uff09
-  var potFilter = function(rawArr) {
-    return rawArr.filter(function(r) {
-      if (person !== 'all') return r.sales === person;
-      if (group !== 'all') return r.dept5 === group || r.dept4 === group;
-      if (team !== 'all') return r.dept3 === team || r.dept4 === team;
-      return true;
-    });
+  // \u6f5c\u529b\u4ea7\u54c1\u6570\u636e\uff08\u4e09\u5c42\u8fc7\u6ee4\uff1a\u89d2\u8272\u8303\u56f4 \u2192 \u6708\u4efd \u2192 \u7ea7\u8054\u7b5b\u9009\uff0c\u4e0e\u6f5c\u529b\u4ea7\u54c1\u9875\u4e00\u81f4\uff09
+  var fPotCustAll = (App.ImportPotential.CustRAW || []).slice();
+  var fPotUserAll = (App.ImportPotential.UserRAW || []).slice();
+
+  // \u2500\u2500 Layer 1: \u89d2\u8272\u6570\u636e\u8303\u56f4 \u2500\u2500
+  var potRoleFilter = function(arr) {
+    var uu = App.loggedInUser || {}, rr = uu.role || 'admin';
+    if (rr === 'director' || rr === 'interface') return arr.filter(function(x) { return x.dept3 === uu.dept || x.dept4 === uu.dept; });
+    if (rr === 'manager') return arr.filter(function(x) { return (x.dept5 === uu.group || x.dept4 === uu.group) && (x.dept3 === uu.dept || x.dept4 === uu.dept); });
+    if (rr === 'sales') return arr.filter(function(x) { return x.sales === uu.username; });
+    return arr;
   };
-  var fPotCust = potFilter((App.ImportPotential.CustRAW || []).slice());
-  var fPotUser = potFilter((App.ImportPotential.UserRAW || []).slice());
+  fPotCustAll = potRoleFilter(fPotCustAll);
+  fPotUserAll = potRoleFilter(fPotUserAll);
+
+  // \u2500\u2500 Layer 2: \u6708\u4efd\u7b5b\u9009\uff08\u4e0e\u4ea7\u54c1\u5bbd\u5ea6\u5171\u7528\u540c\u4e00\u4e2a\u6708\u4efd\u9009\u62e9\u5668\uff09\u2500\u2500
+  var potPeriod = ovPeriodSel ? (ovPeriodSel.value !== 'all' && ovPeriodSel.value !== '\u65e0\u6570\u636e' ? ovPeriodSel.value : '') : '';
+  if (potPeriod) {
+    fPotCustAll = fPotCustAll.filter(function(r) { return (r.snapshotPeriod || '') === potPeriod; });
+    fPotUserAll = fPotUserAll.filter(function(r) { return (r.snapshotPeriod || '') === potPeriod; });
+  }
+
+  // \u2500\u2500 Layer 3: \u7ea7\u8054\u7b5b\u9009 \u2500\u2500
+  if (person !== 'all') {
+    fPotCustAll = fPotCustAll.filter(function(r) { return r.sales === person; });
+    fPotUserAll = fPotUserAll.filter(function(r) { return r.sales === person; });
+  } else if (group !== 'all') {
+    fPotCustAll = fPotCustAll.filter(function(r) { return r.dept5 === group || r.dept4 === group; });
+    fPotUserAll = fPotUserAll.filter(function(r) { return r.dept5 === group || r.dept4 === group; });
+  } else if (team !== 'all') {
+    fPotCustAll = fPotCustAll.filter(function(r) { return r.dept3 === team || r.dept4 === team; });
+    fPotUserAll = fPotUserAll.filter(function(r) { return r.dept3 === team || r.dept4 === team; });
+  }
+
+  var fPotCust = fPotCustAll;
+  var fPotUser = fPotUserAll;
   var potAmtVal = 0;
   var potCustSet = {}, potUserSet = {};
   fPotCust.forEach(function(r) { potAmtVal += (r.amount || 0); if (r.custName) potCustSet[r.custName] = true; });
@@ -722,11 +770,12 @@ App.updateOverview = function() {
   var custVal = Object.keys(potCustSet).length;
   var usersVal = Object.keys(potUserSet).length;
 
-  // 基线时间标识（从导入数据动态获取最新月份）
+  // 基线时间标识（从角色过滤后的数据获取最新月份，但不限月份）
   var ovBaseline = document.getElementById('ov-baseline-tag');
   if (ovBaseline) {
+    var ovBaseRaw = potRoleFilter((App.ImportPotential.CustRAW || []).slice()).concat(potRoleFilter((App.ImportPotential.UserRAW || []).slice()));
     var ovPeriods = {};
-    (App.ImportPotential.CustRAW || []).concat(App.ImportPotential.UserRAW || []).forEach(function(r) {
+    ovBaseRaw.forEach(function(r) {
       var sp = r.snapshotPeriod || '';
       if (sp) ovPeriods[sp] = true;
     });
@@ -741,7 +790,7 @@ App.updateOverview = function() {
   App.setText('ov-kpi-width',             widthVal.toFixed(2));
   App.setText('ov-kpi-user-width',        userWidthVal.toFixed(2));
   App.setText('ov-kpi-cust-width',        custWidthVal.toFixed(2));
-  App.setText('ov-kpi-potential-amt-v',   '\u00a5 ' + potAmtVal.toLocaleString() + '\u4e07');
+  App.setText('ov-kpi-potential-amt-v',   '\u00a5 ' + potAmtVal.toFixed(2) + '\u4e07');
   App.setText('ov-kpi-users',             usersVal);
   App.setText('ov-kpi-customers',         custVal.toLocaleString());
   App.setText('ov-kpi-cust-mom',          '-');
@@ -1152,10 +1201,15 @@ App.switchWidthTrendDim = function(dim) {
 };
 
 App._updateOvWidthTrend = function() {
-  // 同时支持产品宽度页和数据总览页两个图表
-  var chart = App.charts.wWidthTrend || App.charts['ov_width-trend'];
-  if (!chart) return;
-  var pageId = App.charts.wWidthTrend ? 'page-width' : 'page-overview';
+  // 同时更新产品宽度页和数据总览页两个图表
+  var charts = [];
+  if (App.charts.wWidthTrend) charts.push({ chart: App.charts.wWidthTrend, pageId: 'page-width' });
+  if (App.charts['ov_width-trend']) charts.push({ chart: App.charts['ov_width-trend'], pageId: 'page-overview' });
+  if (charts.length === 0) return;
+
+  // 使用第一个图表的筛选状态（两个图表通常同步，优先用可见页面的状态）
+  var ovChart = App.charts['ov_width-trend'];
+  var pageId = (ovChart && document.getElementById('page-overview') && document.getElementById('page-overview').classList.contains('active')) ? 'page-overview' : 'page-width';
   var state = App.getFilterState(pageId);
   var team = state.team, group = state.group, person = state.person;
   var dim = App._widthTrendDim || 'dept';
@@ -1175,62 +1229,59 @@ App._updateOvWidthTrend = function() {
 
   var COLORS = ['#1a56db','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16','#f97316','#6366f1'];
 
-  if (dim === 'dept') {
-    // 部门维度：原样保留（三条汇总线）
-    var avg=[], cust=[], user=[];
-    var isGs = function(r) { var g = (r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
-    labels.forEach(function(m) {
-      var mData = all.filter(function(r) { return r.snapshotPeriod === m; });
-      var mCust = mData.filter(function(r) { return r.name; });
-      var mUser = mData.filter(function(r) { return r.user; });
-      avg.push(mData.length > 0 ? parseFloat((mData.reduce(function(s,r){return s+r.width;},0) / mData.length).toFixed(2)) : null);
-      cust.push(mCust.length > 0 ? parseFloat((mCust.filter(isGs).length / mCust.length * 100).toFixed(1)) : null);
-      user.push(mUser.length > 0 ? parseFloat((mUser.filter(isGs).length / mUser.length * 100).toFixed(1)) : null);
-    });
-    chart.data.datasets = [
-      { label: '平均产品宽度', data: avg, borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.08)', tension: .3, fill: true, pointRadius: 4 },
-      { label: '规上客户产品宽度', data: cust, borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4 },
-      { label: '规上用户产品宽度', data: user, borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4 }
-    ];
-  } else {
-    // 组/个人维度：每个实体一条线（人均宽度）
-    var entityKey = dim === 'group' ? 'group' : 'sales';
-    var entities = {};
-    // 预填组织架构中所有实体（无数据也展示）
-    if (dim === 'group') {
-      App.GROUPS.forEach(function(g) {
-        if (team !== 'all' && g.dept !== team) return;
-        if (group !== 'all' && g.n !== group) return;
-        if (!entities[g.n]) entities[g.n] = [];
+  // 构建 datasets（对所有图表共用）
+  function buildDatasets(dim, labels, all, team, group, person) {
+    if (dim === 'dept') {
+      var avg=[], cust=[], user=[];
+      var isGs = function(r) { var g = (r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
+      labels.forEach(function(m) {
+        var mData = all.filter(function(r) { return r.snapshotPeriod === m; });
+        var mCust = mData.filter(function(r) { return r.name; });
+        var mUser = mData.filter(function(r) { return r.user; });
+        avg.push(mData.length > 0 ? parseFloat((mData.reduce(function(s,r){return s+r.width;},0) / mData.length).toFixed(2)) : null);
+        cust.push(mCust.length > 0 ? parseFloat((mCust.filter(isGs).length / mCust.length * 100).toFixed(1)) : null);
+        user.push(mUser.length > 0 ? parseFloat((mUser.filter(isGs).length / mUser.length * 100).toFixed(1)) : null);
       });
-      // 也包含无小组的部门
-      App.BUSINESS_DEPTS.forEach(function(d) {
-        if (team !== 'all' && d.n !== team) return;
-        if (!App.GROUPS.some(function(g) { return g.dept === d.n; }) && !entities[d.n]) entities[d.n] = [];
-      });
+      return [
+        { label: '平均产品宽度', data: avg, borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.08)', tension: .3, fill: true, pointRadius: 4 },
+        { label: '规上客户产品宽度', data: cust, borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4 },
+        { label: '规上用户产品宽度', data: user, borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4 }
+      ];
     } else {
-      App.PERSONS.forEach(function(p) {
-        if (team !== 'all' && p.dept !== team) return;
-        if (group !== 'all' && p.grp !== group) return;
-        if (person !== 'all' && p.n !== person) return;
-        if (!entities[p.n]) entities[p.n] = [];
+      var entityKey = dim === 'group' ? 'group' : 'sales';
+      var entities = {};
+      if (dim === 'group') {
+        App.GROUPS.forEach(function(g) {
+          if (team !== 'all' && g.dept !== team) return;
+          if (group !== 'all' && g.n !== group) return;
+          if (!entities[g.n]) entities[g.n] = [];
+        });
+        App.BUSINESS_DEPTS.forEach(function(d) {
+          if (team !== 'all' && d.n !== team) return;
+          if (!App.GROUPS.some(function(g) { return g.dept === d.n; }) && !entities[d.n]) entities[d.n] = [];
+        });
+      } else {
+        App.PERSONS.forEach(function(p) {
+          if (team !== 'all' && p.dept !== team) return;
+          if (group !== 'all' && p.grp !== group) return;
+          if (person !== 'all' && p.n !== person) return;
+          if (!entities[p.n]) entities[p.n] = [];
+        });
+      }
+      all.forEach(function(r) {
+        var k = r[entityKey] || r.dept || '其他';
+        if (!entities[k]) entities[k] = [];
+        entities[k].push(r);
       });
-    }
-    // 填入实际数据
-    all.forEach(function(r) {
-      var k = r[entityKey] || r.dept || '其他';
-      if (!entities[k]) entities[k] = [];
-      entities[k].push(r);
-    });
-    var entityNames = Object.keys(entities).sort();
-    chart.data.datasets = entityNames.map(function(en, ei) {
-      var ed = {};
-      entities[en].forEach(function(r) {
-        var sp = r.snapshotPeriod;
-        if (!ed[sp]) ed[sp] = { total: 0, count: 0 };
-        ed[sp].total += (r.width || 0);
-        ed[sp].count++;
-      });
+      var entityNames = Object.keys(entities).sort();
+      return entityNames.map(function(en, ei) {
+        var ed = {};
+        entities[en].forEach(function(r) {
+          var sp = r.snapshotPeriod;
+          if (!ed[sp]) ed[sp] = { total: 0, count: 0 };
+          ed[sp].total += (r.width || 0);
+          ed[sp].count++;
+        });
       var data = labels.map(function(m) {
         var e = ed[m];
         return e && e.count > 0 ? parseFloat((e.total / e.count).toFixed(2)) : null;
@@ -1243,9 +1294,16 @@ App._updateOvWidthTrend = function() {
       };
     });
   }
+  } // end buildDatasets
 
-  chart.data.labels = labels;
-  chart.update();
+  var datasets = buildDatasets(dim, labels, all, team, group, person);
+
+  // 应用到所有图表实例
+  charts.forEach(function(c) {
+    c.chart.data.labels = labels;
+    c.chart.data.datasets = datasets;
+    c.chart.update();
+  });
 };
 
 // ===== 产品宽度页维度切换：部门 / 组 =====
@@ -1318,6 +1376,17 @@ App.updateWidth = function() {
   var custGS = (App.ImportData.CustGS || []);
   var fUser = userGS.slice();
   var fCust = custGS.slice();
+  // ── Layer 1: 角色数据范围（强制）──
+  var roleFilter = function(arr, fieldDept, fieldGroup, fieldSales) {
+    var u = App.loggedInUser || {}, r = u.role || 'admin';
+    if (r === 'director' || r === 'interface') return arr.filter(function(x) { return x[fieldDept] === u.dept; });
+    if (r === 'manager') return arr.filter(function(x) { return x[fieldGroup] === u.group && x[fieldDept] === u.dept; });
+    if (r === 'sales') return arr.filter(function(x) { return x[fieldSales] === u.username; });
+    return arr;
+  };
+  fUser = roleFilter(fUser, 'dept', 'group', 'sales');
+  fCust = roleFilter(fCust, 'dept', 'group', 'sales');
+
   // 月份筛选（选中哪个就筛哪个）
   if (periodFilter) {
     fUser = fUser.filter(function(r) { return (r.snapshotPeriod || '') === periodFilter; });
@@ -1812,7 +1881,7 @@ App._refreshPotentialCharts = function(state) {
 
 // ===== 产品线 & 组织范围数据引擎 =====
 // 11个标准潜力产品
-App.ALL_POT_PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
+App.ALL_POT_PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型（文搜&多模态）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
 App.YOY_COLORS = ['#1a56db','#7c3aed','#10b981','#f59e0b','#ef4444','#06b6d4','#3b82f6','#84cc16','#a855f7','#ec4899','#14b8a6'];
 // 全量12月基准（11产品 × 12月，单位: 万元）
 App.YOY_BASE_DATA = [
@@ -3002,6 +3071,7 @@ App.exportLiftCSV = function() {
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url; a.download = 'Lift_27products.csv'; a.click();
+  App.addLog('数据导出', '产品宽度', '导出Lift分析CSV');
 };
 
 App._bundleStock = {};
@@ -3351,6 +3421,7 @@ App.exportTeamDim = function() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  App.addLog('数据导出', '产品宽度', '导出团队维度数据CSV');
 };
 
 // ===== 用户产品宽度覆盖 =====
@@ -3665,6 +3736,7 @@ App.exportCompareResult = function() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  App.addLog('数据导出', '分组对比', '导出分组对比结果CSV');
 };
 
 // ===== 客户/用户悬浮详情 Tooltip (参考简刚平版) =====
@@ -4277,11 +4349,13 @@ App.exportOverviewPDF = function() {
   document.body.removeChild(clone);
   document.head.removeChild(style);
   allPages.forEach(function(p) { p.style.display = ''; });
+  App.addLog('数据导出', '数据总览', '打印/导出总览PDF');
 };
 
 // ===== 通用导出 PDF =====
 App.exportPDF = function() {
   window.print();
+  App.addLog('数据导出', 'PDF打印', '打印当前页面');
 };
 
 // ===== 数据总览 — 导出 Excel（KPI 汇总 + 部门明细 + 小组明细） =====
@@ -4339,6 +4413,7 @@ App.exportOverviewExcel = function() {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+  App.addLog('数据导出', '数据总览', '导出总览数据CSV');
 };
 
 // ===== 导出 Excel (CSV) — 通用 =====
@@ -4386,6 +4461,7 @@ App.exportExcel = function(pageId) {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+  App.addLog('数据导出', '数据导出', '导出数据CSV: ' + (pageId||''));
 };
 
 // ===== 全局导出按钮绑定 =====
@@ -6429,6 +6505,7 @@ App.ImportPotential.handleUpload = function(input) {
         App.ImportPotential.render();
         App.ImportPotential.saveToHistory(file.name, custN, custU, userN, userU);
         try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
+        App.addLog('数据导入', file.name, '导入客户' + mergedCust.length + '条 / 用户' + mergedUser.length + '条');
         var msg = '导入完成! 文件: ' + file.name;
         msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
         if (!custSheet) msg += '\n  ⚠ 未找到客户sheet';
@@ -6440,6 +6517,7 @@ App.ImportPotential.handleUpload = function(input) {
       }).catch(function(err) {
         console.error('[潜力导入] 后端保存失败:', err);
         App.ImportPotential.render();
+        App.addLog('数据导入', file.name, '导入客户' + mergedCust.length + '条 / 用户' + mergedUser.length + '条（后端保存失败）');
         var msg = '导入完成! 文件: ' + file.name;
         msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
         if (!custSheet) msg += '\n  ⚠ 未找到客户sheet';
@@ -6520,6 +6598,31 @@ App.ImportPotential.deleteHistory = function(idx) {
     App.ImportPotential.CustRAW = [];
     App.ImportPotential.UserRAW = [];
   }
+
+  // 同步后端：删除旧数据后重新上传回退后的数据
+  try {
+    fetch('/api/import/potential-cust', { method: 'DELETE' }).then(function() {
+      if (App.ImportPotential.CustRAW.length > 0) {
+        fetch('/api/import/potential-cust', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: App.ImportPotential.CustRAW })
+        }).catch(function() {});
+      }
+    }).catch(function() {});
+    fetch('/api/import/potential-user', { method: 'DELETE' }).then(function() {
+      if (App.ImportPotential.UserRAW.length > 0) {
+        fetch('/api/import/potential-user', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: App.ImportPotential.UserRAW })
+        }).catch(function() {});
+      }
+    }).catch(function() {});
+  } catch(e) {}
+
+  App.addLog('删除数据', '潜力产品', '回退导入: ' + h.file + ', 客户' + App.ImportPotential.CustRAW.length + '条 / 用户' + App.ImportPotential.UserRAW.length + '条');
+
   App.ImportPotential.render();
   App.ImportPotential.renderHistory();
   try {
@@ -6532,9 +6635,23 @@ App.ImportPotential.deleteHistory = function(idx) {
 
 // 下载当前潜力产品数据为 Excel
 App.ImportPotential.exportCurrent = function() {
-  var cust = App.ImportPotential.CustRAW || [];
-  var user = App.ImportPotential.UserRAW || [];
-  if (cust.length === 0 && user.length === 0) { alert('暂无数据可下载'); return; }
+  var custAll = App.ImportPotential.CustRAW || [];
+  var userAll = App.ImportPotential.UserRAW || [];
+
+  // 读取当前选择的月份
+  var periodEl = document.getElementById('pSnapshotPeriod');
+  var selectedPeriod = periodEl ? periodEl.value : '';
+  var periodLabel = selectedPeriod || '全部月份';
+
+  // 按月份过滤数据
+  var cust = custAll;
+  var user = userAll;
+  if (selectedPeriod) {
+    cust = custAll.filter(function(r) { return (r.snapshotPeriod || r.period || '') === selectedPeriod; });
+    user = userAll.filter(function(r) { return (r.snapshotPeriod || r.period || '') === selectedPeriod; });
+  }
+
+  if (cust.length === 0 && user.length === 0) { alert('暂无数据可下载（当前选择月份: ' + periodLabel + '）'); return; }
   var wb = XLSX.utils.book_new();
   if (cust.length > 0) {
     var custSheet = XLSX.utils.json_to_sheet(cust);
@@ -6544,7 +6661,10 @@ App.ImportPotential.exportCurrent = function() {
     var userSheet = XLSX.utils.json_to_sheet(user);
     XLSX.utils.book_append_sheet(wb, userSheet, '潜力产品-用户');
   }
-  XLSX.writeFile(wb, '潜力产品数据_' + new Date().toISOString().slice(0,10) + '.xlsx');
+
+  App.addLog('数据导出', '潜力产品', '下载潜力产品数据(' + periodLabel + '): 客户' + cust.length + '条 / 用户' + user.length + '条');
+
+  XLSX.writeFile(wb, '潜力产品数据_' + periodLabel.replace(/[^0-9a-zA-Z一-鿿]/g, '-') + '_' + new Date().toISOString().slice(0,10) + '.xlsx');
 };
 
 // 清空潜力产品历史记录及数据
@@ -6898,6 +7018,24 @@ App.ImportPotential.batchDelete = function() {
   // 根据 row index 删除（从后往前删）
   var indices = toRemove.map(function(r) { return parseInt(r.id.split('-').pop()); }).sort(function(a, b) { return b - a; });
   indices.forEach(function(i) { data.splice(i, 1); });
+
+  // 同步后端：删除该类型的全部记录后重新上传剩余数据
+  var type = isCust ? 'cust' : 'user';
+  var endpoint = isCust ? '/api/import/potential-cust' : '/api/import/potential-user';
+  var remaining = data;
+  try {
+    fetch(endpoint, { method: 'DELETE' }).then(function() {
+      if (remaining.length > 0) {
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: remaining })
+        }).catch(function() {});
+      }
+    }).catch(function() {});
+  } catch(e) {}
+
+  try { App.addLog('删除数据', '潜力产品', '批量删除 ' + indices.length + ' 条' + (isCust ? '客户' : '用户') + '记录'); } catch(e) {}
   App.ImportPotential.render();
 };
 
@@ -7052,12 +7190,17 @@ App.saveUser = function(id) {
     }
   }
   App.showPermModal();
+  App.addLog(isEdit ? '编辑用户' : '新增用户', name, (isEdit ? '编辑' : '新增') + '用户 ' + name + '（' + username + '），角色 ' + role);
 };
 
 // 变更用户角色
 App.changeUserRole = function(id, newRole) {
   var u = App.MOCK_USERS.find(function(x) { return x.id === id; });
-  if (u) { u.role = newRole; }
+  if (u) {
+    var oldRole = u.role;
+    u.role = newRole;
+    App.addLog('编辑用户', u.name, '角色变更: ' + oldRole + ' → ' + newRole);
+  }
   App.renderAdminUsers();
 };
 
@@ -7069,8 +7212,8 @@ App.deleteUser = function(id) {
   if (!confirm('确定删除用户「' + u.name + '」吗？此操作不可撤销。')) return;
   App.MOCK_USERS = App.MOCK_USERS.filter(function(x) { return x.id !== id; });
   App.renderAdminUsers();
-  App.renderAdminUsers();
   App.showPermModal();
+  App.addLog('删除用户', u.name, '删除用户 ' + u.name + '（' + u.username + '）');
 };
 
 // ===== 帮助说明（独立页面） =====
@@ -7106,6 +7249,7 @@ App.changePwd = function() {
   if (newPwd.length < 6) { alert('新密码至少6位'); return; }
   if (newPwd !== confirmPwd) { alert('两次新密码不一致'); return; }
   alert('✅ 密码修改成功！');
+  App.addLog('修改密码', App.loggedInUser.name, '修改了登录密码');
   App.closeModal();
 };
 
@@ -7604,139 +7748,72 @@ App.renderUserCustLink = function(state) {
 
 // ===== 角色权限渲染 =====
 App.renderRoles = function() {
-  var tbody = document.getElementById('aRolesTableBody');
+  var thead = document.getElementById('aRolesHead');
+  var tbody = document.getElementById('aRolesBody');
   if (!tbody || !App.ROLE_PERMISSIONS) return;
-  var modKeys = ['overview','width','potential','users','roles','products','audit','backup','export','import'];
-  var modLabels = { overview:'数据总览', width:'产品宽度', potential:'潜力产品', users:'用户管理', roles:'角色权限', products:'产品字典', audit:'审计日志', backup:'数据备份', export:'数据导出', import:'数据导入' };
+
+  var modKeys = ['overview','width','potential','users','roles','audit','backup','export','import'];
+  var modLabels = { overview:'数据总览', width:'产品宽度', potential:'潜力产品', users:'用户管理', roles:'角色权限', audit:'审计日志', backup:'数据备份', export:'数据导出', import:'数据导入' };
   var scopeMap = { admin:'全部数据', gm:'全部数据', operation:'全部数据', director:'本部门', manager:'本小组', interface:'本部门', sales:'本人' };
 
-  // 深拷贝当前权限作为编辑缓冲
   if (!App._roleEditBuffer) {
     App._roleEditBuffer = JSON.parse(JSON.stringify(App.ROLE_PERMISSIONS));
   }
 
+  // 表头
+  if (thead) {
+    var th = '<tr><th>角色</th><th>名称</th>';
+    modKeys.forEach(function(k) { th += '<th class="cu-c" title="' + modLabels[k] + '">' + (modLabels[k]||k) + '</th>'; });
+    th += '<th>数据范围</th></tr>';
+    thead.innerHTML = th;
+  }
+
+  // 表体
   tbody.innerHTML = App._roleEditBuffer.map(function(r, ri) {
     var cells = modKeys.map(function(k) {
-      var val = r.modules[k];
-      var checked = val === 1 ? ' checked' : '';
-      return '<td style="text-align:center">' +
-        '<input type="checkbox" ' + checked + ' onchange="App._roleEditBuffer[' + ri + '].modules.' + k + '=this.checked?1:0" style="width:16px;height:16px;cursor:pointer;accent-color:#16a34a" title="' + (modLabels[k]||k) + '">' +
-        '</td>';
+      var checked = r.modules[k] === 1 ? ' checked' : '';
+      return '<td class="cu-c"><input type="checkbox" ' + checked + ' onchange="App._roleEditBuffer[' + ri + '].modules.' + k + '=this.checked?1:0"></td>';
     }).join('');
     return '<tr>' +
-      '<td><span class="badge" style="background:#dbeafe;color:#1e40af">' + r.role + '</span></td>' +
-      '<td><strong>' + r.name + '</strong><div style="font-size:10px;color:#94a3b8">' + r.desc + '</div></td>' +
+      '<td><span class="role-badge">' + r.role + '</span></td>' +
+      '<td class="role-name-cell"><span class="role-name">' + r.name + '</span><span class="role-desc">' + r.desc + '</span></td>' +
       cells +
-      '<td><span style="font-size:11px;color:#6b7280">' + (scopeMap[r.role] || '-') + '</span></td>' +
-      '</tr>';
+      '<td class="role-scope">' + (scopeMap[r.role]||'-') + '</td></tr>';
   }).join('');
-
-  // 确认/取消按钮
-  var card = tbody.closest('.card');
-  var existingBar = document.getElementById('aRolesActionBar');
-  if (existingBar) existingBar.remove();
-  var bar = document.createElement('div');
-  bar.id = 'aRolesActionBar';
-  bar.style.cssText = 'margin-top:12px;display:flex;gap:8px;justify-content:flex-end';
-  bar.innerHTML = '<button onclick="App.cancelRoleEdit()" style="padding:6px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:12px">取消</button>' +
-    '<button onclick="App.saveRolePerms()" style="padding:6px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500">✅ 确认保存</button>';
-  if (card) card.appendChild(bar);
 };
 
 App.saveRolePerms = function() {
   if (!App._roleEditBuffer) return;
   App.ROLE_PERMISSIONS = JSON.parse(JSON.stringify(App._roleEditBuffer));
   App._roleEditBuffer = null;
+
+  // 持久化到 localStorage（刷新不丢失）
+  try {
+    localStorage.setItem('pa_role_perms', JSON.stringify(App.ROLE_PERMISSIONS));
+  } catch(e) {}
+
+  // 同时尝试保存到后端
+  try {
+    fetch('/api/admin/roles', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permissions: App.ROLE_PERMISSIONS })
+    }).catch(function() {});
+  } catch(e) {}
+
   App.renderRoles();
-  var bar = document.getElementById('aRolesActionBar');
-  if (bar) { bar.style.background = '#d1fae5'; setTimeout(function() { bar.style.background = ''; }, 800); }
-  // Toast 提示
+  App.addLog('角色保存', '角色权限矩阵', '更新了角色权限配置');
+
   var toast = document.createElement('div');
   toast.textContent = '✅ 权限已保存';
-  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#059669;color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;z-index:99999;transition:opacity .3s;font-weight:600';
+  toast.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#059669;color:#fff;padding:12px 28px;border-radius:8px;font-size:14px;z-index:99999;font-weight:600';
   document.body.appendChild(toast);
-  setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 1500);
+  setTimeout(function() { toast.style.opacity = '0'; setTimeout(function() { toast.remove(); }, 300); }, 1200);
 };
 
 App.cancelRoleEdit = function() {
   App._roleEditBuffer = null;
   App.renderRoles();
-};
-
-// ===== 产品字典渲染（潜力产品 + 产品宽度 两个表格） =====
-App.renderProductDict = function() {
-  if (!App.PRODUCT_DICT) return;
-  var search = ((document.getElementById('aProdSearch') || {}).value || '').trim().toLowerCase();
-  var catFilter = (document.getElementById('aProdCatFilter') || {}).value || '';
-
-  var data = App.PRODUCT_DICT.slice();
-  if (search) data = data.filter(function(p) { return p.name.toLowerCase().indexOf(search) >= 0 || (p.alias||'').toLowerCase().indexOf(search) >= 0; });
-  if (catFilter) data = data.filter(function(p) { return p.category === catFilter; });
-
-  var potData = data.filter(function(p) { return p.is_potential === 1; });
-  var widthData = data.filter(function(p) { return p.is_potential === 0; });
-
-  App.setText('aProdPotCount', potData.length + ' 个');
-  App.setText('aProdWidthCount', widthData.length + ' 个');
-
-  function renderTable(tbodyId, list) {
-    var tbody = document.getElementById(tbodyId);
-    if (!tbody) return;
-    tbody.innerHTML = list.map(function(p, i) {
-      return '<tr>' +
-        '<td><span class="rn rn0">' + (i + 1) + '</span></td>' +
-        '<td><strong>' + p.name + '</strong></td>' +
-        '<td>' + (p.alias || '-') + '</td>' +
-        '<td><span style="font-size:11px;background:#f1f5f9;padding:2px 8px;border-radius:4px">' + p.category + '</span></td>' +
-        '<td><a style="color:var(--primary);cursor:pointer;font-size:11px;margin-right:6px" onclick="App.showProductForm(' + p.id + ')">编辑</a><a style="color:var(--danger);cursor:pointer;font-size:11px" onclick="App.deleteProduct(' + p.id + ')">删除</a></td>' +
-        '</tr>';
-    }).join('');
-  }
-  renderTable('aProdPotBody', potData);
-  renderTable('aProdWidthBody', widthData);
-};
-
-App.showProductForm = function(id, defPot) {
-  var isEdit = typeof id === 'number';
-  var p = isEdit ? App.PRODUCT_DICT.find(function(x) { return x.id === id; }) : null;
-  defPot = defPot !== undefined ? defPot : 1;
-  var title = isEdit ? '编辑产品 — ' + p.name : '新增产品';
-  var h = '<h3 style="margin:0 0 16px;font-size:16px">' + title + '</h3>';
-  h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">产品名称 <span style="color:#dc2626">*</span></label><input id="pfName" value="' + (isEdit ? p.name : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px" placeholder="如: IPC"></div>';
-  h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">别名</label><input id="pfAlias" value="' + (isEdit ? (p.alias||'') : '') + '" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px" placeholder="如: 网络摄像机"></div>';
-  // 编辑时显示潜力产品选项，新增时自动由按钮决定
-  if (isEdit) {
-    h += '<div><label style="display:block;font-size:13px;color:#334155;margin-bottom:6px;font-weight:500">潜力产品</label><select id="pfPot" style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px"><option value="1"' + (p.is_potential === 1 ? ' selected' : '') + '>是</option><option value="0"' + (p.is_potential === 0 ? ' selected' : '') + '>否</option></select></div>';
-  }
-  h += '<input type="hidden" id="pfDefPot" value="' + defPot + '">';
-  h += '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end"><button onclick="App.closeModal()" style="padding:7px 16px;background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:13px">取消</button><button onclick="App.saveProduct(' + (isEdit ? id : 'null') + ')" style="padding:7px 20px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500">' + (isEdit ? '保存' : '新增') + '</button></div>';
-  App.showModal(title, h);
-};
-
-App.saveProduct = function(id) {
-  var isEdit = typeof id === 'number';
-  var name = (document.getElementById('pfName')||{}).value || '';
-  var alias = (document.getElementById('pfAlias')||{}).value || '';
-  var potEl = document.getElementById('pfPot') || document.getElementById('pfDefPot');
-  var pot = parseInt(potEl ? potEl.value : 0) || 0;
-  if (!name) { alert('产品名称不能为空'); return; }
-  if (isEdit) {
-    var p = App.PRODUCT_DICT.find(function(x) { return x.id === id; });
-    if (p) { p.name = name; p.alias = alias; p.is_potential = pot; }
-  } else {
-    var newId = Math.max.apply(null, App.PRODUCT_DICT.map(function(x) { return x.id; })) + 1;
-    App.PRODUCT_DICT.push({ id: newId, name: name, alias: alias, category: cat, is_potential: pot, sort: sort });
-  }
-  App.closeModal();
-  App.renderProductDict();
-};
-
-App.deleteProduct = function(id) {
-  var p = App.PRODUCT_DICT.find(function(x) { return x.id === id; });
-  if (!p) return;
-  if (!confirm('确定删除产品「' + p.name + '」吗？')) return;
-  App.PRODUCT_DICT = App.PRODUCT_DICT.filter(function(x) { return x.id !== id; });
-  App.renderProductDict();
 };
 
 // ===== 业务参数渲染 =====
@@ -7775,85 +7852,162 @@ App.saveBusinessParams = function() {
     }
   });
   alert('✅ 已保存 ' + saved + ' 项参数变更');
+  App.addLog('修改参数', '业务参数', '修改了 ' + saved + ' 项业务参数');
   App.renderBusinessParams();
 };
 
 // ===== 审计日志 =====
+App._auditPage = 1;
+App._auditPageSize = 20;
+App._auditTotal = 0;
+
 App.fetchAuditLogs = function() {
-  fetch('/api/audit/logs?size=200').then(function(r) { return r.json(); }).then(function(data) {
-    if (Array.isArray(data) && data.length > 0) {
-      // 合并后端日志到前端（按时间倒序，去重）
-      var seen = new Set();
-      App.AUDIT_LOGS.forEach(function(l) { seen.add(l.time + l.user + l.action); });
-      data.forEach(function(l) {
-        var key = l.time + l.user + l.action;
-        if (!seen.has(key)) {
-          App.AUDIT_LOGS.unshift(l);
-          seen.add(key);
-        }
-      });
-      // 按时间倒序排列
-      App.AUDIT_LOGS.sort(function(a, b) { return (b.time || '').localeCompare(a.time || ''); });
-      // 最多保留 500 条
-      if (App.AUDIT_LOGS.length > 500) App.AUDIT_LOGS = App.AUDIT_LOGS.slice(0, 500);
-    }
-  }).catch(function() {}).finally(function() {
-    App.renderAuditLog();
-  });
+  var action = (document.getElementById('aAuditActionSel') || {}).value || '';
+  var keyword = ((document.getElementById('aAuditSearch') || {}).value || '').trim();
+  var params = 'page=' + App._auditPage + '&size=' + App._auditPageSize;
+  if (action) params += '&action=' + encodeURIComponent(action);
+  if (keyword) params += '&keyword=' + encodeURIComponent(keyword);
+
+  fetch('/api/audit/logs?' + params)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data && data.data) {
+        // 合并本地缓存中还没有持久化的记录
+        var backendIds = {};
+        (data.data || []).forEach(function(l) { backendIds[l.id] = true; });
+        var merged = (data.data || []).slice();
+        App.operationLogs.forEach(function(l) {
+          if (!l._synced) {
+            merged.unshift(l);
+            l._synced = true;
+          }
+        });
+        App._auditData = merged;
+        App._auditTotal = (data.total || 0) + App.operationLogs.filter(function(l) { return !l._synced; }).length;
+      } else {
+        App._auditData = App.operationLogs.slice();
+        App._auditTotal = App.operationLogs.length;
+      }
+      App.renderAuditLog();
+    }).catch(function() {
+      // 后端不可用，回退到本地日志
+      App._auditData = App.operationLogs.slice();
+      App._auditTotal = App.operationLogs.length;
+      App.renderAuditLog();
+    });
 };
 
 App.renderAuditLog = function() {
   var tbody = document.getElementById('aAuditTableBody');
-  if (!tbody || !App.AUDIT_LOGS) return;
-  var userFilter = ((document.getElementById('aAuditUser')||{}).value||'').trim().toLowerCase();
-  var actionFilter = (document.getElementById('aAuditAction')||{}).value||'';
-  var dateStart = (document.getElementById('aAuditDateStart')||{}).value||'';
-  var dateEnd = (document.getElementById('aAuditDateEnd')||{}).value||'';
+  if (!tbody) return;
 
-  var data = App.AUDIT_LOGS.slice();
-  if (userFilter) data = data.filter(function(l) { return l.user.toLowerCase().indexOf(userFilter) >= 0 || l.name.indexOf(userFilter) >= 0; });
-  if (actionFilter) data = data.filter(function(l) { return l.action === actionFilter; });
-  if (dateStart) data = data.filter(function(l) { return l.time >= dateStart; });
-  if (dateEnd) data = data.filter(function(l) { return l.time <= dateEnd + ' 23:59:59'; });
-
+  var data = App._auditData || App.operationLogs;
+  var total = App._auditTotal || data.length;
   var countEl = document.getElementById('aAuditCount');
-  if (countEl) countEl.textContent = data.length + ' 条记录';
+  if (countEl) countEl.textContent = total + ' 条记录';
 
-  if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8">无匹配日志记录</td></tr>';
-    return;
+  // 分页
+  var page = App._auditPage;
+  var size = App._auditPageSize;
+  var totalPages = Math.ceil(total / size) || 1;
+  var start = (page - 1) * size;
+  var pageData = data.slice(start, start + size);
+
+  if (pageData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#94a3b8">📋 暂无审计日志</td></tr>';
+  } else {
+    tbody.innerHTML = pageData.map(function(l) {
+      return '<tr>' +
+        '<td class="cu-c" style="font-size:11px;white-space:nowrap">' + (l.time || '') + '</td>' +
+        '<td><strong>' + (l.name || '系统') + '</strong><div style="font-size:10px;color:#94a3b8">' + (l.user || '-') + '</div></td>' +
+        '<td class="cu-c">' + App._auditActionBadge(l.action) + '</td>' +
+        '<td>' + (l.target || '-') + '</td>' +
+        '<td style="font-size:11px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (l.detail || '') + '">' + (l.detail || '-') + '</td>' +
+        '<td class="cu-c" style="font-size:10px;color:#94a3b8">' + (l.ip || '127.0.0.1') + '</td>' +
+        '</tr>';
+    }).join('');
   }
 
-  var actionColors = {
-    '用户登录':'#dbeafe','用户登出':'#f3f4f6','查看页面':'#f3f4f6','数据导出':'#dcfce7',
-    '数据导入':'#fef3c7','新增用户':'#dcfce7','修改用户':'#fef3c7','修改密码':'#fee2e2',
-    '创建备份':'#dbeafe','恢复备份':'#fef3c7','删除备份':'#fee2e2','系统配置':'#f3f4f6'
-  };
+  // 渲染分页器
+  App._renderAuditPager(total, page, size, totalPages);
+};
 
-  tbody.innerHTML = data.map(function(l) {
-    var bg = actionColors[l.action] || '#f3f4f6';
-    return '<tr>' +
-      '<td style="font-size:11px;white-space:nowrap">' + l.time + '</td>' +
-      '<td><strong>' + l.name + '</strong><div style="font-size:10px;color:#94a3b8">' + l.user + '</div></td>' +
-      '<td><span class="badge" style="background:' + bg + ';color:#1e293b;font-size:11px">' + l.action + '</span></td>' +
-      '<td>' + l.target + '</td>' +
-      '<td style="font-size:11px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + l.detail + '">' + l.detail + '</td>' +
-      '<td style="font-size:10px;color:#94a3b8">' + l.ip + '</td>' +
-      '</tr>';
-  }).join('');
+App._auditActionBadge = function(action) {
+  var map = {
+    '用户登录':  { bg:'#dbeafe', color:'#1e40af', icon:'🔑' },
+    '用户登出':  { bg:'#f1f5f9', color:'#64748b', icon:'🚪' },
+    '页面切换':  { bg:'#f1f5f9', color:'#475569', icon:'👁' },
+    '数据导入':  { bg:'#fef3c7', color:'#92400e', icon:'📥' },
+    '数据导出':  { bg:'#dcfce7', color:'#166534', icon:'📤' },
+    '新增用户':  { bg:'#dcfce7', color:'#166534', icon:'➕' },
+    '编辑用户':  { bg:'#fef3c7', color:'#92400e', icon:'✏️' },
+    '删除用户':  { bg:'#fee2e2', color:'#991b1b', icon:'🗑' },
+    '修改密码':  { bg:'#fee2e2', color:'#991b1b', icon:'🔒' },
+    '角色保存':  { bg:'#dbeafe', color:'#1e40af', icon:'🔐' },
+    '创建备份':  { bg:'#dbeafe', color:'#1e40af', icon:'💾' },
+    '恢复备份':  { bg:'#fef3c7', color:'#92400e', icon:'⏪' },
+    '删除备份':  { bg:'#fee2e2', color:'#991b1b', icon:'🗑' },
+    '筛选查询':  { bg:'#f0f4ff', color:'#3730a3', icon:'🔍' },
+    '删除数据':  { bg:'#fee2e2', color:'#991b1b', icon:'🗑' },
+    '修改参数':  { bg:'#fef3c7', color:'#92400e', icon:'⚙' },
+    '系统启动':  { bg:'#f1f5f9', color:'#475569', icon:'⚡' },
+  };
+  var s = map[action] || { bg:'#f1f5f9', color:'#475569', icon:'📌' };
+  return '<span style="display:inline-flex;align-items:center;gap:4px;background:' + s.bg + ';color:' + s.color + ';padding:2px 10px;border-radius:12px;font-size:11px;font-weight:500;white-space:nowrap">' + s.icon + ' ' + action + '</span>';
+};
+
+App._renderAuditPager = function(total, page, size, totalPages) {
+  var pager = document.getElementById('aAuditPager');
+  if (!pager) return;
+  var html = '<span style="font-size:11px;color:#94a3b8">共 ' + total + ' 条</span>';
+  html += '<select onchange="App._auditPageSize=parseInt(this.value);App._auditPage=1;App.fetchAuditLogs()" style="border:1px solid #e2e8f0;border-radius:4px;padding:2px 6px;font-size:11px;margin:0 8px">';
+  [10,20,50,100].forEach(function(s) {
+    html += '<option value="' + s + '"' + (size === s ? ' selected' : '') + '>' + s + ' 条/页</option>';
+  });
+  html += '</select>';
+
+  html += '<div style="display:flex;gap:4px;align-items:center">';
+  html += '<button class="cu-pgbtn nav" onclick="App._auditPage=1;App.fetchAuditLogs()"' + (page <= 1 ? ' disabled' : '') + '>«</button>';
+  html += '<button class="cu-pgbtn nav" onclick="App._auditPage=Math.max(1,App._auditPage-1);App.fetchAuditLogs()"' + (page <= 1 ? ' disabled' : '') + '>‹</button>';
+
+  var pStart = Math.max(1, page - 2);
+  var pEnd = Math.min(totalPages, page + 2);
+  if (pStart > 1) html += '<button class="cu-pgbtn" onclick="App._auditPage=1;App.fetchAuditLogs()">1</button>';
+  if (pStart > 2) html += '<span class="cu-pgdot">…</span>';
+
+  for (var i = pStart; i <= pEnd; i++) {
+    html += '<button class="cu-pgbtn' + (i === page ? ' active' : '') + '" onclick="App._auditPage=' + i + ';App.fetchAuditLogs()">' + i + '</button>';
+  }
+
+  if (pEnd < totalPages - 1) html += '<span class="cu-pgdot">…</span>';
+  if (pEnd < totalPages) html += '<button class="cu-pgbtn" onclick="App._auditPage=' + totalPages + ';App.fetchAuditLogs()">' + totalPages + '</button>';
+
+  html += '<button class="cu-pgbtn nav" onclick="App._auditPage=Math.min(' + totalPages + ',App._auditPage+1);App.fetchAuditLogs()"' + (page >= totalPages ? ' disabled' : '') + '>›</button>';
+  html += '<button class="cu-pgbtn nav" onclick="App._auditPage=' + totalPages + ';App.fetchAuditLogs()"' + (page >= totalPages ? ' disabled' : '') + '>»</button>';
+  html += '</div>';
+
+  pager.innerHTML = html;
 };
 
 App.exportAuditLog = function() {
-  var data = App.AUDIT_LOGS;
-  var csv = '﻿"时间","操作用户","操作类型","操作对象","详情","IP"\n' +
-    data.map(function(l) { return '"' + [l.time, l.name+'('+l.user+')', l.action, l.target, l.detail, l.ip].join('","') + '"'; }).join('\n');
-  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  var link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = '审计日志_' + new Date().toISOString().slice(0,10) + '.csv';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // 导出时拉取全部数据
+  fetch('/api/audit/logs?page=1&size=10000')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var logs = (data && data.data) ? data.data : App._auditData || [];
+      var csv = '﻿"时间","操作用户","操作类型","操作对象","详情","IP"\n' +
+        logs.map(function(l) { return '"' + [l.time, (l.name||'')+'('+(l.user||'')+')', l.action, l.target, l.detail, l.ip].join('","') + '"'; }).join('\n');
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = '审计日志_' + new Date().toISOString().slice(0,10) + '.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      App.addLog('数据导出', '审计日志', '导出 ' + logs.length + ' 条审计日志');
+    }).catch(function() {
+      alert('导出失败，请检查后端服务是否运行');
+    });
 };
 
 // ===== 租户设置渲染 =====
@@ -8005,13 +8159,12 @@ App.drillProductDetail = function(productName) {
 // ===== 集中初始化所有 Admin 子Tab 渲染 =====
 App.initAdminTabs = function() {
   App.renderRoles();
-  App.renderProductDict();
   App.renderAdminUsers();
   App.renderAuditLog();
 };
 App.operationLogs = [];
 
-App.addLog = function(action, detail) {
+App.addLog = function(action, target, detail) {
   var now = new Date();
   var t = now.getFullYear() + '-' +
     String(now.getMonth() + 1).padStart(2, '0') + '-' +
@@ -8019,8 +8172,32 @@ App.addLog = function(action, detail) {
     String(now.getHours()).padStart(2, '0') + ':' +
     String(now.getMinutes()).padStart(2, '0') + ':' +
     String(now.getSeconds()).padStart(2, '0');
-  App.operationLogs.unshift({ t: t, a: action, d: detail });
-  if (App.operationLogs.length > 50) App.operationLogs.length = 50;
+
+  var entry = {
+    time: t,
+    user: (App.loggedInUser || {}).username || '-',
+    name: (App.loggedInUser || {}).name || '系统',
+    action: action,
+    target: target || '',
+    detail: detail || '',
+    ip: '127.0.0.1'
+  };
+
+  // 写入本地内存缓存
+  App.operationLogs.unshift(entry);
+  if (App.operationLogs.length > 100) App.operationLogs.length = 100;
+
+  // 持久化到后端
+  fetch('/api/audit/logs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: action, target: target || '', detail: detail || '', time: t })
+  }).catch(function() {});
+
+  // 如果审计日志页面当前可见，实时刷新
+  if (document.getElementById('aAuditTableBody')) {
+    App.renderAuditLog();
+  }
 };
 
 // 自动记录关键操作
@@ -8031,14 +8208,14 @@ App.addLog = function(action, detail) {
     var username = userEl ? userEl.value : '';
     origDoLogin.apply(this, arguments);
     if (App.loggedInUser) {
-      App.addLog('用户登录', App.loggedInUser.name + '（' + App.USER_ROLES[App.loggedInUser.role].badge + '）登录系统');
+      App.addLog('用户登录', '系统', App.loggedInUser.name + '（' + App.USER_ROLES[App.loggedInUser.role].badge + '）登录系统');
     }
   };
 
   var origDoLogout = App.doLogout;
   App.doLogout = function() {
     if (App.loggedInUser) {
-      App.addLog('用户登出', App.loggedInUser.name + ' 退出系统');
+      App.addLog('用户登出', '系统', App.loggedInUser.name + ' 退出系统');
     }
     origDoLogout.apply(this, arguments);
   };
@@ -8046,7 +8223,7 @@ App.addLog = function(action, detail) {
   var origShowPage = App.showPage;
   App.showPage = function(p) {
     var pageNames = { overview: '数据总览', width: '产品宽度', potential: '潜力产品', admin: '账号管理' };
-    App.addLog('页面切换', '进入「' + (pageNames[p] || p) + '」');
+    App.addLog('页面切换', pageNames[p] || p, '进入「' + (pageNames[p] || p) + '」页面');
     origShowPage.apply(this, arguments);
   };
 })();
@@ -8055,6 +8232,8 @@ App.addLog = function(action, detail) {
 App.createBackup = function() {
   App.API.createBackup().then(function(r) {
     alert('备份创建成功!\n文件: ' + r.filename + '\n大小: ' + (r.size_bytes / 1024).toFixed(1) + ' KB');
+    App.addLog('创建备份', r.filename, '创建数据备份，大小 ' + (r.size_bytes / 1024).toFixed(1) + ' KB');
+    App.loadBackupList();
   }).catch(function(err) {
     alert('备份失败: ' + err.message + '\n请确保后端服务已启动');
   });
@@ -8083,6 +8262,7 @@ App.loadBackupList = function() {
 App.restoreBackup = function(filename) {
   if (!confirm('确定要从备份 ' + filename + ' 恢复数据？当前数据将被覆盖！')) return;
   App.API.restoreBackup(filename).then(function(r) {
+    App.addLog('恢复备份', filename, '从备份文件恢复数据');
     alert('数据恢复成功！请刷新页面查看。');
     location.reload();
   }).catch(function(err) {
@@ -8093,6 +8273,7 @@ App.restoreBackup = function(filename) {
 App.removeBackup = function(filename) {
   if (!confirm('确定删除备份 ' + filename + '？')) return;
   App.API.deleteBackup(filename).then(function() {
+    App.addLog('删除备份', filename, '删除备份文件');
     App.loadBackupList();
   }).catch(function(err) {
     alert('删除失败: ' + err.message);
@@ -9673,9 +9854,23 @@ App.getFilteredPotData = function(type) {
   var state = App.getFilterState('page-potential');
   var periodSel = document.getElementById('pImportPeriodFilter');
   var pf = periodSel ? (periodSel.value && periodSel.value !== 'all' && periodSel.value !== '无数据' ? periodSel.value : '') : '';
-  // 月份筛选
+
+  // ── Layer 1: 角色数据范围（强制，最高优先级）──
+  var user = App.loggedInUser || {};
+  var role = user.role || 'admin';
+  if (role === 'director' || role === 'interface') {
+    raw = raw.filter(function(r) { return r.dept3 === user.dept || r.dept4 === user.dept; });
+  } else if (role === 'manager') {
+    raw = raw.filter(function(r) { return r.dept5 === user.group || (r.dept4 === user.group && r.dept3 === user.dept); });
+  } else if (role === 'sales') {
+    raw = raw.filter(function(r) { return r.sales === user.username; });
+  }
+  // admin / gm / operation: 无限制
+
+  // ── Layer 2: 月份筛选 ──
   if (pf) raw = raw.filter(function(r) { return (r.snapshotPeriod || '') === pf; });
-  // 级联筛选：人员 > 小组 > 部门
+
+  // ── Layer 3: 顶部筛选（在角色范围内进一步缩小）──
   if (state.person !== 'all') raw = raw.filter(function(r) { return r.sales === state.person; });
   else if (state.group !== 'all') raw = raw.filter(function(r) { return r.dept5 === state.group || r.dept4 === state.group; });
   else if (state.team !== 'all') raw = raw.filter(function(r) { return r.dept3 === state.team || r.dept4 === state.team; });
@@ -9688,7 +9883,19 @@ App.getFilteredPotDataAllPeriods = function(type) {
     ? (App.ImportPotential.CustRAW || []).slice()
     : (App.ImportPotential.UserRAW || []).slice());
   var state = App.getFilterState('page-potential');
-  // 级联筛选：人员 > 小组 > 部门（不按月份过滤）
+
+  // ── Layer 1: 角色数据范围（强制，最高优先级）──
+  var user = App.loggedInUser || {};
+  var role = user.role || 'admin';
+  if (role === 'director' || role === 'interface') {
+    raw = raw.filter(function(r) { return r.dept3 === user.dept || r.dept4 === user.dept; });
+  } else if (role === 'manager') {
+    raw = raw.filter(function(r) { return r.dept5 === user.group || (r.dept4 === user.group && r.dept3 === user.dept); });
+  } else if (role === 'sales') {
+    raw = raw.filter(function(r) { return r.sales === user.username; });
+  }
+
+  // ── Layer 2: 顶部筛选（在角色范围内进一步缩小，不按月份）──
   if (state.person !== 'all') raw = raw.filter(function(r) { return r.sales === state.person; });
   else if (state.group !== 'all') raw = raw.filter(function(r) { return r.dept5 === state.group || r.dept4 === state.group; });
   else if (state.team !== 'all') raw = raw.filter(function(r) { return r.dept3 === state.team || r.dept4 === state.team; });
@@ -9896,6 +10103,17 @@ App.refreshAllSubTabs = function() {
 };
 
 App.initAll = function() {
+  // 从 localStorage 恢复权限配置（持久化存储）
+  try {
+    var saved = localStorage.getItem('pa_role_perms');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        App.ROLE_PERMISSIONS = parsed;
+      }
+    }
+  } catch(e) {}
+
   // 初始化所有页面的级联筛选下拉
   App.initPageFilters('page-overview');
   App.initPageFilters('page-width');
@@ -9926,9 +10144,12 @@ App.initAll = function() {
   setTimeout(function() {
   }, 200);
 
+  // 权限引导：隐藏无权限菜单 + 锁定筛选下拉
+  try { App.bootstrapPermissions(); } catch(e) { console.warn('bootstrapPermissions:', e); }
+
   // 记录系统启动
   if (App.operationLogs.length === 0 && App.loggedInUser) {
-    App.addLog('系统启动', App.loggedInUser.name + ' 登录后初始化完成，数据源已加载');
+    App.addLog('系统启动', '平台初始化', App.loggedInUser.name + ' 登录后数据源加载完成');
   }
 };
 
