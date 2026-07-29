@@ -118,7 +118,14 @@
           <div class="chart-wrap"><canvas id="chart-ov-dept-width"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title"><span class="left">📐 产品宽度历史趋势</span></div>
+          <div class="card-title">
+            <span class="left">📐 产品宽度历史趋势</span>
+            <span class="right" style="display:flex;gap:4px">
+              <button class="subtab active" data-ov-wt-dim="dept" onclick="App.switchOvWidthTrendDim('dept')">部门</button>
+              <button class="subtab" data-ov-wt-dim="group" onclick="App.switchOvWidthTrendDim('group')">组</button>
+              <button class="subtab" data-ov-wt-dim="person" onclick="App.switchOvWidthTrendDim('person')">个人</button>
+            </span>
+          </div>
           <div class="chart-wrap tall"><canvas id="chart-ov-width-trend"></canvas></div>
         </div>
       </div>

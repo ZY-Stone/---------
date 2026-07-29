@@ -664,6 +664,8 @@ App.resetFilters = function(pageId) {
 
 // ===== 数据总览 - 筛选联动（支持部门→组→个人级联 + 时间过滤） =====
 App.updateOverview = function() {
+  // 筛选变化时重置手动维度选择，恢复自动跟随
+  App._ovWidthTrendManual = false;
   var state = App.getFilterState('page-overview');
   var label = App.getFilterLabel(state);
 
@@ -1190,12 +1192,24 @@ App.goPotSalesPage = function(pg) {
 };
 
 // ===== 总览页产品宽度历史趋势 — 跟随筛选联动（总体数据变化） =====
-// 人均产品宽度历史趋势 — 维度切换
+// 人均产品宽度历史趋势 — 维度切换（宽度页）
 App._widthTrendDim = 'dept';
 App.switchWidthTrendDim = function(dim) {
   App._widthTrendDim = dim;
   document.querySelectorAll('#page-width [data-wt-dim]').forEach(function(b) {
     b.classList.toggle('active', b.getAttribute('data-wt-dim') === dim);
+  });
+  App._updateOvWidthTrend();
+};
+
+// 总览页维度切换（手动点击按钮时设置）
+App._ovWidthTrendDim = 'dept';
+App._ovWidthTrendManual = false;  // 用户是否手动选择了维度
+App.switchOvWidthTrendDim = function(dim) {
+  App._ovWidthTrendDim = dim;
+  App._ovWidthTrendManual = true;
+  document.querySelectorAll('#page-overview [data-ov-wt-dim]').forEach(function(b) {
+    b.classList.toggle('active', b.getAttribute('data-ov-wt-dim') === dim);
   });
   App._updateOvWidthTrend();
 };
@@ -1212,7 +1226,24 @@ App._updateOvWidthTrend = function() {
   var pageId = (ovChart && document.getElementById('page-overview') && document.getElementById('page-overview').classList.contains('active')) ? 'page-overview' : 'page-width';
   var state = App.getFilterState(pageId);
   var team = state.team, group = state.group, person = state.person;
-  var dim = App._widthTrendDim || 'dept';
+  // 根据当前可见页面选择对应的维度状态
+  var isOvPage = document.getElementById('page-overview') && document.getElementById('page-overview').classList.contains('active');
+  var dim;
+  if (isOvPage) {
+    // 总览页：自动跟随筛选级联（除非用户手动点击了维度按钮）
+    if (!App._ovWidthTrendManual) {
+      if (person !== 'all') App._ovWidthTrendDim = 'person';
+      else if (group !== 'all') App._ovWidthTrendDim = 'group';
+      else App._ovWidthTrendDim = 'dept';
+    }
+    dim = App._ovWidthTrendDim || 'dept';
+    // 同步按钮 active 状态
+    document.querySelectorAll('#page-overview [data-ov-wt-dim]').forEach(function(b) {
+      b.classList.toggle('active', b.getAttribute('data-ov-wt-dim') === dim);
+    });
+  } else {
+    dim = App._widthTrendDim || 'dept';
+  }
 
   // 横坐标：始终取全量数据的月份（不受筛选限制），确保 X 轴完整
   var allRaw = (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []);
@@ -1231,57 +1262,55 @@ App._updateOvWidthTrend = function() {
 
   // 构建 datasets（对所有图表共用）
   function buildDatasets(dim, labels, all, team, group, person) {
+    // 统一按实体聚合：每个实体一条趋势线
+    var entityKey;
+    if (dim === 'dept') entityKey = 'dept';
+    else if (dim === 'group') entityKey = 'group';
+    else entityKey = 'sales';
+
+    var entities = {};
+    // 预填组织架构中所有实体
     if (dim === 'dept') {
-      var avg=[], cust=[], user=[];
-      var isGs = function(r) { var g = (r.guishang||'').toString().trim(); return g==='是'||g==='1'; };
-      labels.forEach(function(m) {
-        var mData = all.filter(function(r) { return r.snapshotPeriod === m; });
-        var mCust = mData.filter(function(r) { return r.name; });
-        var mUser = mData.filter(function(r) { return r.user; });
-        avg.push(mData.length > 0 ? parseFloat((mData.reduce(function(s,r){return s+r.width;},0) / mData.length).toFixed(2)) : null);
-        cust.push(mCust.length > 0 ? parseFloat((mCust.filter(isGs).length / mCust.length * 100).toFixed(1)) : null);
-        user.push(mUser.length > 0 ? parseFloat((mUser.filter(isGs).length / mUser.length * 100).toFixed(1)) : null);
+      // 仅显示业务部门（排除运营部等非销售部门）
+      var VALID_DEPTS = ['客户销售一部','客户销售二部','大客户销售部','场景数字化销售部','行业一部','行业二部'];
+      VALID_DEPTS.forEach(function(dn) {
+        if (team !== 'all' && dn !== team) return;
+        if (!entities[dn]) entities[dn] = [];
       });
-      return [
-        { label: '平均产品宽度', data: avg, borderColor: '#1a56db', backgroundColor: 'rgba(26,86,219,.08)', tension: .3, fill: true, pointRadius: 4 },
-        { label: '规上客户产品宽度', data: cust, borderColor: '#10b981', tension: .3, fill: false, pointRadius: 4 },
-        { label: '规上用户产品宽度', data: user, borderColor: '#f59e0b', tension: .3, fill: false, pointRadius: 4 }
-      ];
+    } else if (dim === 'group') {
+      App.GROUPS.forEach(function(g) {
+        if (team !== 'all' && g.dept !== team) return;
+        if (group !== 'all' && g.n !== group) return;
+        if (!entities[g.n]) entities[g.n] = [];
+      });
+      App.BUSINESS_DEPTS.forEach(function(d) {
+        if (team !== 'all' && d.n !== team) return;
+        if (!App.GROUPS.some(function(g) { return g.dept === d.n; }) && !entities[d.n]) entities[d.n] = [];
+      });
     } else {
-      var entityKey = dim === 'group' ? 'group' : 'sales';
-      var entities = {};
-      if (dim === 'group') {
-        App.GROUPS.forEach(function(g) {
-          if (team !== 'all' && g.dept !== team) return;
-          if (group !== 'all' && g.n !== group) return;
-          if (!entities[g.n]) entities[g.n] = [];
-        });
-        App.BUSINESS_DEPTS.forEach(function(d) {
-          if (team !== 'all' && d.n !== team) return;
-          if (!App.GROUPS.some(function(g) { return g.dept === d.n; }) && !entities[d.n]) entities[d.n] = [];
-        });
-      } else {
-        App.PERSONS.forEach(function(p) {
-          if (team !== 'all' && p.dept !== team) return;
-          if (group !== 'all' && p.grp !== group) return;
-          if (person !== 'all' && p.n !== person) return;
-          if (!entities[p.n]) entities[p.n] = [];
-        });
-      }
-      all.forEach(function(r) {
-        var k = r[entityKey] || r.dept || '其他';
-        if (!entities[k]) entities[k] = [];
-        entities[k].push(r);
+      App.PERSONS.forEach(function(p) {
+        if (team !== 'all' && p.dept !== team) return;
+        if (group !== 'all' && p.grp !== group) return;
+        if (person !== 'all' && p.n !== person) return;
+        if (!entities[p.n]) entities[p.n] = [];
       });
-      var entityNames = Object.keys(entities).sort();
-      return entityNames.map(function(en, ei) {
-        var ed = {};
-        entities[en].forEach(function(r) {
-          var sp = r.snapshotPeriod;
-          if (!ed[sp]) ed[sp] = { total: 0, count: 0 };
-          ed[sp].total += (r.width || 0);
-          ed[sp].count++;
-        });
+    }
+    // 填入实际数据（部门维度仅接受预定义的6个业务部门）
+    all.forEach(function(r) {
+      var k = r[entityKey] || r.dept || '其他';
+      if (dim === 'dept' && !entities.hasOwnProperty(k)) return;  // 跳过非业务部门
+      if (!entities[k]) entities[k] = [];
+      entities[k].push(r);
+    });
+    var entityNames = Object.keys(entities).sort();
+    return entityNames.map(function(en, ei) {
+      var ed = {};
+      entities[en].forEach(function(r) {
+        var sp = r.snapshotPeriod;
+        if (!ed[sp]) ed[sp] = { total: 0, count: 0 };
+        ed[sp].total += (r.width || 0);
+        ed[sp].count++;
+      });
       var data = labels.map(function(m) {
         var e = ed[m];
         return e && e.count > 0 ? parseFloat((e.total / e.count).toFixed(2)) : null;
@@ -1293,7 +1322,6 @@ App._updateOvWidthTrend = function() {
         tension: .3, fill: false, pointRadius: 3
       };
     });
-  }
   } // end buildDatasets
 
   var datasets = buildDatasets(dim, labels, all, team, group, person);
@@ -8337,28 +8365,40 @@ App._updateDimBarChart = function(pageId, chartKey) {
     });
     if (labels.length === 0) { labels = [group]; widthData = [0]; }
   } else if (team !== 'all') {
-    // 按小组聚合该部门下各组的平均宽度
-    var grps2 = App.GROUPS.filter(function(g) { return g.dept === team; });
-    if (grps2.length) {
-      var byDept = {};
-      (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []).forEach(function(r) {
-        if (r.dept === team) {
-          var key = r.group || r.dept;
-          if (!byDept[key]) byDept[key] = { total: 0, count: 0 };
-          byDept[key].total += (r.width || 0);
-          byDept[key].count++;
-        }
-      });
-      labels = grps2.map(function(g) { return g.n; });
-      widthData = grps2.map(function(g) {
-        var m = byDept[g.n];
-        return m && m.count > 0 ? parseFloat((m.total / m.count).toFixed(2)) : 0;
-      });
+    // 选部门时：根据维度按钮切换「部门汇总」或「组展开」
+    var ovWantGroup = (pageId === 'page-overview' && App._ovWidthDim === 'group') ||
+                      (pageId === 'page-width' && App._wWidthDim === 'group');
+    if (ovWantGroup) {
+      // 按小组聚合该部门下各组的平均宽度
+      var grps2 = App.GROUPS.filter(function(g) { return g.dept === team; });
+      if (grps2.length) {
+        var byDept = {};
+        (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []).forEach(function(r) {
+          if (r.dept === team) {
+            var key = r.group || r.dept;
+            if (!byDept[key]) byDept[key] = { total: 0, count: 0 };
+            byDept[key].total += (r.width || 0);
+            byDept[key].count++;
+          }
+        });
+        labels = grps2.map(function(g) { return g.n; });
+        widthData = grps2.map(function(g) {
+          var m = byDept[g.n];
+          return m && m.count > 0 ? parseFloat((m.total / m.count).toFixed(2)) : 0;
+        });
+      } else {
+        labels = [team];
+        var m2 = App._computeAvgWidthByDept()[team];
+        widthData = m2 && m2.count > 0 ? [parseFloat((m2.total / m2.count).toFixed(2))] : [0];
+      }
     } else {
-      // 部门无下属组（场景数字化销售部、大客户销售部）
+      // 部门汇总：只显示该部门一根柱子
+      var deptTotal = 0, deptCount = 0;
+      (App.ImportData.UserGS || []).concat(App.ImportData.CustGS || []).forEach(function(r) {
+        if (r.dept === team) { deptTotal += (r.width || 0); deptCount++; }
+      });
       labels = [team];
-      var m2 = App._computeAvgWidthByDept()[team];
-      widthData = m2 && m2.count > 0 ? [parseFloat((m2.total / m2.count).toFixed(2))] : [0];
+      widthData = deptCount > 0 ? [parseFloat((deptTotal / deptCount).toFixed(2))] : [0];
     }
   } else {
     // 全部状态（无筛选）：按部门或组维度展示
