@@ -487,8 +487,8 @@ App.reloadPotentialCharts = function() {
       data: {
         labels: ['0', '1-3', '4-6', '7-10', '11-15', '16+'],
         datasets: [
-          { label: '对比组A', data: [42, 302, 66, 34, 18, 9], backgroundColor: '#1a56db', borderRadius: 4, barPercentage: .75 },
-          { label: '对比组B', data: [56, 350, 78, 28, 12, 5], backgroundColor: '#dc2626', borderRadius: 4, barPercentage: .75 }
+          { label: '对比组A', data: [0, 0, 0, 0, 0, 0], backgroundColor: '#1a56db', borderRadius: 4, barPercentage: .75 },
+          { label: '对比组B', data: [0, 0, 0, 0, 0, 0], backgroundColor: '#dc2626', borderRadius: 4, barPercentage: .75 }
         ]
       },
       options: {

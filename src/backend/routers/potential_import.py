@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 import json
 from database import get_db
-from models.sales_data import PotentialCust, PotentialUser
+from models.sales_data import PotentialCust, PotentialUser, SalesPotential
 from models.product_dict import ProductDict
 from models.group import Group
 from models.audit_log import AuditLog
@@ -401,16 +401,22 @@ def delete_width_records(type: str = "", db: Session = Depends(get_db)):
 @router.delete("/potential-cust")
 def delete_potential_cust(db: Session = Depends(get_db)):
     deleted = db.query(PotentialCust).filter(PotentialCust.tenant_id == 1).delete()
+    # 同步清理旧版 sales_potential 表残留数据
+    deleted_old = db.query(SalesPotential).filter(SalesPotential.tenant_id == 1).delete()
     db.commit()
-    if deleted > 0:
-        _write_audit(db, "数据删除", "潜力产品-客户", f"删除 {deleted} 条客户维度数据")
-    return {"ok": True, "deleted": deleted}
+    total = deleted + deleted_old
+    if total > 0:
+        _write_audit(db, "数据删除", "潜力产品-客户", f"删除 {deleted} 条客户维度数据 + {deleted_old} 条旧版数据")
+    return {"ok": True, "deleted": deleted, "deleted_old": deleted_old}
 
 
 @router.delete("/potential-user")
 def delete_potential_user(db: Session = Depends(get_db)):
     deleted = db.query(PotentialUser).filter(PotentialUser.tenant_id == 1).delete()
+    # 同步清理旧版 sales_potential 表残留数据（与 potential-cust 共享旧表，防止单边删除遗漏）
+    deleted_old = db.query(SalesPotential).filter(SalesPotential.tenant_id == 1).delete()
     db.commit()
-    if deleted > 0:
-        _write_audit(db, "数据删除", "潜力产品-用户", f"删除 {deleted} 条用户维度数据")
-    return {"ok": True, "deleted": deleted}
+    total = deleted + deleted_old
+    if total > 0:
+        _write_audit(db, "数据删除", "潜力产品-用户", f"删除 {deleted} 条用户维度数据 + {deleted_old} 条旧版数据")
+    return {"ok": True, "deleted": deleted, "deleted_old": deleted_old}

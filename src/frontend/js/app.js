@@ -3611,6 +3611,40 @@ App.initCompare = function() {
   App.renderCompare();
 };
 
+App.resetCompare = function() {
+  // 重置两个下拉到"未选择"状态
+  var selA = document.getElementById('compare-A');
+  var selB = document.getElementById('compare-B');
+  if (selA) selA.value = '';
+  if (selB) selB.value = '';
+  // 清空分布对比图
+  if (App.charts.wCompareDist) {
+    App.charts.wCompareDist.data.datasets[0].data = [0, 0, 0, 0, 0, 0];
+    App.charts.wCompareDist.data.datasets[1].data = [0, 0, 0, 0, 0, 0];
+    App.charts.wCompareDist.update();
+  }
+  // 清空雷达图
+  if (App.charts.wCompareRadar) {
+    App.charts.wCompareRadar.data.datasets.forEach(function(ds) { ds.data = ds.data.map(function() { return 0; }); });
+    App.charts.wCompareRadar.update();
+  }
+  // 清空指标表
+  App.setHTML('w-compare-summary-body', '<tr><td colspan="4" style="text-align:center;padding:24px;color:#9ca3af">请选择对比对象</td></tr>');
+  // 清空产品表
+  App.setHTML('w-compare-prod-body', '<tr><td colspan="4" style="text-align:center;padding:24px;color:#9ca3af">请选择对比对象</td></tr>');
+  // 重置表头
+  App.setText('w-compare-th-A', '对比组A');
+  App.setText('w-compare-th-A2', '对比组A 覆盖率');
+  App.setText('w-compare-th-B', '对比组B');
+  App.setText('w-compare-th-B2', '对比组B 覆盖率');
+  App.setText('compare-level', '请选择对比模式与对象');
+  // 清空图例
+  var legA = document.getElementById('w-compare-dist-legend-A');
+  if (legA) legA.innerHTML = '';
+  var legB = document.getElementById('w-compare-dist-legend-B');
+  if (legB) legB.innerHTML = '';
+};
+
 App.updateCompareDropdowns = function() {
   var mode = (document.getElementById('compare-mode') || {}).value || 'dept_mean';
   var selA = document.getElementById('compare-A');
@@ -6366,8 +6400,11 @@ App.API.sendWidth = async function(rows, type) {
 
 // 潜力产品-客户 → 后端
 App.API.sendPotCust = async function(rows) {
+  var headers = {'Content-Type':'application/json'};
+  var token = sessionStorage.getItem('pa_token');
+  if (token) { headers['Authorization'] = 'Bearer ' + token; }
   var resp = await fetch(App.API.BASE + '/potential-cust', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
+    method: 'POST', headers: headers,
     body: JSON.stringify({rows: rows})
   });
   if (!resp.ok) {
@@ -6379,8 +6416,11 @@ App.API.sendPotCust = async function(rows) {
 
 // 潜力产品-用户 → 后端
 App.API.sendPotUser = async function(rows) {
+  var headers = {'Content-Type':'application/json'};
+  var token = sessionStorage.getItem('pa_token');
+  if (token) { headers['Authorization'] = 'Bearer ' + token; }
   var resp = await fetch(App.API.BASE + '/potential-user', {
-    method: 'POST', headers: {'Content-Type':'application/json'},
+    method: 'POST', headers: headers,
     body: JSON.stringify({rows: rows})
   });
   if (!resp.ok) {
@@ -6392,12 +6432,21 @@ App.API.sendPotUser = async function(rows) {
 
 // ===== 潜力产品 — 数据导入与管理 =====
 App.ImportPotential = App.ImportPotential || {};
+App.ImportPotential._gen = 0;
 
 App.ImportPotential.persist = function() {
   // 产品数据不存 localStorage，防止数据泄露。每次都从后端 API 拉取最新数据。
 };
 
 App.ImportPotential.init = function() {
+  // 代际计数器：防止并发 init() 互相覆盖
+  var gen = ++App.ImportPotential._gen;
+
+  // 注意：不在这里同步清空 CustRAW/UserRAW！
+  // init() 可能在页面初始化、切Tab 等多时机被调用，
+  // 如果先清空再异步填充，中间窗口期会导致渲染空数据。
+  // 正确的做法：等后端数据返回后再决定是否替换，空响应/失败不覆盖现有数据。
+
   // 月份选择器上限设为当前月
   var snapInput = document.getElementById('pSnapshotPeriod');
   if (snapInput) {
@@ -6405,20 +6454,44 @@ App.ImportPotential.init = function() {
     snapInput.max = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
     if (!snapInput.value) snapInput.value = snapInput.max;
   }
-  // 先从 localStorage 恢复历史元数据（不含数据快照）
-  try {
-    var sh = localStorage.getItem('pa_p_history');
-    if (sh) App.ImportPotential.history = JSON.parse(sh);
-  } catch(e) { App.ImportPotential.history = []; }
+  // 如果最近执行过清空操作，跳过 localStorage 恢复并清空历史
+  if (sessionStorage.getItem('pa_w_cleared')) {
+    console.log('[ImportPotential.init] 检测到 pa_w_cleared 标记，跳过 localStorage 历史恢复');
+    App.ImportPotential.history = [];
+  } else {
+    // 先从 localStorage 恢复历史元数据（不含数据快照）
+    try {
+      var sh = localStorage.getItem('pa_p_history');
+      if (sh) {
+        var parsed = JSON.parse(sh);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          App.ImportPotential.history = parsed;
+          console.log('[ImportPotential.init] 从 localStorage 恢复 ' + parsed.length + ' 条历史');
+        }
+      }
+    } catch(e) { App.ImportPotential.history = []; }
+  }
 
-  // 从后端 API 拉取数据（不读 localStorage，防止数据泄露和权限绕过）
-  fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
-    if (d.rows && d.rows.length > 0) { App.ImportPotential.CustRAW = d.rows; }
-  }).catch(function(){}).finally(function(){
-    return fetch('/api/import/potential-user').then(function(r){return r.json();}).then(function(d){
-      if (d.rows && d.rows.length > 0) { App.ImportPotential.UserRAW = d.rows; }
-    }).catch(function(){});
-  }).finally(function(){
+  // 并行拉取 cust + user 数据，减少首屏等待时间
+  var fetchCust = fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
+    // 后端成功响应 → 同步前端状态：有数据则填充，无数据则清空（防止残留硬编码数据）
+    App.ImportPotential.CustRAW = (d.rows && d.rows.length > 0) ? d.rows : [];
+  }).catch(function(err){
+    console.warn('[ImportPotential.init] 客户数据 fetch 失败，保留现有数据:', err.message || err);
+  });
+
+  var fetchUser = fetch('/api/import/potential-user').then(function(r){return r.json();}).then(function(d){
+    // 后端成功响应 → 同步前端状态
+    App.ImportPotential.UserRAW = (d.rows && d.rows.length > 0) ? d.rows : [];
+  }).catch(function(err){
+    console.warn('[ImportPotential.init] 用户数据 fetch 失败，保留现有数据:', err.message || err);
+  });
+
+  Promise.all([fetchCust, fetchUser]).then(function(){
+    // 代际检查：如果有更新的 init() 已启动，跳过本次渲染
+    if (App.ImportPotential._gen !== gen) { console.log('[ImportPotential.init] 代际过期 gen=' + gen + ' 当前=' + App.ImportPotential._gen + '，跳过刷新'); return; }
+    // 一次成功加载后清除清空标记，后续 init() 不再跳过历史恢复
+    try { sessionStorage.removeItem('pa_w_cleared'); } catch(e) {}
     var deptSel = document.getElementById('pImportDeptFilter');
     if (deptSel) {
       var depts = App.ImportPotential.getDepts();
@@ -6531,10 +6604,11 @@ App.ImportPotential.handleUpload = function(input) {
       var userSheet = wb.SheetNames.find(function(n) { return n.indexOf('用户') >= 0; });
       console.log('[潜力导入] 客户sheet:', custSheet || '未找到', '用户sheet:', userSheet || '未找到');
 
+      var newCustRows = [];
+      var newUserRows = [];
       if (custSheet) {
         var custData = XLSX.utils.sheet_to_json(wb.Sheets[custSheet], { header: 1, defval: null });
         console.log('[潜力导入] 客户sheet行数:', custData.length, '表头:', custData[0]);
-        var newCustRows = [];
         if (custData.length > 1) {
           var cm = App.ImportPotential._buildColMap(custData[0], App.ImportPotential.CUST_MAP);
           console.log('[潜力导入] 客户列映射:', JSON.stringify(cm));
@@ -6568,7 +6642,6 @@ App.ImportPotential.handleUpload = function(input) {
           }).filter(function(r) { return r.product; });
         }
       }
-      var newUserRows = [];
       if (userSheet) {
         var userData = XLSX.utils.sheet_to_json(wb.Sheets[userSheet], { header: 1, defval: null });
         console.log('[潜力导入] 用户sheet行数:', userData.length, '表头:', userData[0]);
@@ -6632,8 +6705,9 @@ App.ImportPotential.handleUpload = function(input) {
       Promise.all([
         newCustRows.length > 0 ? App.API.sendPotCust(newCustRows) : Promise.resolve(null),
         newUserRows.length > 0 ? App.API.sendPotUser(newUserRows) : Promise.resolve(null)
-      ]).then(function() {
-        console.log('[潜力导入] 后端保存成功');
+      ]).then(function(results) {
+        var custResult = results[0], userResult = results[1];
+        console.log('[潜力导入] 后端保存成功:', custResult, userResult);
         App.ImportPotential.render();
         App.ImportPotential.saveToHistory(file.name, custN, custU, userN, userU);
         App.ImportPotential.persist();  // localStorage 兜底
@@ -6645,7 +6719,17 @@ App.ImportPotential.handleUpload = function(input) {
         msg += '\n潜力产品-用户: 新增' + userN + ' / 更新' + userU + '（共' + mergedUser.length + '）';
         if (!userSheet) msg += '\n  ⚠ 未找到用户sheet';
         msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
-        msg += '\n\n✅ 已同步后端数据库';
+        // 显示后端数据库实际写入结果
+        var dbInfo = [];
+        if (custResult && custResult.ok) {
+          dbInfo.push('客户维度：' + (custResult.message || '') + '（写入DB ' + (custResult.count||0) + ' 新增 / ' + (custResult.updated||0) + ' 更新）');
+        }
+        if (userResult && userResult.ok) {
+          dbInfo.push('用户维度：' + (userResult.message || '') + '（写入DB ' + (userResult.count||0) + ' 新增 / ' + (userResult.updated||0) + ' 更新）');
+        }
+        if (dbInfo.length > 0) {
+          msg += '\n\n📊 数据库写入结果：\n' + dbInfo.join('\n');
+        }
         alert(msg);
       }).catch(function(err) {
         console.error('[潜力导入] 后端保存失败:', err);
@@ -6804,17 +6888,44 @@ App.ImportPotential.exportCurrent = function() {
 // 清空潜力产品历史记录及数据
 App.ImportPotential.clearAll = function() {
   if (!confirm('确定清空所有潜力产品历史记录及后端数据吗？此操作不可撤销。')) return;
-  // 清后端
-  try { fetch('/api/import/potential-cust', { method: 'DELETE' }); } catch(e) {}
-  try { fetch('/api/import/potential-user', { method: 'DELETE' }); } catch(e) {}
-  // 清内存
+  // 先清内存
   App.ImportPotential.history = [];
   App.ImportPotential.CustRAW = [];
   App.ImportPotential.UserRAW = [];
+  App.WidthTeamMatrix.RAW = [];  // 清除团队×产品矩阵缓存
   App.ImportPotential.render();
   App.ImportPotential.renderHistory();
   App.ImportPotential.persist();  // localStorage 同步清空
   try { localStorage.removeItem('pa_p_history'); } catch(e) {}
+  try { sessionStorage.setItem('pa_w_cleared', '1'); } catch(e) {}
+  console.log('[ImportPotential.clearAll] localStorage pa_p_history 已清除，sessionStorage 标记已设置');
+  // 刷新所有潜力产品视图（团队排名、客户分析、产品覆盖等）
+  try { App.updatePotential(); } catch(e) {}
+  try { App.updateOverview(); } catch(e) {}
+  try { App.renderSellerPotentialRank(App.getFilterState('page-potential')); } catch(e) {}
+  try { App.WidthTeamMatrix.render(); } catch(e) {}
+  try { App.renderPotentialProductCoverage(); } catch(e) {}
+  try { App.renderPotentialTeamTab(); } catch(e) {}
+  try { App.renderPotentialCustTab(); } catch(e) {}
+  try { App.renderPotentialUserTab(); } catch(e) {}
+  try { App.Data.rebuildDerived(); } catch(e) {}
+  // 清后端并等待结果，使用带认证的 API 请求确保数据库真正删除
+  var baseUrl = (window.location.protocol === 'file:') ? 'http://localhost:8800' : window.location.origin;
+  var headers = { 'Content-Type': 'application/json' };
+  var token = sessionStorage.getItem('pa_token');
+  if (token) { headers['Authorization'] = 'Bearer ' + token; }
+  Promise.all([
+    fetch(baseUrl + '/api/import/potential-cust', { method: 'DELETE', headers: headers }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function(e) { console.warn('[pot.clearAll] cust DELETE failed:', e); return {ok:false, deleted:0}; }),
+    fetch(baseUrl + '/api/import/potential-user', { method: 'DELETE', headers: headers }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function(e) { console.warn('[pot.clearAll] user DELETE failed:', e); return {ok:false, deleted:0}; })
+  ]).then(function(results) {
+    var custDel = results[0] && results[0].deleted || 0;
+    var userDel = results[1] && results[1].deleted || 0;
+    console.log('[ImportPotential.clearAll] 后端已删除：客户=' + custDel + ' 用户=' + userDel);
+    alert('✅ 已清空所有潜力产品历史记录及后端数据（删除 ' + (custDel + userDel) + ' 条）');
+  }).catch(function(err) {
+    console.error('[ImportPotential.clearAll] 后端删除失败:', err);
+    alert('⚠️ 后端数据删除失败（' + (err.message || '网络错误') + '），刷新后数据可能会重新出现。请检查后端服务。');
+  });
 };
 
 // ===== 小组列表（从当前数据源提取 dept5 字段） =====

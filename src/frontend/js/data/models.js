@@ -687,92 +687,16 @@ App.WidthCustomer.getTeams = function() {
 };
 
 // ===== 团队维度 — 团队小组 × 潜力产品 · 本期 vs 同期对照表（乔梦杰版） =====
+// RAW 数据由导入数据驱动（ImportPotential.CustRAW / UserRAW → rebuildDerived()），初始为空
 App.WidthTeamMatrix = {};
 App.WidthTeamMatrix.PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
+App.WidthTeamMatrix.RAW = [];
 
 // 颗粒化数据: 每条记录 = 一个团队小组 × 一个产品 的本期/同期销售额（万元）
 // ===== 团队维度 — 大部门 × 产品 差距热图数据 =====
 App.WidthTeamGap = {};
 App.WidthTeamGap.PRODUCTS = ['IPC','NVR','门禁','球机','LCD与解码','存储','网络产品','智能交通'];
 App.WidthTeamGap.TEAMS = [];
-
-// 团队维度 — 团队小组 × 潜力产品 · 本期 vs 同期对照表
-App.WidthTeamMatrix = {};
-App.WidthTeamMatrix.PRODUCTS = ['观澜编码产品（非大模型）','出入口停车','前端大模型','网络产品','后端大模型(文搜大模型）','人员通道','会议平板与视频会议','国密产品','执法记录仪','物联安全','音频产品'];
-App.WidthTeamMatrix.RAW = [
-  // === 行业二部 - 政府行业组 ===
-  { team:'政府行业组-陈思源', product:'观澜编码产品（非大模型）', amount: 380, amountPrev: 290 },
-  { team:'政府行业组-陈思源', product:'出入口停车', amount: 120, amountPrev: 100 },
-  { team:'政府行业组-陈思源', product:'前端大模型', amount: 280, amountPrev: 0 },
-  { team:'政府行业组-陈思源', product:'网络产品', amount: 180, amountPrev: 200 },
-  { team:'政府行业组-陈思源', product:'后端大模型(文搜大模型）', amount: 340, amountPrev: 0 },
-  { team:'政府行业组-陈思源', product:'人员通道', amount: 65, amountPrev: 55 },
-  { team:'政府行业组-陈思源', product:'会议平板与视频会议', amount: 220, amountPrev: 180 },
-  { team:'政府行业组-陈思源', product:'国密产品', amount: 150, amountPrev: 120 },
-  { team:'政府行业组-陈思源', product:'执法记录仪', amount: 90, amountPrev: 70 },
-  { team:'政府行业组-陈思源', product:'物联安全', amount: 160, amountPrev: 130 },
-  { team:'政府行业组-陈思源', product:'音频产品', amount: 85, amountPrev: 95 },
-  // === 行业二部 - 公安交警行业组 ===
-  { team:'公安交警行业组-张伟', product:'观澜编码产品（非大模型）', amount: 280, amountPrev: 240 },
-  { team:'公安交警行业组-张伟', product:'出入口停车', amount: 80, amountPrev: 70 },
-  { team:'公安交警行业组-张伟', product:'前端大模型', amount: 60, amountPrev: 0 },
-  { team:'公安交警行业组-张伟', product:'网络产品', amount: 150, amountPrev: 160 },
-  { team:'公安交警行业组-张伟', product:'后端大模型(文搜大模型）', amount: 120, amountPrev: 0 },
-  { team:'公安交警行业组-张伟', product:'人员通道', amount: 90, amountPrev: 85 },
-  { team:'公安交警行业组-张伟', product:'会议平板与视频会议', amount: 180, amountPrev: 150 },
-  { team:'公安交警行业组-张伟', product:'国密产品', amount: 200, amountPrev: 170 },
-  { team:'公安交警行业组-张伟', product:'执法记录仪', amount: 240, amountPrev: 200 },
-  { team:'公安交警行业组-张伟', product:'物联安全', amount: 130, amountPrev: 110 },
-  { team:'公安交警行业组-张伟', product:'音频产品', amount: 60, amountPrev: 65 },
-  // === 行业一部 - 工业企业一组 ===
-  { team:'工业企业一组-潘仲楠', product:'观澜编码产品（非大模型）', amount: 250, amountPrev: 220 },
-  { team:'工业企业一组-潘仲楠', product:'出入口停车', amount: 60, amountPrev: 50 },
-  { team:'工业企业一组-潘仲楠', product:'前端大模型', amount: 180, amountPrev: 0 },
-  { team:'工业企业一组-潘仲楠', product:'网络产品', amount: 120, amountPrev: 110 },
-  { team:'工业企业一组-潘仲楠', product:'后端大模型(文搜大模型）', amount: 80, amountPrev: 0 },
-  { team:'工业企业一组-潘仲楠', product:'人员通道', amount: 45, amountPrev: 40 },
-  { team:'工业企业一组-潘仲楠', product:'会议平板与视频会议', amount: 140, amountPrev: 120 },
-  { team:'工业企业一组-潘仲楠', product:'国密产品', amount: 70, amountPrev: 60 },
-  { team:'工业企业一组-潘仲楠', product:'执法记录仪', amount: 55, amountPrev: 45 },
-  { team:'工业企业一组-潘仲楠', product:'物联安全', amount: 100, amountPrev: 85 },
-  { team:'工业企业一组-潘仲楠', product:'音频产品', amount: 80, amountPrev: 75 },
-  // === 行业一部 - 智慧建筑组 ===
-  { team:'智慧建筑组-赵启超', product:'观澜编码产品（非大模型）', amount: 180, amountPrev: 160 },
-  { team:'智慧建筑组-赵启超', product:'出入口停车', amount: 150, amountPrev: 130 },
-  { team:'智慧建筑组-赵启超', product:'前端大模型', amount: 100, amountPrev: 0 },
-  { team:'智慧建筑组-赵启超', product:'网络产品', amount: 90, amountPrev: 95 },
-  { team:'智慧建筑组-赵启超', product:'后端大模型(文搜大模型）', amount: 200, amountPrev: 0 },
-  { team:'智慧建筑组-赵启超', product:'人员通道', amount: 55, amountPrev: 50 },
-  { team:'智慧建筑组-赵启超', product:'会议平板与视频会议', amount: 110, amountPrev: 95 },
-  { team:'智慧建筑组-赵启超', product:'国密产品', amount: 80, amountPrev: 70 },
-  { team:'智慧建筑组-赵启超', product:'执法记录仪', amount: 40, amountPrev: 35 },
-  { team:'智慧建筑组-赵启超', product:'物联安全', amount: 180, amountPrev: 150 },
-  { team:'智慧建筑组-赵启超', product:'音频产品', amount: 50, amountPrev: 55 },
-  // === 客户销售一部 - 客户销售一组 ===
-  { team:'客户销售一组-张栋柱', product:'观澜编码产品（非大模型）', amount: 160, amountPrev: 140 },
-  { team:'客户销售一组-张栋柱', product:'出入口停车', amount: 70, amountPrev: 60 },
-  { team:'客户销售一组-张栋柱', product:'前端大模型', amount: 80, amountPrev: 0 },
-  { team:'客户销售一组-张栋柱', product:'网络产品', amount: 100, amountPrev: 105 },
-  { team:'客户销售一组-张栋柱', product:'后端大模型(文搜大模型）', amount: 60, amountPrev: 0 },
-  { team:'客户销售一组-张栋柱', product:'人员通道', amount: 40, amountPrev: 38 },
-  { team:'客户销售一组-张栋柱', product:'会议平板与视频会议', amount: 90, amountPrev: 80 },
-  { team:'客户销售一组-张栋柱', product:'国密产品', amount: 50, amountPrev: 45 },
-  { team:'客户销售一组-张栋柱', product:'执法记录仪', amount: 35, amountPrev: 30 },
-  { team:'客户销售一组-张栋柱', product:'物联安全', amount: 70, amountPrev: 60 },
-  { team:'客户销售一组-张栋柱', product:'音频产品', amount: 60, amountPrev: 58 },
-  // === 客户销售二部 - 客户销售六组 ===
-  { team:'客户销售六组-陈刚', product:'观澜编码产品（非大模型）', amount: 140, amountPrev: 125 },
-  { team:'客户销售六组-陈刚', product:'出入口停车', amount: 55, amountPrev: 48 },
-  { team:'客户销售六组-陈刚', product:'前端大模型', amount: 50, amountPrev: 0 },
-  { team:'客户销售六组-陈刚', product:'网络产品', amount: 85, amountPrev: 90 },
-  { team:'客户销售六组-陈刚', product:'后端大模型(文搜大模型）', amount: 40, amountPrev: 0 },
-  { team:'客户销售六组-陈刚', product:'人员通道', amount: 35, amountPrev: 32 },
-  { team:'客户销售六组-陈刚', product:'会议平板与视频会议', amount: 75, amountPrev: 68 },
-  { team:'客户销售六组-陈刚', product:'国密产品', amount: 45, amountPrev: 40 },
-  { team:'客户销售六组-陈刚', product:'执法记录仪', amount: 30, amountPrev: 25 },
-  { team:'客户销售六组-陈刚', product:'物联安全', amount: 55, amountPrev: 48 },
-  { team:'客户销售六组-陈刚', product:'音频产品', amount: 50, amountPrev: 52 }
-];
 
 // ===== 数据导入与管理 — 数据源（按导入模版表头设计） =====
 App.ImportData = {};

@@ -1248,6 +1248,7 @@
 .chart-wrap {
   position: relative;
   height: 270px;
+  overflow: hidden;
 }
 
 .chart-wrap.tall {

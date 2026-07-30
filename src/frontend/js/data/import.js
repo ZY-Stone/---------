@@ -1,6 +1,7 @@
 // ===== 数据导入与管理 — 总表上传/数据源切换/自动去重更新 =====
 App.ImportData = App.ImportData || {};
 App.ImportData.currentView = 'user';
+App.ImportData._gen = 0;  // 代际计数器：防止 init() 异步回调覆盖刚导入的数据
 App.ImportData.PRODS = App.WidthCustomer.PRODUCTS || [];
 App.ImportData.shortProds = App.ImportData.PRODS.map(function(p) { return p.length > 5 ? p.substring(0, 5) + '…' : p; });
 
@@ -51,8 +52,15 @@ App.ImportData.parseGuishang = function(v) {
 };
 
 App.ImportData.history = [];
+App.ImportData.UserGS = [];
+App.ImportData.CustGS = [];
 App.ImportData.init = function() {
-  // 产品数据不读 localStorage，防止数据泄露。每次都从后端 API 拉取。
+  // 用代际计数器防止异步回调覆盖刚导入的数据
+  var gen = ++App.ImportData._gen;
+  // 注意：不在这里清空 UserGS/CustGS！
+  // init() 可能在页面初始化、切Tab、导入等多个时机被调用，
+  // 如果同步清空再异步填充，中间窗口期会导致图表渲染空数据。
+  // 正确的做法：等后端数据返回后再决定是否替换。
 
   // 月份选择器上限设为当前月（不可上传未来月份数据）
   var now = new Date();
@@ -68,29 +76,48 @@ App.ImportData.init = function() {
     periodSel.setAttribute('data-inited', '1');
     periodSel.value = thisMonth;
   }
-  // 恢复历史记录（兼容旧格式）
-  try { var sh = localStorage.getItem('pa_w_history'); if (sh) {
-    App.ImportData.history = JSON.parse(sh);
-    App.ImportData.history.forEach(function(h) {
-      if (h.userCount !== undefined && h.userNew === undefined) { h.userNew = h.userCount; h.custNew = h.custCount; h.userUpd = 0; h.custUpd = 0; }
-    });
-  }} catch(e) {}
-  // 从后端 API 拉取数据（所有数据存储在后端，前端不缓存）
-  fetch('/api/import/width-records?type=user').then(function(r) { return r.json(); }).then(function(data) {
+  // 如果最近执行过清空操作，跳过 localStorage 恢复
+  if (sessionStorage.getItem('pa_w_cleared')) {
+    console.log('[ImportData.init] 检测到 pa_w_cleared 标记，跳过 localStorage 历史恢复');
+    App.ImportData.history = [];
+  } else {
+    // 恢复历史记录（兼容旧格式）
+    try { var sh = localStorage.getItem('pa_w_history'); if (sh) {
+      var parsed = JSON.parse(sh);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        App.ImportData.history = parsed;
+        App.ImportData.history.forEach(function(h) {
+          if (h.userCount !== undefined && h.userNew === undefined) { h.userNew = h.userCount; h.custNew = h.custCount; h.userUpd = 0; h.custUpd = 0; }
+        });
+        console.log('[ImportData.init] 从 localStorage 恢复 ' + parsed.length + ' 条历史');
+      }
+    }} catch(e) { console.warn('[ImportData.init] localStorage 历史解析失败:', e); }
+  }
+  // 并行拉取 user + cust 数据，减少首屏等待时间
+  var fetchUser = fetch('/api/import/width-records?type=user').then(function(r) { return r.json(); }).then(function(data) {
     if (data.rows && data.rows.length > 0) {
       App.ImportData.UserGS = data.rows.map(function(r) {
         return { user: r.name, siebel: r.siebel, industry: r.industry, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level, snapshotPeriod: r.snapshotPeriod || '' };
       });
     }
-  }).catch(function(){}).finally(function() {
-    return fetch('/api/import/width-records?type=cust').then(function(r) { return r.json(); }).then(function(data) {
-      if (data.rows && data.rows.length > 0) {
-        App.ImportData.CustGS = data.rows.map(function(r) {
-          return { name: r.name, siebel: r.siebel, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level, snapshotPeriod: r.snapshotPeriod || '' };
-        });
-      }
-    }).catch(function(){});
-  }).finally(function() {
+  }).catch(function(err) {
+    console.warn('[ImportData.init] 用户数据 fetch 失败，保留现有数据:', err.message || err);
+  });
+
+  var fetchCust = fetch('/api/import/width-records?type=cust').then(function(r) { return r.json(); }).then(function(data) {
+    if (data.rows && data.rows.length > 0) {
+      App.ImportData.CustGS = data.rows.map(function(r) {
+        return { name: r.name, siebel: r.siebel, sales: r.sales, group: r.group, dept: App.ImportData.resolveDept(r.group), guishang: r.guishang, width: r.width, prods: r.prods, contact: r.contact, level: r.level, snapshotPeriod: r.snapshotPeriod || '' };
+      });
+    }
+  }).catch(function(err) {
+    console.warn('[ImportData.init] 客户数据 fetch 失败，保留现有数据:', err.message || err);
+  });
+
+  Promise.all([fetchUser, fetchCust]).then(function() {
+    // 一次成功加载后清除清空标记，后续 init() 不再跳过历史恢复
+    try { sessionStorage.removeItem('pa_w_cleared'); } catch(e) {}
+    if (App.ImportData._gen !== gen) { console.log('[ImportData.init] 代际过期 gen=' + gen + ' 当前=' + App.ImportData._gen + '，跳过刷新'); return; }
     App.ImportData.syncToRaw();
     App.ImportData.updateTags();
     App.ImportData.renderHistory();
@@ -199,33 +226,58 @@ App.ImportData.deleteHistory = function(idx) {
 // 清空所有历史记录及数据（含后端）
 App.ImportData.clearAll = function() {
   if (!confirm('确定清空所有历史记录及后端数据吗？此操作不可撤销。')) return;
-  // 清后端
-  try { fetch('/api/import/width-records', { method: 'DELETE' }); } catch(e) {}
-  // 清内存
+  // 递增代际，让所有进行中的 init() 回调失效
+  App.ImportData._gen++;
+  // 先清本地（防止重复点击）
   App.ImportData.history = [];
   App.ImportData.UserGS = [];
   App.ImportData.CustGS = [];
+  App.WidthTeamMatrix.RAW = [];  // 清除潜力产品团队矩阵缓存
   App.ImportData.syncToRaw();
   App.ImportData.updateTags();
   App.ImportData.render();
   App.ImportData.renderHistory();
   App.WidthDetail.clearCache();
-  App.updateWidth();
+  // 清除 localStorage 并打上 session 标记，防止 init() 恢复
   try { localStorage.removeItem('pa_w_history'); } catch(e) {}
+  try { sessionStorage.setItem('pa_w_cleared', '1'); } catch(e) {}
+  console.log('[clearAll] localStorage pa_w_history 已清除，sessionStorage 标记已设置');
+  // 刷新所有产品宽度子视图（团队分析、客户明细、用户明细等）
+  try { App.updateWidth(); } catch(e) {}
+  try { App.WidthCustomer.render(); } catch(e) {}
+  try { App.WidthUser.render(); } catch(e) {}
+  try { App.renderWidthUserTab(); } catch(e) {}
+  try { App.renderWidthGapAnalysis(); } catch(e) {}
+  try { App.renderWidthProductTab(); } catch(e) {}
+  try { App.updatePotential(); } catch(e) {}
+  try { App.updateOverview(); } catch(e) {}
+  try { App.Data.rebuildDerived(); } catch(e) {}
+  // 清后端并等待结果，使用带认证的 API 请求确保数据库真正删除
+  var baseUrl = (window.location.protocol === 'file:') ? 'http://localhost:8800' : window.location.origin;
+  var headers = { 'Content-Type': 'application/json' };
+  var token = sessionStorage.getItem('pa_token');
+  if (token) { headers['Authorization'] = 'Bearer ' + token; }
+  fetch(baseUrl + '/api/import/width-records', { method: 'DELETE', headers: headers })
+    .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function(data) {
+      console.log('[clearAll] 后端已删除 ' + (data.deleted || 0) + ' 条产品宽度数据');
+      alert('✅ 已清空所有历史记录及后端数据（删除 ' + (data.deleted || 0) + ' 条）');
+    })
+    .catch(function(err) {
+      console.error('[clearAll] 后端删除失败:', err);
+      alert('⚠️ 后端数据删除失败（' + (err.message || '网络错误') + '），请检查后端服务是否正常运行。刷新页面后数据可能会重新出现。');
+    });
 };
 
 // 清空全部导入数据并重置平台
 App.ImportData.resetAll = function() {
   if (!confirm('确定清空所有导入数据吗？\n\n此操作将清除：\n- 产品宽度导入数据\n- 潜力产品导入数据\n- 所有历史记录\n- 本地缓存\n- 后端数据库\n\n此操作不可撤销！')) return;
-  // 先调后端清空数据库（不 await，避免阻塞）
-  try { fetch('/api/import/width-records', { method: 'DELETE' }); } catch(e) {}
-  try { fetch('/api/import/potential-cust', { method: 'DELETE' }); } catch(e) {}
-  try { fetch('/api/import/potential-user', { method: 'DELETE' }); } catch(e) {}
-  // 清空 localStorage
+  // 清空 localStorage（先清本地缓存防止并行重写）
   try { localStorage.removeItem('pa_w_history'); } catch(e) {}
   try { localStorage.removeItem('pa_p_history'); } catch(e) {}
   try { localStorage.removeItem('pa_width_user'); } catch(e) {}
   try { localStorage.removeItem('pa_width_cust'); } catch(e) {}
+  try { sessionStorage.setItem('pa_w_cleared', '1'); } catch(e) {}
   // 清空内存
   App.ImportData.UserGS = [];
   App.ImportData.CustGS = [];
@@ -234,6 +286,7 @@ App.ImportData.resetAll = function() {
   App.WidthUser = App.WidthUser || {};
   App.WidthUser.RAW = [];
   App.WidthCustomer.RAW_MERGED = [];
+  App.WidthTeamMatrix.RAW = [];  // 清除潜力产品团队矩阵缓存
   if (App.ImportPotential) {
     App.ImportPotential.CustRAW = [];
     App.ImportPotential.UserRAW = [];
@@ -251,7 +304,26 @@ App.ImportData.resetAll = function() {
     try { App.ImportPotential.renderHistory(); } catch(e) {}
   }
   try { App.addLog('删除数据', '全部数据', '清空所有导入数据（含后端数据库）'); } catch(e) {}
-  alert('✅ 已清空所有导入数据（含后端数据库），平台已恢复空状态');
+  // 清后端数据库，使用带认证的 API 请求确保真正删除
+  var baseUrl = (window.location.protocol === 'file:') ? 'http://localhost:8800' : window.location.origin;
+  var headers = { 'Content-Type': 'application/json' };
+  var token = sessionStorage.getItem('pa_token');
+  if (token) { headers['Authorization'] = 'Bearer ' + token; }
+  Promise.all([
+    fetch(baseUrl + '/api/import/width-records', { method: 'DELETE', headers: headers }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function(e) { console.warn('[resetAll] width DELETE failed:', e); return {ok:false, deleted:0}; }),
+    fetch(baseUrl + '/api/import/potential-cust', { method: 'DELETE', headers: headers }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function(e) { console.warn('[resetAll] pot-cust DELETE failed:', e); return {ok:false, deleted:0}; }),
+    fetch(baseUrl + '/api/import/potential-user', { method: 'DELETE', headers: headers }).then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).catch(function(e) { console.warn('[resetAll] pot-user DELETE failed:', e); return {ok:false, deleted:0}; })
+  ]).then(function(results) {
+    var widthDel = results[0] && results[0].deleted || 0;
+    var custDel = results[1] && results[1].deleted || 0;
+    var userDel = results[2] && results[2].deleted || 0;
+    var total = widthDel + custDel + userDel;
+    console.log('[resetAll] 后端已删除：宽度=' + widthDel + ' 客户=' + custDel + ' 用户=' + userDel);
+    alert('✅ 已清空所有导入数据（后端共删除 ' + total + ' 条），平台已恢复空状态');
+  }).catch(function(err) {
+    console.error('[resetAll] 后端删除失败:', err);
+    alert('⚠️ 后端数据删除部分失败（' + (err.message || '网络错误') + '），刷新后数据可能残留。请检查后端服务。');
+  });
 };
 
 // 下载当前数据为 Excel
@@ -515,6 +587,8 @@ App.ImportData.handleUpload = function(input) {
         else { App.ImportData.CustGS.push(r); nc++; _custIdx[_key] = App.ImportData.CustGS.length - 1; }
       });
       console.log('[宽度导入] 解析完成: 用户', nu, '新增/', uu, '更新, 客户', nc, '新增/', uc, '更新, 潜力矩阵', potMatrix.length, '条');
+      // 递增代际计数器，防止 init() 中尚未完成的异步请求覆盖刚导入的数据
+      App.ImportData._gen++;
 
       if (!foundUser && !foundCust && potMatrix.length === 0) {
         alert('未识别到用户/客户/潜力产品数据。\n\n当前sheets: ' + wb.SheetNames.join(', '));
@@ -544,9 +618,14 @@ App.ImportData.handleUpload = function(input) {
         return {name: r.name, siebel: r.siebel||'', sales: r.sales||'', dept: r.group||r.dept||'', guishang: r.guishang||'否', width: r.width||0, prods: r.prods||{}, contact: r.contact||'', level: r.level||'', snapshotPeriod: r.snapshotPeriod||''};
       });
       var snapshot = (document.getElementById('wSnapshotPeriod') || {}).value || '';
+      // 构造带认证的 API 请求（确保后端 @require_perm 校验通过）
+      var baseUrl = (window.location.protocol === 'file:') ? 'http://localhost:8800' : window.location.origin;
+      var authHeaders = {'Content-Type':'application/json'};
+      var token = sessionStorage.getItem('pa_token');
+      if (token) { authHeaders['Authorization'] = 'Bearer ' + token; }
       var apiCalls = [];
-      if (userApiRows.length > 0) { console.log('[导入] 发送用户数据:', userApiRows.length, '条, 月份:', snapshot); apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: userApiRows, type: 'user', snapshotPeriod: snapshot }) })); }
-      if (custApiRows.length > 0) { console.log('[导入] 发送客户数据:', custApiRows.length, '条, 月份:', snapshot); apiCalls.push(fetch('/api/import/width-records', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ rows: custApiRows, type: 'cust', snapshotPeriod: snapshot }) })); }
+      if (userApiRows.length > 0) { console.log('[导入] 发送用户数据:', userApiRows.length, '条, 月份:', snapshot); apiCalls.push(fetch(baseUrl + '/api/import/width-records', { method: 'POST', headers: authHeaders, body: JSON.stringify({ rows: userApiRows, type: 'user', snapshotPeriod: snapshot }) }).then(function(r) { return r.json(); })); }
+      if (custApiRows.length > 0) { console.log('[导入] 发送客户数据:', custApiRows.length, '条, 月份:', snapshot); apiCalls.push(fetch(baseUrl + '/api/import/width-records', { method: 'POST', headers: authHeaders, body: JSON.stringify({ rows: custApiRows, type: 'cust', snapshotPeriod: snapshot }) }).then(function(r) { return r.json(); })); }
       var msg = '导入完成! 文件: ' + file.name;
       msg += '\n\n规上用户: 新增' + nu + ' / 更新' + uu + '（共' + App.ImportData.UserGS.length + '）';
       if (!foundUser) msg += '\n  ⚠ 未找到用户sheet';
@@ -555,10 +634,17 @@ App.ImportData.handleUpload = function(input) {
       if (!foundCust) msg += '\n  ⚠ 未找到客户sheet';
       msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
       if (apiCalls.length > 0) {
-        Promise.all(apiCalls).then(function() {
-          console.log('[宽度导入] 后端保存成功');
+        Promise.all(apiCalls).then(function(results) {
+          var dbInfo = [];
+          results.forEach(function(r, i) {
+            if (r && r.ok) {
+              dbInfo.push((r.message || '') + '（写入DB ' + (r.count||0) + ' 新增 / ' + (r.updated||0) + ' 更新）');
+            }
+          });
+          console.log('[宽度导入] 后端保存成功:', dbInfo.join('; '));
           try { App.addLog('数据导入', file.name, '产品宽度导入: 用户' + App.ImportData.UserGS.length + '条 / 客户' + App.ImportData.CustGS.length + '条'); } catch(e) {}
-          alert(msg + '\n\n✅ 已同步后端数据库');
+          var dbMsg = dbInfo.length > 0 ? '\n\n📊 数据库写入结果：\n' + dbInfo.join('\n') : '';
+          alert(msg + dbMsg);
         }).catch(function(err) {
           console.error('[宽度导入] 后端保存失败:', err);
           try { App.addLog('数据导入', file.name, '产品宽度导入(后端保存失败): 用户' + App.ImportData.UserGS.length + '条 / 客户' + App.ImportData.CustGS.length + '条'); } catch(e) {}
