@@ -200,6 +200,39 @@ App.API = (function() {
     });
   }
 
+  // ── 产品宽度 CRUD ──
+  function updateWidthRecord(id, data) {
+    return request('/api/import/width-records/' + id, { method: 'PUT', body: data });
+  }
+  function deleteWidthRecord(id) {
+    return request('/api/import/width-records/' + id, { method: 'DELETE' });
+  }
+  function batchDeleteWidthRecords(ids) {
+    return request('/api/import/width-records/batch-delete', { method: 'POST', body: { ids: ids } });
+  }
+
+  // ── 潜力产品客户 CRUD ──
+  function updatePotCust(id, data) {
+    return request('/api/import/potential-cust/' + id, { method: 'PUT', body: data });
+  }
+  function deletePotCust(id) {
+    return request('/api/import/potential-cust/' + id, { method: 'DELETE' });
+  }
+  function batchDeletePotCust(ids) {
+    return request('/api/import/potential-cust/batch-delete', { method: 'POST', body: { ids: ids } });
+  }
+
+  // ── 潜力产品用户 CRUD ──
+  function updatePotUser(id, data) {
+    return request('/api/import/potential-user/' + id, { method: 'PUT', body: data });
+  }
+  function deletePotUser(id) {
+    return request('/api/import/potential-user/' + id, { method: 'DELETE' });
+  }
+  function batchDeletePotUser(ids) {
+    return request('/api/import/potential-user/batch-delete', { method: 'POST', body: { ids: ids } });
+  }
+
   // ── 公开 API ──
   return {
     BASE: BASE,
@@ -247,6 +280,17 @@ App.API = (function() {
     deleteBackup: deleteBackup,
     getDownloadUrl: getDownloadUrl,
     uploadBackup: uploadBackup,
+
+    // Data CRUD
+    updateWidthRecord: updateWidthRecord,
+    deleteWidthRecord: deleteWidthRecord,
+    batchDeleteWidthRecords: batchDeleteWidthRecords,
+    updatePotCust: updatePotCust,
+    deletePotCust: deletePotCust,
+    batchDeletePotCust: batchDeletePotCust,
+    updatePotUser: updatePotUser,
+    deletePotUser: deletePotUser,
+    batchDeletePotUser: batchDeletePotUser,
 
     // Permission
     getMyPerms: function() { return request('/api/permission/my-perms'); },

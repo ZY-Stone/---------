@@ -47,6 +47,8 @@ def filter_by_scope(query, model, user: dict,
                     dept_field: str = "dept3",
                     group_field: str = "dept5",
                     sales_field: str = "sales"):
+    if not user or not user.get("user_id"):
+        return query
     scope = scope_data_scope(user)
     role = user.get("role", "")
     username = user.get("username", "")

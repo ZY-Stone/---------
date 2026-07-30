@@ -311,6 +311,54 @@ document.addEventListener('click', function(e) {
 });
 
 // ===== 通用模态框 =====
+// ===== 导入结果弹窗（统一 UI，居中显示）=====
+App.showImportResult = function(success, title, file, sections, warnings) {
+  var icon = success ? '✅' : '❌';
+  var statusColor = success ? '#059669' : '#dc2626';
+  var statusText = success ? '导入成功' : '导入失败';
+
+  var html = '<div style="text-align:center;padding:8px 0 16px">';
+  html += '<div style="font-size:48px;margin-bottom:8px">' + icon + '</div>';
+  html += '<div style="font-size:18px;font-weight:700;color:' + statusColor + ';margin-bottom:4px">' + statusText + '</div>';
+  html += '<div style="font-size:13px;color:#6b7280">文件: ' + App.escapeHtml(file) + '</div>';
+  html += '</div>';
+
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">';
+  html += '<thead><tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb">';
+  html += '<th style="padding:8px 12px;text-align:left">维度</th>';
+  html += '<th style="padding:8px 12px;text-align:center">新增</th>';
+  html += '<th style="padding:8px 12px;text-align:center">更新</th>';
+  html += '<th style="padding:8px 12px;text-align:center">合计</th>';
+  html += '<th style="padding:8px 12px;text-align:right">数据库写入</th>';
+  html += '</tr></thead><tbody>';
+
+  sections.forEach(function(s) {
+    html += '<tr style="border-bottom:1px solid #f3f4f6">';
+    html += '<td style="padding:8px 12px;font-weight:600">' + s.label + '</td>';
+    html += '<td style="padding:8px 12px;text-align:center;color:#059669;font-weight:600">' + (s.newCount || 0) + '</td>';
+    html += '<td style="padding:8px 12px;text-align:center;color:#d97706;font-weight:600">' + (s.updCount || 0) + '</td>';
+    html += '<td style="padding:8px 12px;text-align:center;font-weight:700">' + (s.total || 0) + '</td>';
+    html += '<td style="padding:8px 12px;text-align:right;font-size:11px;color:#6b7280">' + (s.dbMsg || '-') + '</td>';
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  if (warnings && warnings.length > 0) {
+    html += '<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:12px">';
+    warnings.forEach(function(w) { html += '⚠ ' + App.escapeHtml(w) + '<br>'; });
+    html += '</div>';
+  }
+
+  if (!success) {
+    html += '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 12px;font-size:12px;color:#991b1b;margin-bottom:12px">';
+    html += '⚠ 数据仅在前端内存中，刷新后消失。请检查后端服务是否正常运行。';
+    html += '</div>';
+  }
+
+  var footer = '<span style="font-size:12px;color:#9ca3af">导入结果</span>';
+  App.showModal(icon + ' ' + title, html, footer);
+};
+
 App.showModal = function(title, bodyHtml, footerHtml, noClose) {
   var overlay = document.getElementById('appModal');
   if (!overlay) return;
@@ -1860,6 +1908,9 @@ App.updatePotential = function() {
   // 差距看板 + 增长结构 跟随筛选联动
   try { App.renderTeamScorecard(state); } catch(e) { console.warn('renderTeamScorecard 失败:', e); }
   try { App.renderGapDeepDive(state); } catch(e) { console.warn('renderGapDeepDive 失败:', e); }
+
+  // ===== 差距看板 · 横向竞争 =====
+  try { App.renderGapAnalysis(); } catch(e) { console.warn('renderGapAnalysis 失败:', e); }
 
   // ===== 产品维度排名表 — 传入筛选状态 =====
   // ===== 预警概览卡片 =====
@@ -5674,7 +5725,16 @@ App.aggregateTeamSales = function() {
     var amt = r.amount || 0;
     var prev = r.amountPrev || 0;
     // 部门级
-    var dept = r.dept3 || r.dept4 || '';
+    // dept3 为空时，通过 GROUPS 映射从 dept4/dept5 反查部门
+    var dept = r.dept3 || '';
+    if (!dept) {
+      var grpName = r.dept4 || r.dept5 || '';
+      if (grpName) {
+        var g = (App.GROUPS || []).find(function(x) { return x.n === grpName; });
+        dept = g ? g.dept : grpName;
+      }
+    }
+    if (!dept) dept = r.dept4 || '';
     if (dept) {
       if (!result.dept[dept]) result.dept[dept] = { sales: 0, prev: 0, prods: {}, custSet: {} };
       var dd = result.dept[dept];
@@ -6454,23 +6514,21 @@ App.ImportPotential.init = function() {
     snapInput.max = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
     if (!snapInput.value) snapInput.value = snapInput.max;
   }
-  // 如果最近执行过清空操作，跳过 localStorage 恢复并清空历史
-  if (sessionStorage.getItem('pa_w_cleared')) {
-    console.log('[ImportPotential.init] 检测到 pa_w_cleared 标记，跳过 localStorage 历史恢复');
-    App.ImportPotential.history = [];
-  } else {
-    // 先从 localStorage 恢复历史元数据（不含数据快照）
-    try {
-      var sh = localStorage.getItem('pa_p_history');
-      if (sh) {
-        var parsed = JSON.parse(sh);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          App.ImportPotential.history = parsed;
-          console.log('[ImportPotential.init] 从 localStorage 恢复 ' + parsed.length + ' 条历史');
-        }
-      }
-    } catch(e) { App.ImportPotential.history = []; }
-  }
+  // 每次 init 都从后端拉取最新数据，不恢复 localStorage 历史（历史仅在当前会话有效）
+  // 从 localStorage 恢复导入历史记录（仅元数据，不含数据快照）
+  var potStoredHistory = [];
+  try {
+    potStoredHistory = JSON.parse(localStorage.getItem('pa_potential_history') || '[]');
+  } catch(e) { potStoredHistory = []; }
+  App.ImportPotential.history = potStoredHistory.map(function(h) {
+    return {
+      id: h.id, file: h.file, time: h.time,
+      custNew: h.custNew, custUpd: h.custUpd,
+      userNew: h.userNew, userUpd: h.userUpd,
+      total: h.total, person: h.person,
+      snapshotPeriod: h.snapshotPeriod
+    };
+  });
 
   // 并行拉取 cust + user 数据，减少首屏等待时间
   var fetchCust = fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
@@ -6490,8 +6548,6 @@ App.ImportPotential.init = function() {
   Promise.all([fetchCust, fetchUser]).then(function(){
     // 代际检查：如果有更新的 init() 已启动，跳过本次渲染
     if (App.ImportPotential._gen !== gen) { console.log('[ImportPotential.init] 代际过期 gen=' + gen + ' 当前=' + App.ImportPotential._gen + '，跳过刷新'); return; }
-    // 一次成功加载后清除清空标记，后续 init() 不再跳过历史恢复
-    try { sessionStorage.removeItem('pa_w_cleared'); } catch(e) {}
     var deptSel = document.getElementById('pImportDeptFilter');
     if (deptSel) {
       var depts = App.ImportPotential.getDepts();
@@ -6708,42 +6764,39 @@ App.ImportPotential.handleUpload = function(input) {
       ]).then(function(results) {
         var custResult = results[0], userResult = results[1];
         console.log('[潜力导入] 后端保存成功:', custResult, userResult);
+        console.log('[潜力导入] 客户 ' + custN + '新增/' + custU + '更新 共' + mergedCust.length + ' | 用户 ' + userN + '新增/' + userU + '更新 共' + mergedUser.length);
         App.ImportPotential.render();
         App.ImportPotential.saveToHistory(file.name, custN, custU, userN, userU);
         App.ImportPotential.persist();  // localStorage 兜底
         try { App.Data.rebuildDerived(); } catch(e) { console.warn(e); }
         App.addLog('数据导入', file.name, '导入客户' + mergedCust.length + '条 / 用户' + mergedUser.length + '条');
-        var msg = '导入完成! 文件: ' + file.name;
+        // 构建成功提示，同时用 alert + toast 两种方式通知
+        var msg = '✅ 导入完成! 文件: ' + file.name;
         msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
         if (!custSheet) msg += '\n  ⚠ 未找到客户sheet';
         msg += '\n潜力产品-用户: 新增' + userN + ' / 更新' + userU + '（共' + mergedUser.length + '）';
         if (!userSheet) msg += '\n  ⚠ 未找到用户sheet';
         msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
         // 显示后端数据库实际写入结果
-        var dbInfo = [];
-        if (custResult && custResult.ok) {
-          dbInfo.push('客户维度：' + (custResult.message || '') + '（写入DB ' + (custResult.count||0) + ' 新增 / ' + (custResult.updated||0) + ' 更新）');
-        }
-        if (userResult && userResult.ok) {
-          dbInfo.push('用户维度：' + (userResult.message || '') + '（写入DB ' + (userResult.count||0) + ' 新增 / ' + (userResult.updated||0) + ' 更新）');
-        }
-        if (dbInfo.length > 0) {
-          msg += '\n\n📊 数据库写入结果：\n' + dbInfo.join('\n');
-        }
-        alert(msg);
+        // 弹窗提示导入结果
+        var warnings = [];
+        if (!custSheet) warnings.push('未找到客户sheet');
+        if (!userSheet) warnings.push('未找到用户sheet');
+        App.showImportResult(true, '潜力产品导入', file.name, [
+          { label: '客户维度', newCount: custN, updCount: custU, total: newCustRows.length,
+            dbMsg: custResult && custResult.ok ? (custResult.message || '') : '未写入' },
+          { label: '用户维度', newCount: userN, updCount: userU, total: newUserRows.length,
+            dbMsg: userResult && userResult.ok ? (userResult.message || '') : '未写入' }
+        ], warnings);
       }).catch(function(err) {
         console.error('[潜力导入] 后端保存失败:', err);
         App.ImportPotential.render();
-        App.ImportPotential.persist();  // localStorage 兜底
+        App.ImportPotential.persist();
         App.addLog('数据导入', file.name, '导入客户' + mergedCust.length + '条 / 用户' + mergedUser.length + '条（后端保存失败）');
-        var msg = '导入完成! 文件: ' + file.name;
-        msg += '\n\n潜力产品-客户: 新增' + custN + ' / 更新' + custU + '（共' + mergedCust.length + '）';
-        if (!custSheet) msg += '\n  ⚠ 未找到客户sheet';
-        msg += '\n潜力产品-用户: 新增' + userN + ' / 更新' + userU + '（共' + mergedUser.length + '）';
-        if (!userSheet) msg += '\n  ⚠ 未找到用户sheet';
-        msg += '\n\n识别sheets: ' + wb.SheetNames.join(', ');
-        msg += '\n\n⚠️ 后端保存失败：' + err.message + '\n数据仅在前端内存中，刷新后消失。';
-        alert(msg);
+        App.showImportResult(false, '潜力产品导入', file.name, [
+          { label: '客户维度', newCount: custN, updCount: custU, total: newCustRows.length, dbMsg: '❌ ' + err.message },
+          { label: '用户维度', newCount: userN, updCount: userU, total: newUserRows.length, dbMsg: '❌ ' + err.message }
+        ], [!custSheet && '未找到客户sheet', !userSheet && '未找到用户sheet'].filter(Boolean));
       });
     } catch(err) {
       console.error('[潜力导入] 解析失败:', err);
@@ -6774,13 +6827,27 @@ App.ImportPotential.saveToHistory = function(fileName, custN, custU, userN, user
   App.ImportPotential.history.unshift(entry);
   if (App.ImportPotential.history.length > 20) App.ImportPotential.history = App.ImportPotential.history.slice(0, 20);
   App.ImportPotential.renderHistory();
-  try {
-    var meta = App.ImportPotential.history.map(function(h) {
-      return {id:h.id, file:h.file, time:h.time, custNew:h.custNew||0, custUpd:h.custUpd||0, userNew:h.userNew||0, userUpd:h.userUpd||0, custCount:h.custCount, userCount:h.userCount, total:h.total, person:h.person, snapshotPeriod:h.snapshotPeriod||''};
-    });
-    localStorage.setItem('pa_p_history', JSON.stringify(meta));
-  } catch(e) {}
+  App.ImportPotential._persistHistory();
 };
+
+// 将潜力产品历史记录元数据持久化到 localStorage
+App.ImportPotential._persistHistory = function() {
+  var meta = App.ImportPotential.history.map(function(h) {
+    return {
+      id: h.id, file: h.file, time: h.time,
+      custNew: h.custNew, custUpd: h.custUpd,
+      userNew: h.userNew, userUpd: h.userUpd,
+      total: h.total, person: h.person,
+      snapshotPeriod: h.snapshotPeriod
+    };
+  });
+  try {
+    localStorage.setItem('pa_potential_history', JSON.stringify(meta));
+  } catch(e) {
+    console.warn('[ImportPotential] 历史记录持久化失败:', e.message);
+  }
+};
+
 App.ImportPotential.renderHistory = function() {
   var tbody = document.getElementById('pImportHistoryTable');
   if (!tbody) return;
@@ -6843,12 +6910,6 @@ App.ImportPotential.deleteHistory = function(idx) {
 
   App.ImportPotential.render();
   App.ImportPotential.renderHistory();
-  try {
-    var meta = App.ImportPotential.history.map(function(h) {
-      return {id:h.id, file:h.file, time:h.time, custNew:h.custNew||0, custUpd:h.custUpd||0, userNew:h.userNew||0, userUpd:h.userUpd||0, custCount:h.custCount, userCount:h.userCount, total:h.total, person:h.person, snapshotPeriod:h.snapshotPeriod||''};
-    });
-    localStorage.setItem('pa_p_history', JSON.stringify(meta));
-  } catch(e) {}
 };
 
 // 下载当前潜力产品数据为 Excel
@@ -6890,15 +6951,12 @@ App.ImportPotential.clearAll = function() {
   if (!confirm('确定清空所有潜力产品历史记录及后端数据吗？此操作不可撤销。')) return;
   // 先清内存
   App.ImportPotential.history = [];
+  try { localStorage.removeItem('pa_potential_history'); } catch(e) {}
   App.ImportPotential.CustRAW = [];
   App.ImportPotential.UserRAW = [];
   App.WidthTeamMatrix.RAW = [];  // 清除团队×产品矩阵缓存
   App.ImportPotential.render();
   App.ImportPotential.renderHistory();
-  App.ImportPotential.persist();  // localStorage 同步清空
-  try { localStorage.removeItem('pa_p_history'); } catch(e) {}
-  try { sessionStorage.setItem('pa_w_cleared', '1'); } catch(e) {}
-  console.log('[ImportPotential.clearAll] localStorage pa_p_history 已清除，sessionStorage 标记已设置');
   // 刷新所有潜力产品视图（团队排名、客户分析、产品覆盖等）
   try { App.updatePotential(); } catch(e) {}
   try { App.updateOverview(); } catch(e) {}
@@ -7146,7 +7204,8 @@ App.ImportPotential.render = function() {
       if (idx < lefts.length) return 'position:sticky;left:' + lefts[idx] + 'px;background:#fff;z-index:1';
       return '';
     }
-    html += '<tr id="' + rowId + '">';
+    var compoundKey = isCust ? (r.custName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'') : (r.userName||'') + '|' + (r.product||'') + '|' + (r.snapshotPeriod||'');
+    html += '<tr id="' + rowId + '" data-backend-id="' + (r.id || '') + '" data-snapshot-period="' + (r.snapshotPeriod || '') + '" data-compound-key="' + compoundKey.replace(/"/g,'&quot;') + '">';
     html += '<td style="' + freezeTd(0) + '"><input type="checkbox" class="p-imp-check" data-row="' + rowId + '"></td>';
     html += '<td style="' + freezeTd(1) + '">' + rowNum + '</td>';
     if (isCust) {
@@ -7253,37 +7312,64 @@ App.ImportPotential.deselectAll = function() {
 App.ImportPotential.batchDelete = function() {
   var checked = document.querySelectorAll('.p-imp-check:checked');
   if (checked.length === 0) { alert('请先勾选要删除的记录'); return; }
-  if (!confirm('确定删除选中的 ' + checked.length + ' 条记录？')) return;
+
+  // 必须选择月份才能删除（防止误删其他月份数据）
+  var periodSel = document.getElementById('pImportPeriodFilter');
+  var selectedPeriod = periodSel ? (periodSel.value && periodSel.value !== 'all' && periodSel.value !== '' ? periodSel.value : '') : '';
+  if (!selectedPeriod) {
+    alert('请先在「月份」下拉筛选器中选择要删除的月份，再进行删除操作。\n\n此限制是为了防止误删其他月份的数据。');
+    return;
+  }
+
+  if (!confirm('确定删除 ' + selectedPeriod + ' 月份下选中的 ' + checked.length + ' 条记录吗？\n\n此操作不可撤销，仅删除所选月份的数据。')) return;
   var isCust = App.ImportPotential.currentDS === 'cust';
   var data = isCust ? App.ImportPotential.CustRAW : App.ImportPotential.UserRAW;
-  var toRemove = [];
+
+  // 收集选中行的后端 ID 和 compound key（通过 DOM 属性校验月份）
+  var ids = [];
+  var compoundKeys = [];
   checked.forEach(function(cb) {
-    var row = document.getElementById(cb.getAttribute('data-row'));
-    if (row) toRemove.push(row);
-  });
-  // 根据 row index 删除（从后往前删）
-  var indices = toRemove.map(function(r) { return parseInt(r.id.split('-').pop()); }).sort(function(a, b) { return b - a; });
-  indices.forEach(function(i) { data.splice(i, 1); });
-
-  // 同步后端：删除该类型的全部记录后重新上传剩余数据
-  var type = isCust ? 'cust' : 'user';
-  var endpoint = isCust ? '/api/import/potential-cust' : '/api/import/potential-user';
-  var remaining = data;
-  try {
-    fetch(endpoint, { method: 'DELETE' }).then(function() {
-      if (remaining.length > 0) {
-        fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: remaining })
-        }).catch(function() {});
+    var rowEl = document.getElementById(cb.getAttribute('data-row'));
+    if (rowEl) {
+      var rowPeriod = rowEl.getAttribute('data-snapshot-period') || '';
+      if (rowPeriod !== selectedPeriod) return;  // 跳过非当前月份的勾选（安全校验）
+      var bid = rowEl.getAttribute('data-backend-id');
+      if (bid) {
+        ids.push(parseInt(bid));
+      } else {
+        // 无后端 ID（刚导入未刷新），用 compound key 兜底前端删除
+        var ck = rowEl.getAttribute('data-compound-key') || '';
+        if (ck) compoundKeys.push(ck);
       }
-    }).catch(function() {});
-  } catch(e) {}
+    }
+  });
 
-  try { App.addLog('删除数据', '潜力产品', '批量删除 ' + indices.length + ' 条' + (isCust ? '客户' : '用户') + '记录'); } catch(e) {}
-  App.ImportPotential.persist();  // localStorage 同步
-  App.ImportPotential.render();
+  // 先从后端精确删除（按 ID），再从当前月份的数据中清除
+  var delFn = isCust ? App.API.batchDeletePotCust : App.API.batchDeletePotUser;
+  var delPromise = ids.length > 0 ? delFn(ids) : Promise.resolve({ ok: true, deleted: 0 });
+
+  delPromise.then(function(r) {
+    console.log('[pot.batchDelete] 后端删除 ' + (r.deleted || ids.length) + ' 条, 月份: ' + selectedPeriod + ', 前端 compoundKey: ' + compoundKeys.length + ' 条');
+    var idSet = {};
+    ids.forEach(function(id) { idSet[id] = true; });
+    var ckSet = {};
+    compoundKeys.forEach(function(ck) { ckSet[ck] = true; });
+    for (var i = data.length - 1; i >= 0; i--) {
+      if ((data[i].snapshotPeriod || '') !== selectedPeriod) continue;
+      // 有后端 ID 则精确匹配，无 ID 则用 compound key 匹配
+      var ck = isCust ? (data[i].custName||'') + '|' + (data[i].product||'') + '|' + (data[i].snapshotPeriod||'') : (data[i].userName||'') + '|' + (data[i].product||'') + '|' + (data[i].snapshotPeriod||'');
+      if ((data[i].id && idSet[data[i].id]) || ckSet[ck]) {
+        data.splice(i, 1);
+      }
+    }
+    var totalDeleted = ids.length + compoundKeys.length;
+    try { App.addLog('删除数据', '潜力产品', '批量删除 ' + selectedPeriod + ' 月份 ' + totalDeleted + ' 条' + (isCust ? '客户' : '用户') + '记录'); } catch(e) {}
+    App.ImportPotential.persist();
+    App.ImportPotential.render();
+    try { App.Data.rebuildDerived(); } catch(e) {}
+  }).catch(function(err) {
+    alert('❌ 后端删除失败: ' + err.message + '\n请刷新页面重试');
+  });
 };
 
 // ===== 账号管理-用户管理Tab渲染 =====
@@ -8515,23 +8601,90 @@ App.renderTenantOrgs = function() {
 var _origRenderGapAnalysis = App.renderGapAnalysis;
 App.renderGapAnalysis = function() {
   var dimEl = document.getElementById('gap-dim');
+  // 根据顶部筛选状态约束可用维度（与团队维度按钮规则一致）
+  var state = App.getFilterState('page-potential');
+  var person = state.person, group = state.group;
+  var availableDims = App.getAvailableTeamDims();
+  // 同步下拉框可见选项
+  if (dimEl) {
+    var allOpts = dimEl.querySelectorAll('option');
+    allOpts.forEach(function(opt) {
+      var optDim = opt.value;
+      if (optDim === 'dept3') optDim = 'dept';
+      else if (optDim === 'dept4') optDim = 'group';
+      opt.style.display = (availableDims.indexOf(optDim) >= 0) ? '' : 'none';
+    });
+    // 当前选中维度不可用时自动降级
+    var curOptDim = dimEl.value === 'dept3' ? 'dept' : (dimEl.value === 'dept4' ? 'group' : 'person');
+    if (availableDims.indexOf(curOptDim) === -1) {
+      dimEl.value = availableDims[availableDims.length - 1] === 'group' ? 'dept4' : availableDims[availableDims.length - 1];
+    }
+  }
   var dim = dimEl ? dimEl.value : 'dept3';
   var gapData = App.GAP_DATA[dim] || App.GAP_DATA['dept3'];
 
+  // 当硬编码数据为空时，从真实导入数据动态计算部门/团队/人员差距数据
+  if (!gapData || !gapData.teams || gapData.teams.length === 0) {
+    var realAgg = App.aggregateTeamSales();
+    var allProdsReal = realAgg._allProds;
+    if (dim === 'dept3' || dim === 'dept') {
+      var deptKeys = Object.keys(realAgg.dept).filter(function(d) { return realAgg.dept[d].sales > 0; }).sort(function(a,b) { return realAgg.dept[b].sales - realAgg.dept[a].sales; });
+      gapData = {
+        prods: allProdsReal,
+        teams: deptKeys.map(function(d) {
+          var rd = realAgg.dept[d];
+          return { team: d, data: allProdsReal.map(function(p) { return Math.round((rd.prods[p] || 0)); }) };
+        })
+      };
+    } else if (dim === 'dept4' || dim === 'group') {
+      var grpKeys = Object.keys(realAgg.group).filter(function(g) { return realAgg.group[g].sales > 0; }).sort(function(a,b) { return realAgg.group[b].sales - realAgg.group[a].sales; });
+      gapData = {
+        prods: allProdsReal,
+        teams: grpKeys.map(function(g) {
+          var rg = realAgg.group[g];
+          return { team: g, data: allProdsReal.map(function(p) { return Math.round((rg.prods[p] || 0)); }) };
+        })
+      };
+    } else if (dim === 'person') {
+      var personKeys = Object.keys(realAgg.person).filter(function(p) { return realAgg.person[p].sales > 0; }).sort(function(a,b) { return realAgg.person[b].sales - realAgg.person[a].sales; });
+      gapData = {
+        prods: allProdsReal,
+        teams: personKeys.map(function(p) {
+          var rp = realAgg.person[p];
+          return { team: p, data: allProdsReal.map(function(prod) { return Math.round((rp.prods[prod] || 0)); }) };
+        })
+      };
+    }
+  }
+
   // 读取页级筛选状态，按部门过滤
-  var pageState = App.getFilterState('page-potential');
-  var pageTeam = pageState.team;
-  if (gapData && gapData.teams && pageTeam !== 'all') {
-    var filteredTeams = gapData.teams.filter(function(t) {
-      return t.team === pageTeam || t.team.indexOf(pageTeam) >= 0;
-    });
-    gapData = { prods: gapData.prods, teams: filteredTeams };
+  if (gapData && gapData.teams) {
+    // 按部门过滤
+    if (state.team !== 'all') {
+      gapData.teams = gapData.teams.filter(function(t) {
+        return t.team === state.team || t.team.indexOf(state.team) >= 0;
+      });
+    }
+    // 按小组过滤（缩小到该组及其部门范围内）
+    if (state.group !== 'all') {
+      gapData.teams = gapData.teams.filter(function(t) {
+        return t.team === state.group;
+      });
+    }
+    // 按个人过滤
+    if (state.person !== 'all') {
+      gapData.teams = gapData.teams.filter(function(t) {
+        return t.team === state.person;
+      });
+    }
+    gapData = { prods: gapData.prods, teams: gapData.teams };
   }
 
   // 更新粒度提示
   var labelMap = { dept3: '大部门', dept4: '团队小组', person: '销售人员' };
   var levelEl = document.getElementById('gap-level');
-  if (levelEl) levelEl.textContent = '当前粒度: ' + (labelMap[dim] || '大部门') + (pageTeam !== 'all' ? ' · ' + pageTeam : '');
+  var scopeLabel = state.team !== 'all' ? state.team : (state.group !== 'all' ? state.group : (state.person !== 'all' ? state.person : ''));
+  if (levelEl) levelEl.textContent = '当前粒度: ' + (labelMap[dim] || '大部门') + (scopeLabel ? ' · ' + scopeLabel : '');
 
   // 1. 渲染差距明细表
   if (gapData && gapData.prods && gapData.teams && gapData.teams.length > 0) {

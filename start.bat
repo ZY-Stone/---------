@@ -1,43 +1,44 @@
-@echo off
-chcp 65001 >nul
-title 产品分析一体化平台 v2.0
-
-echo.
-echo ╔══════════════════════════════════════════════════╗
-echo ║    产品分析一体化平台 v2.0                        ║
-echo ║    销售分析 · 产品宽度 · 潜力产品                 ║
-echo ╚══════════════════════════════════════════════════╝
-echo.
+哦@echo off
+title Platform Starter
 
 cd /d "%~dp0"
 
-:: ── 1. 关闭旧进程 ──
-echo [1/4] 关闭旧服务进程...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8800" ^| findstr "LISTENING" 2^>nul') do (
+echo.
+echo ================================================
+echo   Product Analysis Platform v3.2
+echo ================================================
+echo.
+
+rem [1/5] Free port 8800
+echo [1/5] Free port 8800...
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8800 "') do (
     taskkill /F /PID %%a >nul 2>&1
-    echo        已关闭 PID %%a
 )
-echo        端口 8800 已清理
+timeout /t 2 /nobreak >nul
+echo        Done
 echo.
 
-:: ── 2. 清除 Python 缓存 ──
-echo [2/4] 清除 Python 缓存...
-if exist "src\backend\__pycache__" rmdir /s /q "src\backend\__pycache__" 2>nul
-for /d /r "src\backend" %%d in (__pycache__) do rmdir /s /q "%%d" 2>nul
-echo        缓存已清除
+rem [2/5] Clear Python cache
+echo [2/5] Clear Python cache...
+for /d /r "src\backend" %%d in (__pycache__) do (
+    if exist "%%d" rmdir /s /q "%%d" 2>nul
+)
+del /s /q "src\backend\*.pyc" 2>nul
+echo        Done
 echo.
 
-:: ── 3. 查找 Python ──
-echo [3/4] 查找 Python 环境...
+rem [3/5] Find Python
+echo [3/5] Find Python...
 set PYTHON=
 set "PY312=%LocalAppData%\Programs\Python\Python312\python.exe"
-if exist "%PY312%" ( set PYTHON=%PY312% & goto :found )
+set "PY313=%LocalAppData%\Programs\Python\Python313\python.exe"
+if exist "%PY312%" ( set "PYTHON=%PY312%" & goto :found )
+if exist "%PY313%" ( set "PYTHON=%PY313%" & goto :found )
 for %%p in (python3 python py) do (
     where %%p >nul 2>&1
-    if not errorlevel 1 ( set PYTHON=%%p & goto :found )
+    if not errorlevel 1 ( set "PYTHON=%%p" & goto :found )
 )
-echo [ERROR] Python not found! Install Python 3.10+
-echo         https://www.python.org/downloads/
+echo [ERROR] Python not found. Install Python 3.10+
 pause
 exit /b 1
 
@@ -45,20 +46,49 @@ exit /b 1
 echo        %PYTHON%
 echo.
 
-:: ── 4. 启动平台 ──
-echo [4/4] 启动平台...
-echo.
-echo ╔══════════════════════════════════════════════════╗
-echo ║  ✅ 请通过浏览器访问:                             ║
-echo ║     http://localhost:8800                        ║
-echo ║                                                  ║
-echo ║  ❌ 不要直接打开 index.html 文件                  ║
-echo ║                                                  ║
-echo ║  默认账号: admin / admin123                      ║
-echo ║  按 Ctrl+C 停止服务                              ║
-echo ╚══════════════════════════════════════════════════╝
-echo.
+rem [4/5] Init DB and start backend
+echo [4/5] Init DB + start backend...
+cd /d "%~dp0src\backend"
 
-%PYTHON% start.py
+"%PYTHON%" -c "from database import init_db; init_db(); from seed import seed; seed(); print('DB OK')"
 
+start "Backend" /MIN "%PYTHON%" main.py
+cd /d "%~dp0"
+
+rem [5/5] Wait for backend ready
+echo [5/5] Wait for backend...
+for /l %%i in (1,1,30) do (
+    timeout /t 1 /nobreak >nul
+    curl -s -m 2 http://localhost:8800/health 2>nul | findstr "ok" >nul
+    if not errorlevel 1 goto :ready
+)
+
+echo.
+echo ================================================
+echo   ERROR: Backend did not start within 30s
+echo.
+echo   Check:
+echo   1. pip install -r requirements.txt
+echo   2. Port 8800 is free
+echo   3. Database is not corrupted
+echo ================================================
 pause
+exit /b 1
+
+:ready
+echo.
+echo ================================================
+echo   Platform Ready
+echo.
+echo   URL:      http://localhost:8800
+echo   API Docs: http://localhost:8800/docs
+echo   Login:    admin / admin123
+echo.
+echo   Press Ctrl+C to stop
+echo ================================================
+echo.
+
+start http://localhost:8800
+
+echo Backend running. Close this window to stop.
+pause >nul

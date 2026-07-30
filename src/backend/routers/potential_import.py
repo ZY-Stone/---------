@@ -1,5 +1,5 @@
 """潜力产品导入 API — 写入 potential_cust / potential_user 表（含 RBAC 权限 + 数据隔离）"""
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import json
@@ -315,6 +315,7 @@ async def import_width_records(request: Request, db: Session = Depends(get_db)):
 
 def _width_row_to_dict(r: WidthRecord) -> dict:
     return {
+        "id": r.id,
         "siebel": r.siebel or "", "industry": r.industry or "",
         "name": r.name or "", "sales": r.sales or "",
         "dept": r.dept or "", "group": r.group_name or "",
@@ -348,6 +349,7 @@ def get_potential_cust(request: Request = None, db: Session = Depends(get_db)):
     result = []
     for r in rows:
         result.append({
+            "id": r.id,
             "dept2": r.dept2 or "", "dept3": r.dept3 or "", "dept4": r.dept4 or "", "dept5": r.dept5 or "",
             "sales": r.sales or "", "contact": r.contact or "",
             "product": r.product or "", "custName": r.cust_name or "", "userName": r.user_name or "",
@@ -370,6 +372,7 @@ def get_potential_user(request: Request = None, db: Session = Depends(get_db)):
     result = []
     for r in rows:
         result.append({
+            "id": r.id,
             "center": r.center or "", "dept3": r.dept3 or "", "dept4": r.dept4 or "",
             "sales": r.sales or "", "contact": r.contact or "",
             "userName": r.user_name or "", "industry": r.industry or "",
@@ -420,3 +423,181 @@ def delete_potential_user(db: Session = Depends(get_db)):
     if total > 0:
         _write_audit(db, "数据删除", "潜力产品-用户", f"删除 {deleted} 条用户维度数据 + {deleted_old} 条旧版数据")
     return {"ok": True, "deleted": deleted, "deleted_old": deleted_old}
+
+
+# ═══════════════════════════════════════════
+# 单行 CRUD API：支持前端增删改查持久化到数据库
+# ═══════════════════════════════════════════
+
+# ── WidthRecord 单行 CRUD ──
+
+@router.put("/width-records/{record_id}")
+@require_perm("import_data")
+async def update_width_record(record_id: int, request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    body = await request.json()
+    rec = db.query(WidthRecord).filter(
+        WidthRecord.id == record_id,
+        WidthRecord.tenant_id == u.get("tenant_id", 1)
+    ).first()
+    if not rec:
+        raise HTTPException(404, "记录不存在")
+    for key in ("name", "siebel", "sales", "dept", "group_name", "guishang",
+                "width", "contact", "level", "snapshot_period", "industry"):
+        if key in body:
+            setattr(rec, key, body.get(key))
+    if "prods" in body:
+        rec.prods_json = json.dumps(body["prods"], ensure_ascii=False)
+    db.commit()
+    _write_audit(db, "数据编辑", "产品宽度", f"更新记录 #{rec.id}")
+    return {"ok": True, "id": rec.id}
+
+
+@router.delete("/width-records/{record_id}")
+@require_perm("import_data")
+def delete_width_record(record_id: int, request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    rec = db.query(WidthRecord).filter(
+        WidthRecord.id == record_id,
+        WidthRecord.tenant_id == u.get("tenant_id", 1)
+    ).first()
+    if not rec:
+        raise HTTPException(404, "记录不存在")
+    db.delete(rec)
+    db.commit()
+    _write_audit(db, "数据删除", "产品宽度", f"删除记录 #{record_id}")
+    return {"ok": True, "message": "已删除"}
+
+
+@router.post("/width-records/batch-delete")
+@require_perm("import_data")
+async def batch_delete_width_records(request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    body = await request.json()
+    ids = body.get("ids", [])
+    if not ids:
+        raise HTTPException(400, "ids 不能为空")
+    deleted = db.query(WidthRecord).filter(
+        WidthRecord.id.in_(ids),
+        WidthRecord.tenant_id == u.get("tenant_id", 1)
+    ).delete(synchronize_session=False)
+    db.commit()
+    _write_audit(db, "批量删除", "产品宽度", f"删除 {deleted} 条记录")
+    return {"ok": True, "deleted": deleted}
+
+
+# ── PotentialCust 单行 CRUD ──
+
+@router.put("/potential-cust/{record_id}")
+@require_perm("import_data")
+async def update_potential_cust(record_id: int, request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    body = await request.json()
+    rec = db.query(PotentialCust).filter(
+        PotentialCust.id == record_id,
+        PotentialCust.tenant_id == u.get("tenant_id", 1)
+    ).first()
+    if not rec:
+        raise HTTPException(404, "记录不存在")
+    for key in ("dept2", "dept3", "dept4", "dept5", "sales", "contact", "product",
+                "cust_name", "user_name", "amount", "amount_prev", "yoy",
+                "qty", "qty_prev", "qty_yoy", "opps", "opps_prev", "opps_yoy",
+                "users", "users_prev", "users_yoy", "period"):
+        if key in body:
+            setattr(rec, key, body.get(key))
+    db.commit()
+    _write_audit(db, "数据编辑", "潜力产品-客户", f"更新记录 #{rec.id}")
+    return {"ok": True, "id": rec.id}
+
+
+@router.delete("/potential-cust/{record_id}")
+@require_perm("import_data")
+def delete_potential_cust_row(record_id: int, request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    rec = db.query(PotentialCust).filter(
+        PotentialCust.id == record_id,
+        PotentialCust.tenant_id == u.get("tenant_id", 1)
+    ).first()
+    if not rec:
+        raise HTTPException(404, "记录不存在")
+    db.delete(rec)
+    db.commit()
+    _write_audit(db, "数据删除", "潜力产品-客户", f"删除记录 #{record_id}")
+    return {"ok": True, "message": "已删除"}
+
+
+@router.post("/potential-cust/batch-delete")
+@require_perm("import_data")
+async def batch_delete_potential_cust(request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    body = await request.json()
+    ids = body.get("ids", [])
+    if not ids:
+        raise HTTPException(400, "ids 不能为空")
+    deleted = db.query(PotentialCust).filter(
+        PotentialCust.id.in_(ids),
+        PotentialCust.tenant_id == u.get("tenant_id", 1)
+    ).delete(synchronize_session=False)
+    db.commit()
+    _write_audit(db, "批量删除", "潜力产品-客户", f"删除 {deleted} 条记录")
+    return {"ok": True, "deleted": deleted}
+
+
+# ── PotentialUser 单行 CRUD ──
+
+@router.put("/potential-user/{record_id}")
+@require_perm("import_data")
+async def update_potential_user(record_id: int, request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    body = await request.json()
+    rec = db.query(PotentialUser).filter(
+        PotentialUser.id == record_id,
+        PotentialUser.tenant_id == u.get("tenant_id", 1)
+    ).first()
+    if not rec:
+        raise HTTPException(404, "记录不存在")
+    for key in ("center", "dept3", "dept4", "dept5", "sales", "contact",
+                "user_name", "industry", "product",
+                "out_amt", "out_amt_prev", "out_yoy",
+                "out_qty", "out_qty_prev", "out_qty_yoy",
+                "opps", "opps_prev", "opps_yoy",
+                "users", "users_prev", "users_yoy",
+                "custs", "custs_prev", "custs_yoy", "period"):
+        if key in body:
+            setattr(rec, key, body.get(key))
+    db.commit()
+    _write_audit(db, "数据编辑", "潜力产品-用户", f"更新记录 #{rec.id}")
+    return {"ok": True, "id": rec.id}
+
+
+@router.delete("/potential-user/{record_id}")
+@require_perm("import_data")
+def delete_potential_user_row(record_id: int, request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    rec = db.query(PotentialUser).filter(
+        PotentialUser.id == record_id,
+        PotentialUser.tenant_id == u.get("tenant_id", 1)
+    ).first()
+    if not rec:
+        raise HTTPException(404, "记录不存在")
+    db.delete(rec)
+    db.commit()
+    _write_audit(db, "数据删除", "潜力产品-用户", f"删除记录 #{record_id}")
+    return {"ok": True, "message": "已删除"}
+
+
+@router.post("/potential-user/batch-delete")
+@require_perm("import_data")
+async def batch_delete_potential_user(request: Request, db: Session = Depends(get_db)):
+    u = scope_user_from_request(request)
+    body = await request.json()
+    ids = body.get("ids", [])
+    if not ids:
+        raise HTTPException(400, "ids 不能为空")
+    deleted = db.query(PotentialUser).filter(
+        PotentialUser.id.in_(ids),
+        PotentialUser.tenant_id == u.get("tenant_id", 1)
+    ).delete(synchronize_session=False)
+    db.commit()
+    _write_audit(db, "批量删除", "潜力产品-用户", f"删除 {deleted} 条记录")
+    return {"ok": True, "deleted": deleted}
