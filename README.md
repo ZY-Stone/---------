@@ -1,40 +1,28 @@
 # 产品分析一体化平台
 
-> 面向产品分析场景的一体化平台，整合产品宽度分析、潜力产品分析、数据导入与决策支持。
+> 面向产品分析场景的一体化平台，整合产品宽度分析、潜力产品分析、数据导入与决策支持，含完整 RBAC 权限和数据隔离。
 
 ---
 
 ## 技术架构
 
-| 层级 | 技术 | 理由 |
-|------|------|------|
-| 前端 | React 18 + TypeScript + Tailwind CSS + ECharts | ECharts 一个 option 对象搞定所有图表类型（折线、漏斗、热力图、双Y轴），AI 生成 JSON 配置比写 React 组件树可靠得多 |
-| 后端 | Python FastAPI + SQLAlchemy 2.0 + Pydantic v2 + Alembic | 类型安全、自动 OpenAPI 文档、AI 对 Python 代码生成一致性最高 |
-| 状态管理 | Zustand | 轻量、TS 友好、无 boilerplate |
-| 数据库（开发） | SQLite | 零配置起步，单文件部署 |
-| 数据库（生产） | PostgreSQL（OLTP）+ ClickHouse（OLAP） | PG 管业务数据，CK 管海量事件聚合查询 |
-| 分析引擎 | SQL 预聚合 → Pandas 深度计算 | SQL 做 COUNT/DISTINCT/分组，Pandas 做留存矩阵、漏斗、趋势预测 |
-| 构建工具 | Vite | 快速 HMR，TypeScript 原生支持 |
+| 层级 | 技术 |
+|------|------|
+| 前端 | Vanilla JS SPA（index.html + app.js + ECharts） |
+| 后端 | Python FastAPI + SQLAlchemy 2.0 + Pydantic v2 |
+| 数据库 | SQLite（开发）→ PostgreSQL + ClickHouse（生产） |
+| 分析引擎 | SQL 预聚合 → Pandas 深度计算 |
 
 ---
 
 ## 快速启动
 
 ```bash
-# 1. 克隆项目
-git clone <repo-url>
-cd 产品分析一体化平台
-
-# 2. 后端
+# 后端
 cd src/backend
 pip install -r requirements.txt
-alembic upgrade head
 python main.py              # → http://localhost:8800
-
-# 3. 前端
-cd src/frontend
-npm install
-npm run dev                 # → http://localhost:5173
+                            # 前端通过 http://localhost:8800/app 访问
 ```
 
 ---
@@ -42,89 +30,101 @@ npm run dev                 # → http://localhost:5173
 ## 项目结构
 
 ```
-产品分析一体化平台/
-├── AGENTS.md                   # AI 开发助手指南
-├── README.md                   # 项目说明（本文件）
-├── docs/                       # 产品文档
-│   ├── decisions/              # 关键决策记录（ADR）
-│   │   └── 2026-07-25-技术架构选型.md
-│   ├── prd/                    # 产品需求文档
-│   └── requirements.md         # 需求总览
-├── assets/                     # 静态资源
-│   ├── design/                 # 设计效果图、UI 参考
-│   ├── bug/                    # 测试报错截图
-│   └── reference/              # 参考图、灵感收集
-├── notes/                      # 学习笔记、踩坑记录
-└── src/
-    ├── frontend/               # React 18 + TypeScript + Tailwind + ECharts
-    │   ├── src/
-    │   │   ├── components/     # 可复用组件（FilterBar, KpiCard, ChartPanel...）
-    │   │   ├── pages/          # 页面级组件
-    │   │   │   ├── Overview/       # 数据总览
-    │   │   │   ├── Width/          # 产品宽度分析
-    │   │   │   ├── Potential/      # 潜力产品分析
-    │   │   │   └── Admin/          # 账号管理
-    │   │   ├── hooks/          # 自定义 Hooks（useFilter, useChart...）
-    │   │   ├── stores/         # Zustand 状态管理
-    │   │   ├── api/            # API 请求层（axios + React Query）
-    │   │   ├── types/          # TypeScript 类型定义
-    │   │   └── utils/          # 工具函数（Excel 解析、字段映射...）
-    │   ├── package.json
-    │   ├── tsconfig.json
-    │   ├── vite.config.ts
-    │   └── tailwind.config.js
-    └── backend/                # FastAPI + SQLAlchemy + Pydantic v2
-        ├── app/
-        │   ├── api/            # 路由层（auth, dashboard, width, potential, admin...）
-        │   ├── models/         # SQLAlchemy ORM 模型
-        │   ├── schemas/        # Pydantic 请求/响应模型
-        │   ├── services/       # 业务逻辑层（聚合计算、导入解析、导出...）
-        │   ├── core/           # 核心配置（config, security, deps...）
-        │   └── utils/          # 工具函数
-        ├── alembic/            # 数据库迁移
-        ├── requirements.txt
-        └── main.py             # FastAPI 入口
+src/
+├── frontend/               # Vanilla JS SPA
+│   ├── index.html          # 4 个页面：总览/宽度/潜力/管理
+│   ├── js/
+│   │   ├── app.js          # 主逻辑（SPA路由、筛选联动、图表渲染、用户CRUD、角色矩阵）
+│   │   ├── core/api.js     # 后端 API 封装（自动 token + mock fallback）
+│   │   ├── data/models.js  # 组织架构、角色权限矩阵、MOCK数据
+│   │   └── ui/sidebar.js   # 侧边栏导航
+│   └── css/                # 样式文件
+└── backend/                # FastAPI
+    ├── main.py             # 入口 + JWT 中间件 + 静态文件托管
+    ├── config.py           # 密钥 / 数据库 / CORS
+    ├── database.py         # SQLAlchemy engine + 自修复加列
+    ├── seed.py             # 虚拟数据 + 角色权限初始化
+    ├── models/             # 9 个 ORM 模型
+    ├── routers/            # 13 个路由模块
+    ├── services/           # 5 个业务服务
+    ├── schemas/            # Pydantic 请求/响应
+    └── utils/              # scope.py(RBAC) + security.py(JWT)
 ```
 
 ---
 
 ## 核心模块
 
-| 模块 | 功能 | 前端路由 | 后端 API 前缀 |
-|------|------|----------|---------------|
-| 数据总览 | KPI 卡片 + 产品宽度/潜力产品趋势图 | `/overview` | `/api/dashboard` |
-| 产品宽度分析 | 7 个维度：总览/产品/团队/客户/用户/分组对比/导入 | `/width` | `/api/width` |
-| 潜力产品分析 | 8 个维度：总览/产品/团队/客户/用户/缺口/导入/AI | `/potential` | `/api/potential` |
-| 账号管理 | 用户/角色/产品字典/审计日志/备份导出 | `/admin` | `/api/admin` |
+| 模块 | 前端 Tab | 后端 API |
+|------|----------|----------|
+| 数据总览 | KPI卡片 + 趋势图 | `/api/dashboard` `/api/analytics` |
+| 产品宽度分析 | 总览/产品/团队/客户/用户/对比/导入/AI | `/api/width` `/api/analytics/width/*` |
+| 潜力产品分析 | 总览/产品/团队/客户/用户/缺口/导入/AI | `/api/potential` `/api/analytics/potential/*` |
+| 账号管理 | 用户管理/角色权限/审计日志 | `/api/admin` `/api/permission` `/api/audit` |
+| 数据备份 | 备份/恢复/下载 | `/api/backup` |
+| 导入导出 | Excel 导入/导出 | `/api/import` `/api/export` |
 
-## 数据库表设计
+---
 
-| 表 | 用途 | 存储引擎 |
-|----|------|----------|
-| `tenants` | 租户信息 | PG |
-| `departments` | 部门组织 | PG |
-| `groups` | 小组组织 | PG |
-| `users` | 用户账号 | PG |
-| `products` | 产品字典 | PG |
-| `sales_width` | 产品宽度销售明细 | PG / CK |
-| `sales_potential` | 潜力产品销售明细 | PG / CK |
-| `import_records` | 导入记录 | PG |
-| `audit_logs` | 审计日志 | PG |
+## RBAC 权限系统
 
-## 数据流
+### 角色（7个）
 
-```
-Excel 上传 → 前端解析（xlsx）→ API 批量写入 → SQLite/PostgreSQL
-    → 后端 services 层预聚合（SQL COUNT/DISTINCT/GROUP BY）
-    → 前端 ECharts 渲染（option 对象）
-    → 筛选器变化 → React Query 重新请求 → ECharts 增量更新
-```
+`admin` → `gm` → `operation` → `director` → `manager` → `interface` → `sales`
 
-## 开发规范
+### 模块权限（10个）
 
-详见 [AGENTS.md](./AGENTS.md)。核心原则：
+`overview` `width` `potential` `users_mgmt` `roles_mgmt` `products_mgmt` `audit_log` `backup` `import_data` `export_data`
 
-- **代码隔离** — 前后端分离，`src/frontend/` 和 `src/backend/` 独立构建部署
-- **文档先行** — 功能开发前先写 PRD / 迭代记录
-- **类型安全** — 前后端均使用 TypeScript / Pydantic 强类型约束
-- **笔记沉淀** — 踩坑必记录，一坑一文
+### 数据范围（4级）
+
+| 范围 | 谁可见 | 适用角色 |
+|------|--------|----------|
+| `all` | 全部数据 | admin / gm / operation |
+| `dept` | 本部门 | director / interface |
+| `group` | 本小组 | manager |
+| `self` | 本人 | sales |
+
+### 前端筛选自动锁定
+
+`populateDeptDropdown` / `populateGrpDropdown` / `populatePersonDropdown` 内置角色判断：
+- admin/gm/operation → 全部可选
+- director/interface → 部门锁定，组内可选
+- manager → 部门+小组锁定，组内人员可选
+- sales → 全部锁定为本人
+
+---
+
+## 数据库表（15个）
+
+| 表 | 用途 |
+|----|------|
+| `tenants` | 租户 |
+| `departments` | 部门组织 |
+| `groups` | 小组组织 |
+| `users` | 用户（含 role / dept_id / group_id） |
+| `products` | 产品字典 |
+| `role_permissions` | 角色权限配置（7角色 × 10模块） |
+| `operation_logs` | 操作日志 |
+| `width_records` | 产品宽度（14字段） |
+| `potential_cust` | 潜力产品-客户维度（21字段） |
+| `potential_user` | 潜力产品-用户维度（23字段） |
+| `sales_width` | 旧版宽度（兼容） |
+| `sales_potential` | 旧版潜力（兼容） |
+| `import_records` | 导入记录 |
+| `periods` | 数据期间 |
+| `audit_logs` | 审计日志 |
+
+---
+
+## 测试账号
+
+| 账号 | 密码 | 角色 | 数据范围 |
+|------|------|------|----------|
+| `admin` | `123456` | 管理员 | 全部 |
+| `guchengcheng` | `123456` | 总经理 | 全部 |
+| `gaowei` | `123456` | 总监 | 客户销售一部 |
+| `wuzhenghao` | `123456` | 总监 | 客户销售二部 |
+| `zhangdongzhu` | `123456` | 主管 | 客户销售一组 |
+| `wenghuanzhi` | `123456` | 接口人 | 客户销售一部 |
+| `liyongzheng` | `123456` | 销售 | 本人 |

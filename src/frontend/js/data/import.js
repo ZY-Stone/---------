@@ -41,12 +41,7 @@ App.ImportData.lookupDept = function(salesName, selfDept) {
 
 // 统一持久化内存数据到 localStorage（缓存层，防止刷新后回退到后端旧数据）
 App.ImportData.persist = function() {
-  // localStorage 持久化（后端不可用时的兜底方案）
-  try {
-    localStorage.setItem('pa_width_user', JSON.stringify(App.ImportData.UserGS || []));
-    localStorage.setItem('pa_width_cust', JSON.stringify(App.ImportData.CustGS || []));
-    localStorage.setItem('pa_width_prods', JSON.stringify(App.ImportData.PRODS || []));
-  } catch(e) {}
+  // 产品数据不存 localStorage，防止数据泄露。每次都从后端 API 拉取。
 };
 
 // 统一规上识别：是/y/yes/true/1/√/✓/对 → '是'，其他 → '否'
@@ -57,15 +52,7 @@ App.ImportData.parseGuishang = function(v) {
 
 App.ImportData.history = [];
 App.ImportData.init = function() {
-  // 优先从 localStorage 恢复（后端不可用时的兜底）
-  try {
-    var savedUser = localStorage.getItem('pa_width_user');
-    if (savedUser) App.ImportData.UserGS = JSON.parse(savedUser);
-    var savedCust = localStorage.getItem('pa_width_cust');
-    if (savedCust) App.ImportData.CustGS = JSON.parse(savedCust);
-    var savedProds = localStorage.getItem('pa_width_prods');
-    if (savedProds) App.ImportData.PRODS = JSON.parse(savedProds);
-  } catch(e) {}
+  // 产品数据不读 localStorage，防止数据泄露。每次都从后端 API 拉取。
 
   // 月份选择器上限设为当前月（不可上传未来月份数据）
   var now = new Date();
@@ -108,7 +95,6 @@ App.ImportData.init = function() {
     App.ImportData.updateTags();
     App.ImportData.renderHistory();
     App.ImportData.render();
-    App.ImportData.persist();  // 写入 localStorage 缓存
     try { App.updateWidth(); } catch(e) {}
     try { App.updatePotential(); } catch(e) {}
     try { App.updateOverview(); } catch(e) {}

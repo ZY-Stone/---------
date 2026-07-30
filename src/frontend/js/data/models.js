@@ -823,7 +823,7 @@ App.ROLE_PERMISSIONS = [
   { role: 'operation', name: '运营',       modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:1, backup:1, export_data:1, import_data:1 }, data_scope: 'all', desc: '全局查看 + 导入导出' },
   { role: 'director',  name: '总监',       modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:0, backup:0, export_data:1, import_data:1 }, data_scope: 'dept', desc: '本部门数据查看' },
   { role: 'manager',   name: '主管',       modules: { overview:1, width:1, potential:1, users_mgmt:1, roles_mgmt:0, audit_log:0, backup:0, export_data:1, import_data:1 }, data_scope: 'group', desc: '本组数据 + 用户管理' },
-  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, users_mgmt:1, roles_mgmt:0, audit_log:0, backup:0, export_data:0, import_data:0 }, data_scope: 'dept', desc: '数据对接 + 用户管理' },
+  { role: 'interface', name: '接口人',     modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:0, backup:0, export_data:0, import_data:0 }, data_scope: 'dept', desc: '数据对接查看' },
   { role: 'sales',     name: '一线销售',   modules: { overview:1, width:1, potential:1, users_mgmt:0, roles_mgmt:0, audit_log:0, backup:0, export_data:0, import_data:0 }, data_scope: 'self', desc: '本人数据查看' }
 ];
 
@@ -986,7 +986,7 @@ App.PERM_MATRIX = {
   operation: ['audit_log','data_backup','data_export','data_import','overview','product_width','potential_product'],
   director:  ['data_export','overview','product_width','potential_product'],
   manager:   ['user_manage','data_export','overview','product_width','potential_product'],
-  interface: ['user_manage','overview','product_width','potential_product'],
+  interface: ['overview','product_width','potential_product'],
   sales:     ['overview','product_width']
 };
 

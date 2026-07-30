@@ -421,7 +421,7 @@ def seed_role_permissions():
         ("operation", "运营",    True,  True,  True,  False, False, False, True,  True,  True,  True,  "all"),
         ("director",  "总监",    True,  True,  True,  False, False, False, False, False, True,  True,  "dept"),
         ("manager",   "主管",    True,  True,  True,  True,  False, False, False, False, True,  True,  "group"),
-        ("interface", "接口人",  True,  True,  True,  True,  False, False, False, False, False, False, "dept"),
+        ("interface", "接口人",  True,  True,  True,  False, False, False, False, False, False, False, "dept"),
         ("sales",     "一线销售",True,  True,  True,  False, False, False, False, False, False, False, "self"),
     ]
 

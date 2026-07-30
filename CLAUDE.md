@@ -6,90 +6,108 @@
 
 | 层 | 技术 |
 |---|------|
-| 前端 | React 18 + TypeScript + Tailwind CSS + ECharts |
-| 状态管理 | Zustand |
+| 前端 | Vanilla JS SPA（index.html + app.js + ECharts + Chart.js） |
 | 后端 | Python FastAPI + SQLAlchemy 2.0 + Pydantic v2 |
 | 数据库 | SQLite（开发）→ PostgreSQL + ClickHouse（生产） |
-| 迁移 | Alembic |
+| 迁移 | Alembic + 启动自修复（`_ensure_columns()`） |
 | 分析 | SQL 预聚合 → Pandas 深度计算 |
+
+## 项目结构（实际）
+
+```
+src/
+├── frontend/              # Vanilla JS SPA（单页应用）
+│   ├── index.html         # 主页面 + 4 个 page div
+│   ├── js/
+│   │   ├── app.js         # 主逻辑（SPA路由、筛选、图表、CRUD、角色权限）
+│   │   ├── core/
+│   │   │   ├── api.js     # 后端 API 封装（自动 token、fallback mock）
+│   │   │   └── config.js  # 字段映射配置
+│   │   ├── data/
+│   │   │   └── models.js  # 组织架构、角色权限、业务参数
+│   │   └── ui/
+│   │       └── sidebar.js # 侧边栏导航
+│   └── css/               # 样式文件
+└── backend/               # FastAPI + SQLAlchemy + Pydantic v2
+    ├── main.py            # FastAPI 入口 + JWT中间件 + 静态文件托管
+    ├── config.py          # SECRET_KEY / DATABASE_URL / CORS
+    ├── database.py        # SQLAlchemy engine + init_db + 自动加列
+    ├── seed.py            # 虚拟数据生成 + seed_role_permissions()
+    ├── models/            # ORM 模型（9个）
+    ├── routers/           # API 路由（13个）
+    ├── services/          # 业务逻辑（5个）
+    ├── schemas/           # Pydantic 请求/响应
+    └── utils/             # scope.py（RBAC）+ security.py（JWT）
+```
 
 ## 规范
 
 - 所有 Python 函数必须有类型注解
 - 所有 API 接口必须有 Pydantic request/response schema
-- 每个分析函数必须配 pytest 测试
 - SQL 只做预聚合，复杂计算交给 Pandas
-- ECharts 图表统一用 option JSON 配置，禁止 Chart.js
-- 数据库迁移只用 Alembic，不手写 DDL
-- 前端组件用 Tailwind CSS，不手写 CSS 文件
-- 组件禁止写死模拟数据，必须从 Zustand Store 读取
-- Store getter 依赖 filterStore → 筛选变化自动重算
-- 导入 Excel 后直接写入 Store → 所有组件自动响应式更新
+- ECharts 图表统一用 option JSON 配置
+- 数据库迁移用 Alembic + `_ensure_columns()` 自修复
+- 前端禁止写死数据，后端不可用时 fallback 到 `App.MOCK_USERS` / `App.ROLE_PERMISSIONS`
+- 导入 Excel 后先写 localStorage 再同步后端
 
-## 项目结构
+## RBAC 权限系统
 
-```
-src/
-├── frontend/           # React 18 + TypeScript + Tailwind + ECharts
-│   └── src/
-│       ├── components/ # 可复用组件
-│       ├── pages/      # 页面组件（Overview/Width/Potential/Admin）
-│       ├── stores/     # Zustand (auth/filter/width/potential)
-│       ├── types/      # TypeScript 类型定义
-│       └── utils/      # Excel解析、字段映射
-├── frontend-v1/        # 旧版 Vanilla JS（参考，不再维护）
-└── backend/            # FastAPI + SQLAlchemy + Pydantic v2
-    └── app/
-        ├── api/        # 路由层（routers/）
-        ├── models/     # ORM 模型
-        ├── schemas/    # Pydantic 请求/响应
-        ├── services/   # 业务逻辑
-        └── core/       # 配置/安全/依赖注入
+### 角色（7个）
+`admin` | `gm` | `operation` | `director` | `manager` | `interface` | `sales`
 
-## 7 轮结构化开发流程（通用方法论）
+### 模块权限（10个）
+`overview` `width` `potential` `users_mgmt` `roles_mgmt` `products_mgmt` `audit_log` `backup` `import_data` `export_data`
 
-适用于前后端分离项目，从需求到联调的全流程。
+### 数据范围（4级）
+`all`（全部）→ `dept`（本部门）→ `group`（本小组）→ `self`（本人）
 
-### 第 1 轮：投喂材料 → 让 AI 理解全貌
-- 提供 PRD 文档、数据库模型、前端页面截图/代码
-- 提供导入模板 Excel、字段映射说明
-- 明确技术栈和硬性约束
-- **输出**: AI 确认理解，提出待澄清问题
+### 后端实现
+- `utils/scope.py` — `require_perm(perm)` 装饰器 + `filter_by_scope(query, model, user)` + `_check_perm()` 缓存
+- `routers/permission.py` — `GET/PUT /api/permission/roles` + `GET /api/permission/my-perms`
+- JWT 中间件注入 `request.state.user`（含 `data_scope`）
+- 每个受保护路由加 `@require_perm("xxx")`
 
-### 第 2 轮：数据映射分析
-- 让 AI 读取前端 Store/类型定义 + 后端模型/API
-- 对比前端期望格式 vs 后端实际返回格式
-- **输出**: 《前后端数据格式映射表》(字段映射、计算字段、联表需求、类型转换)
-- **关键**: 只分析不写代码，确认后再动手
+### 前端实现
+- `App.myPerms` / `App.myDataScope` — 从 `GET /api/permission/my-perms` 加载
+- `App.hasPerm(perm)` — 优先后端数据，fallback `App.PERM_MATRIX`
+- `App.bootstrapPermissions()` — 登录后异步加载权限 → 隐藏无权限菜单/按钮 → 锁定筛选下拉
+- `populateDeptDropdown / populateGrpDropdown / populatePersonDropdown` — 内置角色锁定逻辑
+- `App.guardRoute(pageId)` → `showPage()` 入口校验
 
-### 第 3 轮：开发基础 CRUD（逐个接口）
-- 一次只写一个接口，写完验证通过再下一个
-- 每个接口标注: 前端对应页面/组件、返回示例、N+1 检查
-- 统一错误处理（404/400/500）+ Pydantic Schema 校验
-- **关键**: 返回 JSON 结构必须与前端 mock data 格式兼容
+## 路由清单
 
-### 第 4 轮：开发高级分析 API
-- 趋势分析、聚合统计、联表查询
-- 缺失数据补零、粒度聚合（日/周/月）
-- **输出**: 返回 ECharts/Recharts 兼容的时间序列格式
+| 模块 | 前缀 | 文件 |
+|------|------|------|
+| 认证 | `/api/auth` | `routers/auth.py` |
+| 管理 | `/api/admin` | `routers/admin.py` |
+| 总览 | `/api/dashboard` | `routers/dashboard.py` |
+| 产品宽度 | `/api/width` | `routers/width.py` |
+| 潜力产品 | `/api/potential` | `routers/potential.py` |
+| 潜力查询 | `/api/potential` | `routers/potential_query.py` |
+| 分析 | `/api/analytics` | `routers/analytics.py` |
+| 导入 | `/api/import` | `routers/potential_import.py` + `data_import.py` |
+| 导出 | `/api/export` | `routers/export.py` |
+| 备份 | `/api/backup` | `routers/backup.py` |
+| 审计 | `/api/audit` | `routers/audit.py` |
+| 产品字典 | `/api/products` | `routers/products.py` |
+| 权限管理 | `/api/permission` | `routers/permission.py` |
 
-### 第 5 轮：数据导入功能
-- 支持 .xlsx/.csv multipart 上传
-- Upsert 逻辑（存在更新、不存在插入）
-- 数据校验（必填、类型、范围）+ 错误报告（哪行哪个字段出错）
-- 批量写入 + 事务保护
+## 数据库表（15个）
 
-### 第 6 轮：前端对接层改造
-- 只修改 API 调用层（api/client.ts），不改组件/页面/图表
-- 统一错误处理、loading 状态
-- 保留 mock 开关（环境变量控制），后端不可用时自动回退
-- Store 新增 `refreshFromAPI()` 方法，原有逻辑保持不变
-
-### 第 7 轮：联调与验证
-- 编写自动化验证脚本，覆盖:
-  - 认证、数据查询一致性、趋势正确性、导入功能
-  - 全部 API 端点、管理功能、备份
-  - 性能（列表 <500ms、分析 <2s）
-- **输出**: PASS/FAIL 统计 + 错误排查指南
-- 脚本可反复运行，回归验证
-```
+| 表 | 文件 | 用途 |
+|----|------|------|
+| `tenants` | `models/tenant.py` | 租户 |
+| `departments` | `models/department.py` | 部门 |
+| `groups` | `models/group.py` | 小组 |
+| `users` | `models/user.py` | 用户（含 role/dept_id/group_id） |
+| `products` | `models/product_dict.py` | 产品字典 |
+| `role_permissions` | `models/permission.py` | 角色权限配置 |
+| `operation_logs` | `models/permission.py` | 操作日志 |
+| `width_records` | `models/sales_data.py` | 产品宽度（14字段） |
+| `potential_cust` | `models/sales_data.py` | 潜力产品-客户（21字段） |
+| `potential_user` | `models/sales_data.py` | 潜力产品-用户（23字段） |
+| `sales_width` | `models/sales_data.py` | 旧版宽度（兼容） |
+| `sales_potential` | `models/sales_data.py` | 旧版潜力（兼容） |
+| `import_records` | `models/import_record.py` | 导入记录 |
+| `periods` | `models/import_record.py` | 数据期间 |
+| `audit_logs` | `models/audit_log.py` | 审计日志 |

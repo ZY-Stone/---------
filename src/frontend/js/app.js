@@ -231,7 +231,7 @@ document.addEventListener('click', function(e) {
       setTimeout(function() { App.filterLowWidthUser(); }, 150);
     }
     if (tabName === 'w-import') {
-      App.ImportData.render();
+      App.ImportData.init();   // 每次切到导入Tab都重新从后端拉最新数据
     }
     if (tabName === 'w-ai') {
       if (App.AI && App.AI.init) App.AI.init();
@@ -266,7 +266,7 @@ document.addEventListener('click', function(e) {
       App.renderPotentialUserTab();
     }
     if (tabName === 'p-import') {
-      App.ImportPotential.render();
+      App.ImportPotential.init();   // 每次切到导入Tab都重新从后端拉最新数据
     }
     if (tabName === 'p-ai') {
       if (App.PotAI && App.PotAI.init) App.PotAI.init();
@@ -6394,11 +6394,7 @@ App.API.sendPotUser = async function(rows) {
 App.ImportPotential = App.ImportPotential || {};
 
 App.ImportPotential.persist = function() {
-  // localStorage 持久化（后端不可用时的兜底方案）
-  try {
-    localStorage.setItem('pa_potential_cust', JSON.stringify(App.ImportPotential.CustRAW || []));
-    localStorage.setItem('pa_potential_user', JSON.stringify(App.ImportPotential.UserRAW || []));
-  } catch(e) {}
+  // 产品数据不存 localStorage，防止数据泄露。每次都从后端 API 拉取最新数据。
 };
 
 App.ImportPotential.init = function() {
@@ -6415,20 +6411,12 @@ App.ImportPotential.init = function() {
     if (sh) App.ImportPotential.history = JSON.parse(sh);
   } catch(e) { App.ImportPotential.history = []; }
 
-  // 优先从 localStorage 恢复数据（后端不可用时的兜底）
-  try {
-    var savedCust = localStorage.getItem('pa_potential_cust');
-    if (savedCust) App.ImportPotential.CustRAW = JSON.parse(savedCust);
-    var savedUser = localStorage.getItem('pa_potential_user');
-    if (savedUser) App.ImportPotential.UserRAW = JSON.parse(savedUser);
-  } catch(e) {}
-
-  // 从后端 API 拉取已导入数据（会覆盖 localStorage 的数据）
+  // 从后端 API 拉取数据（不读 localStorage，防止数据泄露和权限绕过）
   fetch('/api/import/potential-cust').then(function(r){return r.json();}).then(function(d){
-    if (d.rows && d.rows.length > 0) { App.ImportPotential.CustRAW = d.rows; App.ImportPotential.persist(); }
+    if (d.rows && d.rows.length > 0) { App.ImportPotential.CustRAW = d.rows; }
   }).catch(function(){}).finally(function(){
     return fetch('/api/import/potential-user').then(function(r){return r.json();}).then(function(d){
-      if (d.rows && d.rows.length > 0) { App.ImportPotential.UserRAW = d.rows; App.ImportPotential.persist(); }
+      if (d.rows && d.rows.length > 0) { App.ImportPotential.UserRAW = d.rows; }
     }).catch(function(){});
   }).finally(function(){
     var deptSel = document.getElementById('pImportDeptFilter');
