@@ -1075,36 +1075,8 @@ function _applyPermissionUI(role, user) {
     expBtns.forEach(function(b) { b.style.display = 'none'; });
   }
 
-  // ── 角色级锁定顶部筛选下拉 ──
-  var scope = App.myDataScope || 'all';
-  ['page-overview','page-width','page-potential'].forEach(function(pageId) {
-    var teamSel  = document.querySelector('#' + pageId + ' .filter-dept');
-    var groupSel = document.querySelector('#' + pageId + ' .filter-group-sel');
-    var personSel = document.querySelector('#' + pageId + ' .filter-person');
-
-    if (scope === 'dept') {
-      // director / interface: 部门锁定
-      if (teamSel && user.dept) { teamSel.value = user.dept; teamSel.disabled = true; }
-    }
-    if (scope === 'group') {
-      // manager: 部门和小组锁定
-      if (teamSel && user.dept) { teamSel.value = user.dept; teamSel.disabled = true; }
-      if (groupSel && user.group) { groupSel.value = user.group; groupSel.disabled = true; }
-    }
-    if (scope === 'self') {
-      // sales: 全部锁定，个人锁定
-      if (teamSel) teamSel.disabled = true;
-      if (groupSel) groupSel.disabled = true;
-      if (personSel && user.username) personSel.value = user.username;
-    }
-  });
-
-  // ── 刷新下拉选项 ──
-  ['page-overview','page-width','page-potential'].forEach(function(pageId) {
-    App.populateDeptDropdown(pageId);
-    App.populateGrpDropdown(pageId);
-    App.populatePersonDropdown(pageId);
-  });
+  // ── 刷新筛选下拉（populateDeptDropdown 内部已根据 role 自动锁定）──
+  App.refreshAllPageFilters();
 }
 
 // 登出清理

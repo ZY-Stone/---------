@@ -110,43 +110,31 @@ App.applyRoleUI = function(role, displayName, dept, group) {
 // 根据角色立即锁定筛选下拉（在 admin/gm/operation 之外锁定）
 function _lockFilterDropdowns(role, dept, group) {
   var user = App.loggedInUser || {};
+
+  // 全量权限：直接填充，不锁定
+  if (role === 'admin' || role === 'gm' || role === 'operation') {
+    App.refreshAllPageFilters();
+    return;
+  }
+
   ['page-overview','page-width','page-potential'].forEach(function(pageId) {
     var teamSel  = document.querySelector('#' + pageId + ' .filter-dept');
     var groupSel = document.querySelector('#' + pageId + ' .filter-group-sel');
     var personSel = document.querySelector('#' + pageId + ' .filter-person');
 
-    if (role === 'admin' || role === 'gm' || role === 'operation') {
-      // 全量权限：所有下拉可选，不锁定
-      App.populateDeptDropdown(pageId);
-      App.populateGrpDropdown(pageId);
-      App.populatePersonDropdown(pageId);
-      return;
-    }
-
-    // 部门锁定：director / interface / manager / sales 只能看自己部门
     if (teamSel && dept && dept !== '-' && dept !== 'undefined') {
       teamSel.value = dept;
       teamSel.disabled = true;
     }
-
-    // 小组锁定：manager 锁定到自己的组；director/interface 看到部门内所有组
-    if (role === 'manager') {
-      if (groupSel && group) {
-        groupSel.value = group;
-        groupSel.disabled = true;
-      }
+    if (role === 'manager' && groupSel && group) {
+      groupSel.value = group;
+      groupSel.disabled = true;
     }
-
-    // 个人锁定：sales 只能看自己
     if (role === 'sales') {
       if (groupSel) groupSel.disabled = true;
-      if (personSel && user.username) {
-        personSel.value = user.username;
-        personSel.disabled = true;
-      }
+      if (personSel && user.username) { personSel.value = user.username; personSel.disabled = true; }
     }
 
-    // 填充过滤后的下拉选项
     App.populateDeptDropdown(pageId);
     App.populateGrpDropdown(pageId);
     App.populatePersonDropdown(pageId);
@@ -634,6 +622,15 @@ App.initPageFilters = function(pageId) {
   App.populateDeptDropdown(pageId);
   App.populateGrpDropdown(pageId);
   App.populatePersonDropdown(pageId);
+};
+
+// 刷新所有页面的筛选下拉（权限变更后统一调用）
+App.refreshAllPageFilters = function() {
+  ['page-overview','page-width','page-potential'].forEach(function(pageId) {
+    App.populateDeptDropdown(pageId);
+    App.populateGrpDropdown(pageId);
+    App.populatePersonDropdown(pageId);
+  });
 };
 
 // ===== 日期范围选择器 =====
