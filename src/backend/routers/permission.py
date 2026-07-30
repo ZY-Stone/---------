@@ -18,6 +18,7 @@ PERM_FIELDS = frozenset([
 ])
 
 SERIALIZE_FIELDS = list(PERM_FIELDS) + ["data_scope"]
+SERIALIZE_FIELDS = ["role", "role_name"] + SERIALIZE_FIELDS
 
 
 class RolePermUpdate(BaseModel):
